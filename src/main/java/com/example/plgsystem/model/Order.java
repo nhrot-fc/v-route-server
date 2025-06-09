@@ -131,4 +131,26 @@ public class Order extends Stop {
             glpRequest,
             position.toString());
     }
+
+    //SETTERS para el CSV
+    public void setId(String id) {
+        this.id = id;
+    }
+    
+    public void setArriveDate(LocalDateTime arriveDate) {
+        this.arriveDate = arriveDate;
+    }
+    
+    public void setDueDate(LocalDateTime dueDate) {
+        this.dueDate = dueDate;
+    }
+    
+    public void setGlpRequest(double glpRequest) {
+        this.glpRequest = glpRequest;
+    }
+    
+    public void setStatus(OrderStatus status) {
+        this.status = status;
+    }
+    
 }

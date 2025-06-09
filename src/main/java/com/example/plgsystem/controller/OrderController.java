@@ -3,6 +3,8 @@ package com.example.plgsystem.controller;
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.OrderStatus;
 import com.example.plgsystem.repository.OrderRepository;
+import com.example.plgsystem.service.CSVService;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -13,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,6 +28,9 @@ public class OrderController {
 
     @Autowired
     private OrderRepository orderRepository;
+    @Autowired
+    private CSVService csvService;
+
 
     @Operation(summary = "Obtener todas las órdenes", description = "Retorna la lista completa de órdenes registradas")
     @ApiResponses(value = {
@@ -172,5 +178,22 @@ public class OrderController {
             @PathVariable("status") OrderStatus status) {
         return orderRepository.findByStatus(status);
     }
+
+    @Operation(summary = "Cargar órdenes desde archivo CSV", description = "Carga un archivo CSV con órdenes y las guarda en la base de datos")
+@ApiResponses(value = {
+    @ApiResponse(responseCode = "200", description = "Órdenes importadas correctamente"),
+    @ApiResponse(responseCode = "400", description = "Error al procesar el archivo")
+})
+@PostMapping("/import-csv")
+public ResponseEntity<String> importOrdersFromCSV(@RequestParam("file") MultipartFile file) {
+    try {
+        List<Order> orders = csvService.parseCSV(file);
+        orderRepository.saveAll(orders);
+        return ResponseEntity.ok("Órdenes importadas correctamente: " + orders.size());
+    } catch (Exception e) {
+        return ResponseEntity.badRequest().body("Error al procesar el archivo: " + e.getMessage());
+    }
+}
+
     
 }
