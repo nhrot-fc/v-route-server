@@ -160,8 +160,17 @@ public class OrderController {
         return ResponseEntity.notFound().build();
     }
 
+    @Operation(summary = "Obtener órdenes por estado", description = "Retorna todas las órdenes con un estado específico (PENDING, COMPLETED, OVERDUE, etc.)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Órdenes obtenidas exitosamente",
+                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class))),
+        @ApiResponse(responseCode = "400", description = "Estado inválido")
+    })
     @GetMapping("/status/{status}")
-    public List<Order> getOrdersByStatus(@PathVariable("status") OrderStatus status) {
+    public List<Order> getOrdersByStatus(
+            @Parameter(description = "Estado de la orden (ej: PENDING, COMPLETED, OVERDUE)", example = "PENDING")
+            @PathVariable("status") OrderStatus status) {
         return orderRepository.findByStatus(status);
     }
+    
 }
