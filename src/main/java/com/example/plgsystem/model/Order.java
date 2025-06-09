@@ -37,6 +37,9 @@ public class Order extends Stop {
     @JsonProperty("remainingGLP")
     private double remainingGLP;
 
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
+
     public Order(String id, LocalDateTime arriveDate, LocalDateTime dueDate, double GLPRequest, Position position) {
         super(position);
         this.id = id;

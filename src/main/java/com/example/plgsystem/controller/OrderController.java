@@ -1,6 +1,7 @@
 package com.example.plgsystem.controller;
 
 import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.OrderStatus;
 import com.example.plgsystem.repository.OrderRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -157,5 +158,10 @@ public class OrderController {
             return ResponseEntity.ok().build();
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/status/{status}")
+    public List<Order> getOrdersByStatus(@PathVariable("status") OrderStatus status) {
+        return orderRepository.findByStatus(status);
     }
 }

@@ -1,6 +1,8 @@
 package com.example.plgsystem.repository;
 
 import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.OrderStatus;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -46,4 +48,6 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     List<Order> findOrdersByRadius(@Param("centerX") int centerX, 
                                  @Param("centerY") int centerY, 
                                  @Param("radius") double radius);
+
+     List<Order> findByStatus(OrderStatus status);  
 }
