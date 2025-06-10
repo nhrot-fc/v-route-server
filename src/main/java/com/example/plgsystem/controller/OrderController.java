@@ -31,12 +31,10 @@ public class OrderController {
     @Autowired
     private CSVService csvService;
 
-
     @Operation(summary = "Obtener todas las órdenes", description = "Retorna la lista completa de órdenes registradas")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Lista de órdenes obtenida exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Order.class)) })
+            @ApiResponse(responseCode = "200", description = "Lista de órdenes obtenida exitosamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class)) })
     })
     @GetMapping
     public List<Order> getAllOrders() {
@@ -45,17 +43,16 @@ public class OrderController {
 
     @Operation(summary = "Obtener orden por ID", description = "Retorna una orden específica")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Orden encontrada",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Order.class)) }),
-        @ApiResponse(responseCode = "404", description = "Orden no encontrada")
+            @ApiResponse(responseCode = "200", description = "Orden encontrada", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class)) }),
+            @ApiResponse(responseCode = "404", description = "Orden no encontrada")
     })
     @GetMapping("/{id}")
     public ResponseEntity<Order> getOrderById(
             @Parameter(description = "ID de la orden") @PathVariable String id) {
         Optional<Order> order = orderRepository.findById(id);
         return order.map(ResponseEntity::ok)
-                   .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @Operation(summary = "Obtener órdenes pendientes", description = "Retorna todas las órdenes que están pendientes de entrega")
@@ -79,17 +76,15 @@ public class OrderController {
     @Operation(summary = "Obtener órdenes urgentes", description = "Retorna órdenes que deben ser entregadas en las próximas horas")
     @GetMapping("/urgent")
     public List<Order> getUrgentOrders(
-            @Parameter(description = "Horas hacia adelante para considerar urgente") 
-            @RequestParam(defaultValue = "4") int hoursAhead) {
+            @Parameter(description = "Horas hacia adelante para considerar urgente") @RequestParam(defaultValue = "4") int hoursAhead) {
         LocalDateTime deadline = LocalDateTime.now().plusHours(hoursAhead);
         return orderRepository.findUrgentOrders(deadline);
     }
 
     @Operation(summary = "Crear nueva orden", description = "Registra una nueva orden en el sistema")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Orden creada exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Order.class)) })
+            @ApiResponse(responseCode = "200", description = "Orden creada exitosamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class)) })
     })
     @PostMapping
     public Order createOrder(@RequestBody Order order) {
@@ -98,25 +93,24 @@ public class OrderController {
 
     @Operation(summary = "Registrar entrega", description = "Registra la entrega de una cantidad específica de GLP para una orden")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Entrega registrada exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Order.class)) }),
-        @ApiResponse(responseCode = "400", description = "Cantidad de entrega inválida"),
-        @ApiResponse(responseCode = "404", description = "Orden no encontrada")
+            @ApiResponse(responseCode = "200", description = "Entrega registrada exitosamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class)) }),
+            @ApiResponse(responseCode = "400", description = "Cantidad de entrega inválida"),
+            @ApiResponse(responseCode = "404", description = "Orden no encontrada")
     })
     @PutMapping("/{id}/deliver")
     public ResponseEntity<Order> recordDelivery(
-            @Parameter(description = "ID de la orden") @PathVariable String id, 
+            @Parameter(description = "ID de la orden") @PathVariable String id,
             @Parameter(description = "Volumen entregado") @RequestParam("amount") double deliveredVolume) {
         Optional<Order> optionalOrder = orderRepository.findById(id);
         if (optionalOrder.isPresent()) {
             Order order = optionalOrder.get();
-            
+
             // Check if trying to deliver more than remaining
             if (deliveredVolume > order.getRemainingGLP()) {
                 return ResponseEntity.badRequest().build();
             }
-            
+
             order.recordDelivery(deliveredVolume, LocalDateTime.now());
             Order updatedOrder = orderRepository.save(order);
             return ResponseEntity.ok(updatedOrder);
@@ -127,7 +121,7 @@ public class OrderController {
     @Operation(summary = "Obtener órdenes por rango de fechas", description = "Retorna órdenes en un rango de fechas específico")
     @GetMapping("/date-range")
     public List<Order> getOrdersByDateRange(
-            @Parameter(description = "Fecha de inicio (ISO 8601)") @RequestParam String startDate, 
+            @Parameter(description = "Fecha de inicio (ISO 8601)") @RequestParam String startDate,
             @Parameter(description = "Fecha de fin (ISO 8601)") @RequestParam String endDate) {
         LocalDateTime start = LocalDateTime.parse(startDate);
         LocalDateTime end = LocalDateTime.parse(endDate);
@@ -145,16 +139,16 @@ public class OrderController {
     @Operation(summary = "Obtener órdenes por radio", description = "Retorna órdenes dentro de un radio específico desde una posición")
     @GetMapping("/radius")
     public List<Order> getOrdersByRadius(
-            @Parameter(description = "Coordenada X del centro") @RequestParam int x, 
-            @Parameter(description = "Coordenada Y del centro") @RequestParam int y, 
+            @Parameter(description = "Coordenada X del centro") @RequestParam int x,
+            @Parameter(description = "Coordenada Y del centro") @RequestParam int y,
             @Parameter(description = "Radio de búsqueda") @RequestParam double radius) {
         return orderRepository.findOrdersByRadius(x, y, radius);
     }
 
     @Operation(summary = "Eliminar orden", description = "Elimina una orden del sistema")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Orden eliminada exitosamente"),
-        @ApiResponse(responseCode = "404", description = "Orden no encontrada")
+            @ApiResponse(responseCode = "200", description = "Orden eliminada exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Orden no encontrada")
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteOrder(
@@ -168,32 +162,29 @@ public class OrderController {
 
     @Operation(summary = "Obtener órdenes por estado", description = "Retorna todas las órdenes con un estado específico (PENDING, COMPLETED, OVERDUE, etc.)")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Órdenes obtenidas exitosamente",
-                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class))),
-        @ApiResponse(responseCode = "400", description = "Estado inválido")
+            @ApiResponse(responseCode = "200", description = "Órdenes obtenidas exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class))),
+            @ApiResponse(responseCode = "400", description = "Estado inválido")
     })
     @GetMapping("/status/{status}")
     public List<Order> getOrdersByStatus(
-            @Parameter(description = "Estado de la orden (ej: PENDING, COMPLETED, OVERDUE)", example = "PENDING")
-            @PathVariable("status") OrderStatus status) {
+            @Parameter(description = "Estado de la orden (ej: PENDING, COMPLETED, OVERDUE)", example = "PENDING") @PathVariable("status") OrderStatus status) {
         return orderRepository.findByStatus(status);
     }
 
     @Operation(summary = "Cargar órdenes desde archivo CSV", description = "Carga un archivo CSV con órdenes y las guarda en la base de datos")
-@ApiResponses(value = {
-    @ApiResponse(responseCode = "200", description = "Órdenes importadas correctamente"),
-    @ApiResponse(responseCode = "400", description = "Error al procesar el archivo")
-})
-@PostMapping("/import-csv")
-public ResponseEntity<String> importOrdersFromCSV(@RequestParam("file") MultipartFile file) {
-    try {
-        List<Order> orders = csvService.parseCSV(file);
-        orderRepository.saveAll(orders);
-        return ResponseEntity.ok("Órdenes importadas correctamente: " + orders.size());
-    } catch (Exception e) {
-        return ResponseEntity.badRequest().body("Error al procesar el archivo: " + e.getMessage());
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Órdenes importadas correctamente"),
+            @ApiResponse(responseCode = "400", description = "Error al procesar el archivo")
+    })
+    @PostMapping("/import-csv")
+    public ResponseEntity<String> importOrdersFromCSV(@RequestParam("file") MultipartFile file) {
+        try {
+            List<Order> orders = csvService.parseCSV(file);
+            orderRepository.saveAll(orders);
+            return ResponseEntity.ok("Órdenes importadas correctamente: " + orders.size());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error al procesar el archivo: " + e.getMessage());
+        }
     }
-}
 
-    
 }

@@ -15,13 +15,20 @@ public class Order extends Stop {
     // immutable attributes
     @Id
     private String id;
-    
+
+    @PrePersist
+    public void generateId() {
+        if (this.id == null) {
+            this.id = java.util.UUID.randomUUID().toString();
+        }
+    }
+
     @Column(name = "arrive_date", nullable = false)
     private LocalDateTime arriveDate;
-    
+
     @Column(name = "due_date", nullable = false)
     private LocalDateTime dueDate;
-    
+
     @Column(name = "glp_request", nullable = false)
     @JsonProperty("glpRequest")
     private double glpRequest;
@@ -31,7 +38,7 @@ public class Order extends Stop {
     @Setter
     @JsonProperty("deliveryDate")
     private LocalDateTime deliveryDate;
-    
+
     @Column(name = "remaining_glp", nullable = false)
     @Setter
     @JsonProperty("remainingGLP")
@@ -117,40 +124,40 @@ public class Order extends Stop {
     public String toString() {
         // Only mark as "✅" (completed) if actually fully delivered
         String deliveryStatus = (remainingGLP < Constants.EPSILON) ? "✅" : "⏳";
-        
+
         // Add a warning indicator for partially delivered orders
         if (remainingGLP > Constants.EPSILON && (glpRequest - remainingGLP > Constants.EPSILON)) {
             deliveryStatus = "⚠️"; // Partially delivered
         }
-        
+
         // Format requested/delivered amounts
-        return String.format("🚚 Order-%s %s [%.1f/%.1f m³] 📍%s", 
-            id, 
-            deliveryStatus,
-            glpRequest - remainingGLP, 
-            glpRequest,
-            position.toString());
+        return String.format("🚚 Order-%s %s [%.1f/%.1f m³] 📍%s",
+                id,
+                deliveryStatus,
+                glpRequest - remainingGLP,
+                glpRequest,
+                position.toString());
     }
 
-    //SETTERS para el CSV
+    // SETTERS para el CSV
     public void setId(String id) {
         this.id = id;
     }
-    
+
     public void setArriveDate(LocalDateTime arriveDate) {
         this.arriveDate = arriveDate;
     }
-    
+
     public void setDueDate(LocalDateTime dueDate) {
         this.dueDate = dueDate;
     }
-    
+
     public void setGlpRequest(double glpRequest) {
         this.glpRequest = glpRequest;
     }
-    
+
     public void setStatus(OrderStatus status) {
         this.status = status;
     }
-    
+
 }
