@@ -35,6 +35,7 @@ public class VehicleController {
     })
     @GetMapping
     public List<Vehicle> getAllVehicles() {
+        System.out.println("Fetching all vehicles from the repository");
         return vehicleRepository.findAll();
     }
 
