@@ -1,19 +1,23 @@
 ########################################
 # Stage 1 – BUILD
 ########################################
-FROM gradle:8.5-jdk21-alpine AS builder  
-# build context is /app
+FROM gradle:8.5-jdk21-alpine AS builder
 WORKDIR /app
 
-# Copy build files first to leverage cache
+# 1. Copiar archivos de build
 COPY build.gradle settings.gradle gradlew gradlew.bat ./
 COPY gradle ./gradle
 
+# 2. Hacer ejecutable el wrapper  ⬅️  NEW
+RUN chmod +x gradlew
+
+# 3. Descargar dependencias (aprovecha caché)
 RUN ./gradlew --no-daemon build -x test || true
 
-# Copy source code
+# 4. Copiar el resto del código
 COPY src ./src
 
+# 5. Compilar el JAR “fat”
 RUN ./gradlew --no-daemon clean bootJar
 
 ########################################
