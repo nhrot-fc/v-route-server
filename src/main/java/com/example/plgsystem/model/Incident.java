@@ -1,113 +1,108 @@
 package com.example.plgsystem.model;
-
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.Duration;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.NoArgsConstructor;
 
-@Entity
-@Table(name = "incidents")
-@Getter
-@Setter
-@NoArgsConstructor
+/**
+ * Represents a vehicle incident (breakdown/malfunction) that can occur during operations.
+ * According to the README, incidents can happen during routes and have different types with
+ * different effects on vehicle availability.
+ */
 public class Incident {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
-    
-    @Column(name = "vehicle_id", nullable = false)
-    private String vehicleId;
-    
-    @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
-    private IncidentType type;
-    
-    @Column(name = "occurrence_time", nullable = false)
+    private final String vehicleId;
+    private final IncidentType type;
+    private final Shift shift;
     private LocalDateTime occurrenceTime;
-    
-    @Column(name = "resolution_time")
-    private LocalDateTime resolutionTime; // Time when vehicle is available again
-    
-    @Embedded
-    @AttributeOverrides({
-        @AttributeOverride(name = "x", column = @Column(name = "location_x")),
-        @AttributeOverride(name = "y", column = @Column(name = "location_y"))
-    })
     private Position location;
-    
-    @Column(name = "on_site_immobilization_duration")
-    private Duration onSiteImmobilizationDuration;
-    
-    @Column(name = "workshop_repair_duration")
-    private Duration workshopRepairDuration; // Actual time spent in workshop
+    private boolean resolved = false;
+    private double transferableGlp = 0;
 
-    // Additional fields for test compatibility
-    @Column(name = "description")
-    private String description;
-    
-    @Column(name = "resolved")
-    private Boolean resolved;
-
-    public Incident(String id, String vehicleId, IncidentType type, LocalDateTime occurrenceTime, Position location) {
-        this.id = id;
+    /**
+     * Creates a new incident for a vehicle in a specific shift.
+     *
+     * @param vehicleId The ID of the vehicle affected by the incident
+     * @param type The type of incident
+     * @param shift The shift when the incident occurs
+     */
+    public Incident(String vehicleId, IncidentType type, Shift shift) {
         this.vehicleId = vehicleId;
         this.type = type;
-        this.occurrenceTime = occurrenceTime;
-        this.location = location;
-
-        switch (type) {
-            case TYPE_1:
-                this.onSiteImmobilizationDuration = Duration.ofHours(Constants.INCIDENT_TYPE_1_IMMOBILIZATION_HOURS);
-                this.workshopRepairDuration = Duration.ZERO;
-                this.resolutionTime = occurrenceTime.plus(this.onSiteImmobilizationDuration);
-                break;
-            case TYPE_2: // Map MECHANICAL_FAILURE to TYPE_2 logic
-                this.onSiteImmobilizationDuration = Duration.ofHours(Constants.INCIDENT_TYPE_2_IMMOBILIZATION_HOURS);
-                LocalDateTime vehicleReadyForWorkshop = occurrenceTime.plus(this.onSiteImmobilizationDuration);
-                
-                LocalTime occurrenceLocalTime = occurrenceTime.toLocalTime();
-                Shift occurrenceShift = Shift.getShiftForTime(occurrenceLocalTime);
-                LocalDateTime availabilityTime;
-
-                if (occurrenceShift == Shift.T1) { // Occurs in T1
-                    availabilityTime = LocalDateTime.of(occurrenceTime.toLocalDate(), Shift.T3.getStartTime());
-                } else if (occurrenceShift == Shift.T2) { // Occurs in T2
-                    availabilityTime = LocalDateTime.of(occurrenceTime.toLocalDate().plusDays(1), Shift.T1.getStartTime());
-                } else { // Occurs in T3 (occurrenceShift == Shift.T3)
-                    availabilityTime = LocalDateTime.of(occurrenceTime.toLocalDate().plusDays(1), Shift.T2.getStartTime());
-                }
-                // Ensure availability time is after vehicle is ready for workshop
-                if (availabilityTime.isBefore(vehicleReadyForWorkshop)) {
-                    // This can happen if T3 starts late and vehicle is ready earlier
-                    // Example: Incident in T1 @ 7:00, immobilised 2h (ready 9:00). Available T3 (16:00).
-                    // Example: Incident in T3 @ 23:00, immobilised 2h (ready Day+1 01:00). Available Day+1 T2 (08:00).
-                    // The logic above generally holds.
-                }
-                this.resolutionTime = availabilityTime;
-                this.workshopRepairDuration = Duration.between(vehicleReadyForWorkshop, this.resolutionTime);
-                if (this.workshopRepairDuration.isNegative()) this.workshopRepairDuration = Duration.ZERO; // Should not happen with correct shift logic
-                break;
-            case TYPE_3: // Map ACCIDENT to TYPE_3 logic
-                this.onSiteImmobilizationDuration = Duration.ofHours(Constants.INCIDENT_TYPE_3_IMMOBILIZATION_HOURS);
-                LocalDateTime vehicleReadyForWorkshop3 = occurrenceTime.plus(this.onSiteImmobilizationDuration);
-                
-                // Available start of T1 on day A+3
-                this.resolutionTime = LocalDateTime.of(occurrenceTime.toLocalDate().plusDays(3), Shift.T1.getStartTime());
-                this.workshopRepairDuration = Duration.between(vehicleReadyForWorkshop3, this.resolutionTime);
-                 if (this.workshopRepairDuration.isNegative()) this.workshopRepairDuration = Duration.ZERO;
-                break;
-        }
+        this.shift = shift;
     }
 
-    // Alias methods for test compatibility
-    public LocalDateTime getTimestamp() { return occurrenceTime; }
-    public void setTimestamp(LocalDateTime timestamp) { this.occurrenceTime = timestamp; }
-    public Position getPosition() { return location; }
-    public void setPosition(Position position) { this.location = position; }
-    public boolean isResolved() { return resolved != null && resolved; }
+    public String getVehicleId() {
+        return vehicleId;
+    }
 
-    // Removed setters for resolutionTime and workshopDuration as they are now fully calculated in constructor
+    public IncidentType getType() {
+        return type;
+    }
+
+    public Shift getShift() {
+        return shift;
+    }
+
+    public LocalDateTime getOccurrenceTime() {
+        return occurrenceTime;
+    }
+
+    public void setOccurrenceTime(LocalDateTime occurrenceTime) {
+        this.occurrenceTime = occurrenceTime;
+    }
+
+    public Position getLocation() {
+        return location;
+    }
+
+    public void setLocation(Position location) {
+        this.location = location;
+    }
+
+    public boolean isResolved() {
+        return resolved;
+    }
+
+    public void setResolved() {
+        this.resolved = true;
+    }
+
+    public double getTransferableGlp() {
+        return transferableGlp;
+    }
+
+    public void setTransferableGlp(double transferableGlp) {
+        this.transferableGlp = transferableGlp;
+    }
+
+    public LocalDateTime calculateAvailabilityTime() {
+        if (occurrenceTime == null) {
+            return null;
+        }
+        LocalDateTime availabilityTime = occurrenceTime.plusHours(type.getImmobilizationHours());
+        if (type.getRepairHours() > 0) {
+            availabilityTime = availabilityTime.plusHours(type.getRepairHours());
+        }
+        return availabilityTime;
+    }
+
+    public boolean requiresReturnToDepot() {
+        return type.mustReturnToDepot();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Incident [").append(vehicleId).append(", ").append(type).append(", ").append(shift);
+
+        if (occurrenceTime != null) {
+            sb.append(", Occurred at: ").append(occurrenceTime);
+            sb.append(", Location: ").append(location);
+            sb.append(", Available at: ").append(calculateAvailabilityTime());
+            sb.append(", Transferable GLP: ").append(transferableGlp).append(" m³");
+            sb.append(", Status: ").append(resolved ? "Resolved" : "Active");
+        } else {
+            sb.append(", Not yet occurred");
+        }
+
+        sb.append("]");
+        return sb.toString();
+    }
 }

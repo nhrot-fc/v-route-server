@@ -4,27 +4,44 @@ import lombok.Getter;
 import lombok.AllArgsConstructor;
 
 @Getter
-@AllArgsConstructor
-
 public enum VehicleType {
-    TA(25.0, 2.5, 12.5), // capacityM3, tareWeightTon, maxGlpWeightTon
-    TB(15.0, 2.0, 7.5),
-    TC(10.0, 1.5, 5.0),
-    TD(5.0, 1.0, 2.5);
+    TA(25.0, 2.5, 12.5, 25.0),
+    TB(15.0, 2.0, 7.5, 15.0),
+    TC(10.0, 1.5, 5.0, 10.0),
+    TD(5.0, 1.0, 2.5, 5.0);
 
-    private final double glpCapacity;
+    private final double capacityM3;
     private final double tareWeightTon;
-    private final double maxGlpWeightTon; // Weight of GLP when tank is full
+    private final double maxGlpWeightTon;
+    private final double glpCapacity;
 
-    public double getCombinedWeightWhenFullTon() {
-        return this.tareWeightTon + this.maxGlpWeightTon;
+    VehicleType(double capacityM3, double tareWeightTon, double maxGlpWeightTon, double glpCapacity) {
+        this.capacityM3 = capacityM3;
+        this.tareWeightTon = tareWeightTon;
+        this.maxGlpWeightTon = maxGlpWeightTon;
+        this.glpCapacity = glpCapacity;
     }
 
-    // GLP density: e.g., TA: 12.5 Ton / 25 m³ = 0.5 Ton/m³
-    // This density is consistent across all vehicle types based on README data.
+    public double getCombinedWeightWhenFullTon() {
+        return tareWeightTon + maxGlpWeightTon;
+    }
+
     public static final double GLP_DENSITY_TON_PER_M3 = 0.5;
 
     public double convertGlpM3ToTon(double glpM3) {
         return glpM3 * GLP_DENSITY_TON_PER_M3;
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s [🚚 %.1f t | 🛢️ %.0f m³]",
+                name(),
+                tareWeightTon,
+                capacityM3);
+    }
+
+    public double getGlpCapacity() {
+    return this.glpCapacity;
+}
+
 }
