@@ -1,113 +1,141 @@
 package com.example.plgsystem.model;
+
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import jakarta.persistence.*;
+import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 
+/**
+ * Representa un mantenimiento programado para un vehículo
+ */
 @Entity
 @Table(name = "maintenances")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-public class Maintenance {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Maintenance implements Serializable {
+    
+    private static final long serialVersionUID = 1L;
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
+    
     @Column(name = "vehicle_id", nullable = false)
     private String vehicleId;
-
-    @Column(name = "start_date", nullable = false)
-    private LocalDateTime startDate;
-
-    @Column(name = "end_date")
-    private LocalDateTime endDate;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
-    private MaintenanceType type; // PREVENTIVE, CORRECTIVE
-
-    @Column(name = "description")
-    private String description;
-
-    @Column(name = "completed", nullable = false)
-    private boolean completed;
-
-    @Column(name = "scheduled_date")
-    private LocalDateTime scheduledDate;
-
-    @Column(name = "repeat_months")
-    private int repeatMonths = 2; // Default bimonthly repetition
-
-    public Maintenance(String vehicleId, LocalDate date, MaintenanceType type) {
+    
+    @Column(name = "assigned_date", nullable = false)
+    private LocalDate assignedDate;
+    
+    @Column(name = "real_start")
+    @Setter
+    private LocalDateTime realStart;
+    
+    @Column(name = "real_end")
+    @Setter
+    private LocalDateTime realEnd;
+    
+    /**
+     * Constructor principal para crear un nuevo mantenimiento
+     */
+    public Maintenance(String vehicleId, LocalDate assignedDate) {
         this.vehicleId = vehicleId;
-        this.startDate = date.atStartOfDay();
-        this.endDate = date.atTime(LocalTime.MAX);
-        this.type = type;
-        this.completed = false;
-        this.repeatMonths = 2;
+        this.assignedDate = assignedDate;
     }
-
-    public Maintenance(String vehicleId, LocalDateTime startDate, LocalDateTime endDate, MaintenanceType type, int repeatMonths) {
-        this.vehicleId = vehicleId;
-        this.startDate = startDate;
-        this.endDate = endDate;
-        this.type = type;
-        this.completed = false;
-        this.repeatMonths = repeatMonths;
-    }
-
+    
+    /**
+     * Obtiene la fecha real del mantenimiento
+     * @return La fecha real de inicio o null si no ha comenzado
+     */
+    @Transient
     public LocalDate getDate() {
-        return startDate.toLocalDate();
+        return realStart != null ? realStart.toLocalDate() : null;
     }
-
+    
+    /**
+     * Calcula la duración del mantenimiento en horas
+     * @return Duración en horas o 0 si no ha finalizado
+     */
+    @Transient
     public long getDurationHours() {
-        return ChronoUnit.HOURS.between(startDate, endDate);
+        return (realStart != null && realEnd != null) ? 
+               ChronoUnit.HOURS.between(realStart, realEnd) : 0;
     }
-
+    
+    /**
+     * Verifica si el mantenimiento está activo en una fecha y hora específica
+     * @param dateTime La fecha y hora a verificar
+     * @return true si el mantenimiento está activo, false en caso contrario
+     */
+    @Transient
     public boolean isActiveAt(LocalDateTime dateTime) {
-        return !dateTime.isBefore(startDate) && !dateTime.isAfter(endDate);
+        return realStart != null && realEnd != null && 
+               !dateTime.isBefore(realStart) && !dateTime.isAfter(realEnd);
     }
-
+    
+    /**
+     * Crea la siguiente tarea de mantenimiento programada (2 meses después)
+     * @return Una nueva instancia de Maintenance
+     */
+    @Transient
     public Maintenance createNextTask() {
-        LocalDateTime nextStart = startDate.plusMonths(repeatMonths);
-        LocalDateTime nextEnd = endDate.plusMonths(repeatMonths);
-        return new Maintenance(vehicleId, nextStart, nextEnd, type, repeatMonths);
+        if (realEnd == null) return null;
+        LocalDate nextDate = realEnd.toLocalDate().plusMonths(2);
+        return new Maintenance(vehicleId, nextDate);
     }
-
-    public static Maintenance fromString(String record, MaintenanceType type) {
+    
+    /**
+     * Crea una instancia de Maintenance a partir de una cadena de texto
+     * @param record Cadena con formato "yyyyMMdd:vehicleId"
+     * @return Una nueva instancia de Maintenance o null si el formato es inválido
+     */
+    public static Maintenance fromString(String record) {
         try {
+            // Split the record into date and vehicle parts
             String[] parts = record.split(":");
-            if (parts.length != 2) return null;
+            if (parts.length != 2) {
+                return null;
+            }
+            
+            // Parse the date part
             String datePart = parts[0];
             LocalDate date = LocalDate.parse(datePart, DateTimeFormatter.ofPattern("yyyyMMdd"));
+            
+            // Parse the vehicle ID
             String vehicleId = parts[1];
-            return new Maintenance(vehicleId, date, type);
+            
+            return new Maintenance(vehicleId, date);
         } catch (Exception e) {
             return null;
         }
     }
-
+    
     @Override
     public String toString() {
-        DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-        return String.format("🔧 Maintenance: %s on %s from %s to %s",
-                vehicleId,
-                startDate.toLocalDate(),
-                startDate.format(dateFormat),
-                endDate.format(dateFormat));
+        String status = (realStart != null && realEnd != null) ? "Completed" : 
+                        (realStart != null) ? "In Progress" : "Scheduled";
+        
+        return String.format("🔧 Maintenance: %s on %s - Status: %s", 
+                vehicleId, 
+                assignedDate,
+                status);
     }
-
+    
+    /**
+     * Convierte el mantenimiento a una cadena de texto para almacenamiento
+     * @return Cadena con formato "yyyyMMdd:vehicleId"
+     */
+    @Transient
     public String toRecordString() {
-        return String.format("%s:%s",
-                startDate.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
+        LocalDate dateToUse = (realStart != null) ? realStart.toLocalDate() : assignedDate;
+        return String.format("%s:%s", 
+                dateToUse.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
                 vehicleId);
     }
 }

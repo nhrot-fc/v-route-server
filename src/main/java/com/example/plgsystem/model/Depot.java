@@ -1,98 +1,106 @@
 package com.example.plgsystem.model;
 
-import com.example.plgsystem.model.Constants;
-import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.AccessLevel;
 
+import jakarta.persistence.*;
+import java.io.Serializable;
+
+/**
+ * Representa un depósito o almacén de GLP en el sistema
+ */
 @Entity
 @Table(name = "depots")
 @Getter
-@NoArgsConstructor
-public class Depot extends Stop {
-
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Depot implements Stop, Serializable {
+    
     @Id
     private String id;
-
-    @Column(name = "glp_capacity", nullable = false)
-    protected double glpCapacity;
-
-    @Column(name = "fuel_capacity", nullable = false)
-    protected double fuelCapacity;
-
-    @Column(name = "current_glp", nullable = false)
-    @Setter
-    protected double currentGLP;
-
-    @Column(name = "current_fuel", nullable = false)
-    @Setter
-    protected double currentFuel;
-
-    @Column(name = "glp_min_threshold")
-    @Setter
-    protected double glpMinThreshold = 0.0;
-
-    // Constructor para lógica
-    public Depot(String id, Position position, double glpCapacity, double fuelCapacity) {
-        super(position);
+    
+    @Embedded
+    private Position position;
+    
+    @Column(name = "glp_capacity_m3", nullable = false)
+    private int glpCapacityM3;
+    
+    @Column(name = "can_refuel", nullable = false)
+    private boolean canRefuel;
+    
+    @Column(name = "current_glp_m3", nullable = false)
+    private int currentGlpM3;
+    
+    /**
+     * Constructor principal para crear un depósito
+     */
+    public Depot(String id, Position position, int glpCapacityM3, boolean canRefuel) {
         this.id = id;
-        this.glpCapacity = glpCapacity;
-        this.fuelCapacity = fuelCapacity;
-        this.currentGLP = 0;
-        this.currentFuel = 0;
+        this.position = position;
+        this.glpCapacityM3 = glpCapacityM3;
+        this.canRefuel = canRefuel;
+        this.currentGlpM3 = 0;
     }
-
-    public Depot(String id, Position position, double glpCapacity, double fuelCapacity, double currentGLP, double currentFuel) {
-        super(position);
-        this.id = id;
-        this.glpCapacity = glpCapacity;
-        this.fuelCapacity = fuelCapacity;
-        this.currentGLP = currentGLP;
-        this.currentFuel = currentFuel;
-    }
-
-    // Operaciones lógicas
-    public boolean canServe(double requestedGLP) {
-        return this.currentGLP - requestedGLP >= Constants.EPSILON;
-    }
-
-    public void serve(double requestedGLP) {
-        this.currentGLP = Math.max(this.currentGLP - requestedGLP, 0);
-    }
-
+    
+    /**
+     * Rellena completamente el depósito con GLP
+     */
     public void refillGLP() {
-        this.currentGLP = this.glpCapacity;
+        this.currentGlpM3 = glpCapacityM3;
     }
-
-    public void refillFuel() {
-        this.currentFuel = this.fuelCapacity;
+    
+    /**
+     * Extrae una cantidad de GLP del depósito
+     * 
+     * @param amountM3 Cantidad de GLP a extraer en metros cúbicos
+     */
+    public void serveGLP(int amountM3) {
+        this.currentGlpM3 -= Math.abs(amountM3);
+        this.currentGlpM3 = Math.max(0, this.currentGlpM3); // Asegura que no sea negativo
     }
-
+    
+    /**
+     * Verifica si el depósito puede servir una cantidad específica de GLP
+     * 
+     * @param amountM3 Cantidad de GLP requerida
+     * @return true si puede servir la cantidad, false en caso contrario
+     */
+    public boolean canServeGLP(int amountM3) {
+        return currentGlpM3 >= amountM3;
+    }
+    
+    /**
+     * Establece un nuevo nivel de GLP para el depósito
+     * 
+     * @param amountM3 Nueva cantidad de GLP
+     */
+    public void setCurrentGlpM3(int amountM3) {
+        this.currentGlpM3 = Math.max(0, Math.min(glpCapacityM3, amountM3));
+    }
+    
     @Override
-    public Depot clone() {
-        Depot cloned = new Depot(
-            this.id,
-            this.position.clone(),
-            this.glpCapacity,
-            this.fuelCapacity,
-            this.currentGLP,
-            this.currentFuel
-        );
-        cloned.setGlpMinThreshold(this.glpMinThreshold);
-        return cloned;
+    public Position getPosition() {
+        return position;
     }
-
+    
     @Override
     public String toString() {
-        return String.format("🏭 Depot-%s [GLP:%.1f/%.1f m³][⛽:%.1f/%.1f gal] %s",
-            id,
-            currentGLP,
-            glpCapacity,
-            currentFuel,
-            fuelCapacity,
-            position.toString());
+        String refuelIcon = canRefuel ? "⛽" : "";
+        return String.format("🏭 %s %s [GLP: %d/%d m³] %s", 
+                id, 
+                refuelIcon,
+                currentGlpM3, 
+                glpCapacityM3, 
+                position);
     }
-
     
+    /**
+     * Crea una copia del depósito
+     * @return Copia del depósito con los mismos valores
+     */
+    public Depot clone() {
+        Depot clonedDepot = new Depot(this.id, this.position, this.glpCapacityM3, this.canRefuel);
+        clonedDepot.currentGlpM3 = this.currentGlpM3;
+        return clonedDepot;
+    }
 }

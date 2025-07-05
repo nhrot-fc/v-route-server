@@ -1,90 +1,164 @@
 package com.example.plgsystem.model;
 
+import com.example.plgsystem.enums.VehicleStatus;
+import com.example.plgsystem.enums.VehicleType;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.*;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
-import lombok.Getter;
-import lombok.Setter;
-
+/**
+ * Representa un vehículo de transporte de GLP en el sistema
+ */
+@Entity
+@Table(name = "vehicles")
 @Getter
-@Setter
-public class Vehicle {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Vehicle implements Serializable {
 
-    // Atributos inmutables
-    private final String id;
-    private final VehicleType type;
-    private final double glpCapacity;          // m³
-    private final double fuelCapacityGal;      // galones
+    private static final long serialVersionUID = 1L;
 
-    // Atributos mutables
+    @Id
+    private String id;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private VehicleType type;
+    
+    @Column(name = "glp_capacity_m3", nullable = false)
+    private int glpCapacityM3;
+    
+    @Column(name = "fuel_capacity_gal", nullable = false)
+    private double fuelCapacityGal;
+    
+    @Embedded
     private Position currentPosition;
-    private double currentGlp;                 // m³
-    private double currentFuelGal;             // galones
+    
+    @Column(name = "current_glp_m3", nullable = false)
+    private int currentGlpM3;
+    
+    @Column(name = "current_fuel_gal", nullable = false)
+    private double currentFuelGal;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private VehicleStatus status;
-
+    
+    /**
+     * Constructor principal para crear un nuevo vehículo
+     */
+    @Builder
     public Vehicle(String id, VehicleType type, Position currentPosition) {
         this.id = id;
         this.type = type;
-        this.glpCapacity = type.getGlpCapacity();
+        this.glpCapacityM3 = type.getCapacityM3();
         this.fuelCapacityGal = Constants.VEHICLE_FUEL_CAPACITY_GAL;
         this.currentPosition = currentPosition;
-        this.currentGlp = 0;
+        this.currentGlpM3 = 0;
         this.currentFuelGal = this.fuelCapacityGal;
         this.status = VehicleStatus.AVAILABLE;
     }
-
+    
+    /**
+     * Establece la posición actual del vehículo
+     */
     public void setCurrentPosition(Position position) {
         this.currentPosition = position;
     }
 
+    /**
+     * Establece el estado del vehículo
+     */
+    public void setStatus(VehicleStatus status) {
+        this.status = status;
+    }
+    
+    /**
+     * Consume combustible basado en la distancia recorrida y el peso transportado
+     */
     public void consumeFuel(double distanceKm) {
-        double combinedWeight = type.convertGlpM3ToTon(currentGlp) + type.getTareWeightTon();
-        double fuelConsumed = Math.abs((distanceKm * combinedWeight) / Constants.CONSUMPTION_FACTOR);
-        currentFuelGal = Math.max(0, currentFuelGal - fuelConsumed);
+        double combinedWeight = this.type.convertGlpM3ToTon(this.currentGlpM3) + this.type.getTareWeightTon();
+        double fuelConsumedGallons = Math.abs((distanceKm * combinedWeight) / Constants.CONSUMPTION_FACTOR);
+        this.currentFuelGal = Math.max(0, this.currentFuelGal - fuelConsumedGallons);
     }
 
+    /**
+     * Calcula el combustible necesario para recorrer una distancia determinada
+     */
     public double calculateFuelNeeded(double distanceKm) {
-        double combinedWeight = type.convertGlpM3ToTon(currentGlp) + type.getTareWeightTon();
+        double combinedWeight = this.type.convertGlpM3ToTon(this.currentGlpM3)
+                + this.type.getTareWeightTon();
         return Math.abs((distanceKm * combinedWeight) / Constants.CONSUMPTION_FACTOR);
     }
 
+    /**
+     * Reabastece completamente el tanque de combustible
+     */
     public void refuel() {
-        currentFuelGal = fuelCapacityGal;
+        this.currentFuelGal = this.fuelCapacityGal;
     }
 
-    public void dispenseGlp(double glpVolumeM3) {
-        this.currentGlp = Math.max(0, this.currentGlp - Math.abs(glpVolumeM3));
+    /**
+     * Dispensa GLP al cliente
+     */
+    public void dispenseGlp(int glpVolumeM3) {
+        this.currentGlpM3 = Math.max(0, this.currentGlpM3 - Math.abs(glpVolumeM3));
     }
 
-    public boolean canDispenseGLP(double glpVolumeM3) {
-        return this.currentGlp >= Math.abs(glpVolumeM3);
+    /**
+     * Verifica si el vehículo puede dispensar un determinado volumen de GLP
+     */
+    public boolean canDispenseGLP(int glpVolumeM3) {
+        return this.currentGlpM3 >= Math.abs(glpVolumeM3);
     }
 
-    public void refill(double glpVolumeM3) {
-        this.currentGlp = Math.min(this.glpCapacity, this.currentGlp + Math.abs(glpVolumeM3));
+    /**
+     * Recarga GLP en el vehículo
+     */
+    public void refill(int glpVolumeM3) {
+        this.currentGlpM3 = Math.min(this.glpCapacityM3, this.currentGlpM3 + Math.abs(glpVolumeM3));
     }
 
-    public void serveOrder(Order order, double glpVolumeM3, LocalDateTime serveDate) {
-        double volume = Math.abs(glpVolumeM3);
-        this.dispenseGlp(volume);
-        order.recordDelivery(volume, this.id, serveDate);
+    /**
+     * Realiza una entrega a un pedido
+     */
+    @Transactional
+    public ServeRecord serveOrder(Order order, int glpVolumeM3, LocalDateTime serveDate) {
+        int absoluteVolume = Math.abs(glpVolumeM3);
+        this.dispenseGlp(absoluteVolume);
+        return order.recordDelivery(absoluteVolume, this.id, serveDate);
     }
-
+    
+    /**
+     * Crea una copia del vehículo
+     */
     public Vehicle clone() {
-        Vehicle clone = new Vehicle(this.id, this.type, this.currentPosition.clone());
-        clone.currentGlp = this.currentGlp;
-        clone.currentFuelGal = this.currentFuelGal;
-        clone.status = this.status;
-        return clone;
+        Vehicle clonedVehicle = Vehicle.builder()
+                .id(this.id)
+                .type(this.type)
+                .currentPosition(this.currentPosition.clone())
+                .build();
+        
+        clonedVehicle.currentGlpM3 = this.currentGlpM3;
+        clonedVehicle.currentFuelGal = this.currentFuelGal;
+        clonedVehicle.status = this.status;
+        
+        return clonedVehicle;
     }
 
     @Override
     public String toString() {
-        return String.format("🚛 %s-%s %s [🛢️ %.1f/%.1f m³][⛽ %.1f/%.1f gal] %s",
+        return String.format("🚛 %s-%s %s [🛢️ %d/%d m³][⛽ %.1f/%.1f gal] %s",
                 type.name(),
                 id,
-                status.name(),
-                currentGlp,
-                glpCapacity,
+                status.getIcon(),
+                currentGlpM3,
+                glpCapacityM3,
                 currentFuelGal,
                 fuelCapacityGal,
                 currentPosition.toString());

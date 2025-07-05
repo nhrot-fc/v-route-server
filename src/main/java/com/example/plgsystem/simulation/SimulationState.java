@@ -1,32 +1,40 @@
-package com.example.plgsystem.model;
+package com.example.plgsystem.simulation;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
-public class Environment {
+import com.example.plgsystem.enums.VehicleStatus;
+import com.example.plgsystem.model.Blockage;
+import com.example.plgsystem.model.Depot;
+import com.example.plgsystem.model.Incident;
+import com.example.plgsystem.model.Maintenance;
+import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.Vehicle;
+
+public class SimulationState {
     private final List<Vehicle> vehicles;
     private final Depot mainDepot;
     private final List<Depot> auxDepots;
 
     private LocalDateTime currentTime;
     private final List<Order> orderQueue;
-    private final List<Blockage> activeBlockages;
-    private final List<Incident> incidentRegistry;
-    private final List<Maintenance> maintenanceTasks;
+    private final List<Blockage> blockages;
+    private final List<Incident> incidents;
+    private final List<Maintenance> maintenances;
 
-    public Environment(List<Vehicle> vehicles, Depot mainDepot, List<Depot> auxDepots,
+    public SimulationState(List<Vehicle> vehicles, Depot mainDepot, List<Depot> auxDepots,
             LocalDateTime referenceDateTime) {
         this.currentTime = referenceDateTime;
         this.vehicles = new ArrayList<>(vehicles);
         this.mainDepot = mainDepot;
         this.auxDepots = new ArrayList<>(auxDepots);
         this.orderQueue = new ArrayList<>();
-        this.activeBlockages = new ArrayList<>();
-        this.incidentRegistry = new ArrayList<>();
-        this.maintenanceTasks = new ArrayList<>();
+        this.blockages = new ArrayList<>();
+        this.incidents = new ArrayList<>();
+        this.maintenances = new ArrayList<>();
     }
 
     public List<Vehicle> getVehicles() {
@@ -45,16 +53,16 @@ public class Environment {
         return Collections.unmodifiableList(orderQueue);
     }
 
-    public List<Blockage> getActiveBlockages() {
-        return Collections.unmodifiableList(activeBlockages);
+    public List<Blockage> getBlockages() {
+        return Collections.unmodifiableList(blockages);
     }
 
-    public List<Incident> getIncidentRegistry() {
-        return Collections.unmodifiableList(incidentRegistry);
+    public List<Incident> getIncidents() {
+        return Collections.unmodifiableList(incidents);
     }
 
-    public List<Maintenance> getMaintenanceTasks() {
-        return Collections.unmodifiableList(maintenanceTasks);
+    public List<Maintenance> getMaintenances() {
+        return Collections.unmodifiableList(maintenances);
     }
 
     public Depot getMainDepot() {
@@ -94,29 +102,29 @@ public class Environment {
     }
 
     public void addBlockage(Blockage blockage) {
-        activeBlockages.add(blockage);
+        blockages.add(blockage);
     }
 
     public void addBlockages(List<Blockage> blockages) {
-        activeBlockages.addAll(blockages);
+        blockages.addAll(blockages);
     }
 
     public List<Blockage> getActiveBlockagesAt(LocalDateTime dateTime) {
-        return activeBlockages.stream()
+        return blockages.stream()
                 .filter(b -> b.isActiveAt(dateTime))
                 .collect(Collectors.toList());
     }
 
     public void addIncident(Incident incident) {
-        incidentRegistry.add(incident);
+        incidents.add(incident);
     }
 
     public void addIncidents(List<Incident> incidents) {
-        incidentRegistry.addAll(incidents);
+        incidents.addAll(incidents);
     }
 
     public List<Incident> getActiveIncidentsForVehicle(String vehicleId) {
-        return incidentRegistry.stream()
+        return incidents.stream()
                 .filter(incident -> incident.getVehicleId().equals(vehicleId) &&
                         !incident.isResolved() &&
                         incident.getOccurrenceTime() != null &&
@@ -125,15 +133,15 @@ public class Environment {
     }
 
     public void addMaintenanceTask(Maintenance task) {
-        maintenanceTasks.add(task);
+        maintenances.add(task);
     }
 
     public void addMaintenanceTasks(List<Maintenance> tasks) {
-        maintenanceTasks.addAll(tasks);
+        maintenances.addAll(tasks);
     }
 
     public boolean hasScheduledMaintenance(String vehicleId, LocalDateTime dateTime) {
-        for (Maintenance task : maintenanceTasks) {
+        for (Maintenance task : maintenances) {
             if (task.getVehicleId().equals(vehicleId) && task.isActiveAt(dateTime)) {
                 return true;
             }
@@ -142,7 +150,7 @@ public class Environment {
     }
 
     public Maintenance getMaintenanceTaskForVehicle(String vehicleId, LocalDateTime dateTime) {
-        for (Maintenance task : maintenanceTasks) {
+        for (Maintenance task : maintenances) {
             if (task.getVehicleId().equals(vehicleId) && task.isActiveAt(dateTime)) {
                 return task;
             }
@@ -153,31 +161,31 @@ public class Environment {
     public void advanceTime(int minutes) {
         LocalDateTime previousTime = this.currentTime;
         this.currentTime = this.currentTime.plusMinutes(minutes);
-
+        
         // Check if we've crossed into a new day (00:00)
         if (hasNewDayStarted(previousTime, this.currentTime)) {
             handleNewDayStarted();
         }
-
+        
         updateEnvironmentState();
     }
-
+    
     private boolean hasNewDayStarted(LocalDateTime previousTime, LocalDateTime currentTime) {
         // Check if we've crossed midnight (new day started)
-        return !previousTime.toLocalDate().equals(currentTime.toLocalDate()) &&
-                currentTime.getHour() == 0 && currentTime.getMinute() == 0;
+        return !previousTime.toLocalDate().equals(currentTime.toLocalDate()) && 
+               currentTime.getHour() == 0 && currentTime.getMinute() == 0;
     }
-
+    
     private void handleNewDayStarted() {
         // Actions to perform when a new day starts at 00:00
         System.out.println("🌅 New day started at: " + currentTime.toLocalDate());
-
+        
         // Refill all depots at the start of a new day
         mainDepot.refillGLP();
         for (Depot depot : auxDepots) {
             depot.refillGLP();
         }
-
+        
         // Reset daily statistics or perform other daily tasks
         // You can add more daily reset logic here as needed
     }
@@ -195,36 +203,38 @@ public class Environment {
                 if (!mostRecent.isResolved()) {
                     LocalDateTime availabilityTime = mostRecent.calculateAvailabilityTime();
                     if (currentTime.isBefore(availabilityTime)) {
-                        vehicle.setStatus(VehicleStatus.UNAVAILABLE);
+                        vehicle.setStatus(VehicleStatus.INCIDENT);
                     } else {
-                        mostRecent.setResolved();
                         vehicle.setStatus(VehicleStatus.AVAILABLE);
                     }
                 }
             }
 
             if (vehicle.getStatus() != VehicleStatus.MAINTENANCE &&
-                    vehicle.getStatus() != VehicleStatus.UNAVAILABLE) {
+                    vehicle.getStatus() != VehicleStatus.INCIDENT) {
                 vehicle.setStatus(VehicleStatus.AVAILABLE);
             }
         }
 
         // remove delivered orders
         orderQueue.removeIf(Order::isDelivered);
-
         // remove past blockages
-        activeBlockages.removeIf(blockage -> blockage.getEndTime().isBefore(currentTime));
+        blockages.removeIf(blockage -> blockage.getEndTime().isBefore(currentTime));
+        // remove resolved incidents
+        incidents.removeIf(incident -> incident.isResolved() || incident.getOccurrenceTime() == null);
+        // remove past maintenance tasks
+        maintenances.removeIf(task -> !task.isActiveAt(currentTime));
     }
 
     public List<Vehicle> getAvailableVehicles() {
         return vehicles.stream()
-                .filter(vehicle -> vehicle.getStatus() != VehicleStatus.UNAVAILABLE)
+                .filter(vehicle -> vehicle.getStatus() != VehicleStatus.INCIDENT)
                 .collect(Collectors.toList());
     }
 
     /**
      * Finds an order by its ID in the environment
-     *
+     * 
      * @param orderId The ID of the order to find
      * @return The order if found, null otherwise
      */
@@ -237,7 +247,7 @@ public class Environment {
 
     /**
      * Finds a depot by its ID in the environment
-     *
+     * 
      * @param depotId The ID of the depot to find
      * @return The depot if found, null otherwise
      */
@@ -256,7 +266,7 @@ public class Environment {
 
     /**
      * Finds a vehicle by its ID in the environment
-     *
+     * 
      * @param vehicleId The ID of the vehicle to find
      * @return The vehicle if found, null otherwise
      */
@@ -323,7 +333,7 @@ public class Environment {
 
         int todayMaintenanceCount = 0;
         sb.append("\n📋 Today's Maintenance Tasks:");
-        for (Maintenance task : maintenanceTasks) {
+        for (Maintenance task : maintenances) {
             if (task.isActiveAt(currentTime)) {
                 sb.append("\n  ").append(task);
                 todayMaintenanceCount++;

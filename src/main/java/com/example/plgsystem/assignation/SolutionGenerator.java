@@ -1,10 +1,5 @@
 package com.example.plgsystem.assignation;
 
-import com.example.plgsystem.models.Environment;
-import com.example.plgsystem.models.Vehicle;
-import com.example.plgsystem.models.Order;
-import com.example.plgsystem.models.Position;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,15 +7,21 @@ import java.util.Map;
 import java.util.Random;
 import java.util.HashSet;
 import java.util.Set;
+
+import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.Position;
+import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.simulation.SimulationState;
+
 import java.util.Collections;
 import java.util.Comparator;
 import java.time.LocalDateTime;
 
 public class SolutionGenerator {
     private final Random random = new Random();
-    private final Environment environment;
+    private final SimulationState environment;
     
-    public SolutionGenerator(Environment environment) {
+    public SolutionGenerator(SimulationState environment) {
         this.environment = environment;
     }
     

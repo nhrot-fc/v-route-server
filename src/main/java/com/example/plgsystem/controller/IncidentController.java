@@ -1,123 +1,93 @@
 package com.example.plgsystem.controller;
 
+import com.example.plgsystem.dto.IncidentCreateDTO;
+import com.example.plgsystem.dto.IncidentDTO;
 import com.example.plgsystem.model.Incident;
-import com.example.plgsystem.model.IncidentType;
-import com.example.plgsystem.repository.IncidentRepository;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.plgsystem.service.IncidentService;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/incidents")
-@Tag(name = "Incidents", description = "Gestión de incidentes del sistema PLG")
 public class IncidentController {
 
-    @Autowired
-    private IncidentRepository incidentRepository;
+    private final IncidentService incidentService;
 
-    @Operation(summary = "Obtener todos los incidentes", description = "Retorna la lista completa de incidentes registrados")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Lista de incidentes obtenida exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Incident.class)) })
-    })
-    @GetMapping
-    public List<Incident> getAllIncidents() {
-        return incidentRepository.findAll();
+    public IncidentController(IncidentService incidentService) {
+        this.incidentService = incidentService;
     }
 
-    @Operation(summary = "Obtener incidente por ID", description = "Retorna un incidente específico")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Incidente encontrado",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Incident.class)) }),
-        @ApiResponse(responseCode = "404", description = "Incidente no encontrado")
-    })
-    @GetMapping("/{id}")
-    public ResponseEntity<Incident> getIncidentById(
-            @Parameter(description = "ID del incidente") @PathVariable String id) {
-        Optional<Incident> incident = incidentRepository.findById(id);
-        return incident.map(ResponseEntity::ok)
-                      .orElse(ResponseEntity.notFound().build());
-    }
-
-    @Operation(summary = "Obtener incidentes por vehículo", description = "Retorna todos los incidentes de un vehículo específico")
-    @GetMapping("/vehicle/{vehicleId}")
-    public List<Incident> getIncidentsByVehicle(
-            @Parameter(description = "ID del vehículo") @PathVariable String vehicleId) {
-        return incidentRepository.findByVehicleId(vehicleId);
-    }
-
-    @Operation(summary = "Obtener incidentes por tipo", description = "Retorna incidentes filtrados por tipo")
-    @GetMapping("/type/{type}")
-    public List<Incident> getIncidentsByType(
-            @Parameter(description = "Tipo de incidente") @PathVariable IncidentType type) {
-        return incidentRepository.findByType(type);
-    }
-
-    @Operation(summary = "Obtener incidentes activos", description = "Retorna todos los incidentes actualmente activos (no resueltos)")
-    @GetMapping("/active")
-    public List<Incident> getActiveIncidents() {
-        return incidentRepository.findActiveIncidents(LocalDateTime.now());
-    }
-
-    @Operation(summary = "Obtener incidentes activos por vehículo", description = "Retorna incidentes activos de un vehículo específico")
-    @GetMapping("/active/vehicle/{vehicleId}")
-    public List<Incident> getActiveIncidentsForVehicle(
-            @Parameter(description = "ID del vehículo") @PathVariable String vehicleId) {
-        return incidentRepository.findActiveIncidentsForVehicle(vehicleId, LocalDateTime.now());
-    }
-
-    @Operation(summary = "Obtener incidentes resueltos", description = "Retorna todos los incidentes que han sido resueltos")
-    @GetMapping("/resolved")
-    public List<Incident> getResolvedIncidents() {
-        return incidentRepository.findResolvedIncidents(LocalDateTime.now());
-    }
-
-    @Operation(summary = "Obtener incidentes por rango de fechas", description = "Retorna incidentes en un rango de fechas específico")
-    @GetMapping("/date-range")
-    public List<Incident> getIncidentsByDateRange(
-            @Parameter(description = "Fecha de inicio (ISO 8601)") @RequestParam String startDate, 
-            @Parameter(description = "Fecha de fin (ISO 8601)") @RequestParam String endDate) {
-        LocalDateTime start = LocalDateTime.parse(startDate);
-        LocalDateTime end = LocalDateTime.parse(endDate);
-        return incidentRepository.findIncidentsByDateRange(start, end);
-    }
-
-    @Operation(summary = "Crear nuevo incidente", description = "Registra un nuevo incidente en el sistema")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Incidente creado exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Incident.class)) })
-    })
+    /**
+     * Crear un nuevo incidente
+     */
     @PostMapping
-    public Incident createIncident(@RequestBody Incident incident) {
-        return incidentRepository.save(incident);
+    public ResponseEntity<IncidentDTO> create(@RequestBody IncidentCreateDTO createDTO) {
+        Incident incident = new Incident(
+                createDTO.getVehicleId(),
+                createDTO.getType(),
+                createDTO.getShift()
+        );
+        
+        incident.setOccurrenceTime(createDTO.getOccurrenceTime() != null ? 
+                createDTO.getOccurrenceTime() : LocalDateTime.now());
+        incident.setLocation(createDTO.getLocation());
+        incident.setTransferableGlp(createDTO.getTransferableGlp());
+        
+        Incident savedIncident = incidentService.save(incident);
+        return new ResponseEntity<>(IncidentDTO.fromEntity(savedIncident), HttpStatus.CREATED);
     }
 
-    @Operation(summary = "Eliminar incidente", description = "Elimina un incidente del sistema")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Incidente eliminado exitosamente"),
-        @ApiResponse(responseCode = "404", description = "Incidente no encontrado")
-    })
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteIncident(
-            @Parameter(description = "ID del incidente a eliminar") @PathVariable String id) {
-        if (incidentRepository.existsById(id)) {
-            incidentRepository.deleteById(id);
-            return ResponseEntity.ok().build();
+    /**
+     * Listar incidentes con opciones de filtrado
+     */
+    @GetMapping
+    public ResponseEntity<List<IncidentDTO>> list(
+            @RequestParam(required = false) String vehicleId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+        
+        List<Incident> incidents;
+        
+        if (vehicleId != null && startDate != null && endDate != null) {
+            incidents = incidentService.findByVehicleAndDateRange(vehicleId, startDate, endDate);
+        } else if (vehicleId != null) {
+            incidents = incidentService.findByVehicleId(vehicleId);
+        } else if (startDate != null && endDate != null) {
+            incidents = incidentService.findByDateRange(startDate, endDate);
+        } else {
+            incidents = incidentService.findAll();
         }
-        return ResponseEntity.notFound().build();
+        
+        List<IncidentDTO> incidentDTOs = incidents.stream()
+                .map(IncidentDTO::fromEntity)
+                .collect(Collectors.toList());
+                
+        return ResponseEntity.ok(incidentDTOs);
+    }
+    
+    /**
+     * Obtener un incidente por ID
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<IncidentDTO> getById(@PathVariable Long id) {
+        return incidentService.findById(id)
+                .map(incident -> ResponseEntity.ok(IncidentDTO.fromEntity(incident)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+    
+    /**
+     * Marcar un incidente como resuelto
+     */
+    @PatchMapping("/{id}/resolve")
+    public ResponseEntity<IncidentDTO> resolveIncident(@PathVariable Long id) {
+        return incidentService.resolveIncident(id)
+                .map(incident -> ResponseEntity.ok(IncidentDTO.fromEntity(incident)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

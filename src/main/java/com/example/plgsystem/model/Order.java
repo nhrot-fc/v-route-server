@@ -1,153 +1,141 @@
 package com.example.plgsystem.model;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.hibernate.annotations.UuidGenerator;
-
-import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import java.io.Serializable;
+import java.time.Duration;
+import java.time.LocalDateTime;
 
+/**
+ * Representa un pedido de GLP en el sistema
+ */
 @Entity
 @Table(name = "orders")
 @Getter
-@NoArgsConstructor
-public class Order extends Stop {
-    // === Immutable Attributes ===
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Order implements Stop, Serializable {
+
+    private static final long serialVersionUID = 1L;
+
     @Id
-    @GeneratedValue
-    @UuidGenerator
-    @Column(columnDefinition = "VARCHAR(36)")
     private String id;
+    
+    @Column(name = "arrive_time", nullable = false)
+    private LocalDateTime arriveTime;
+    
+    @Column(name = "due_time", nullable = false)
+    private LocalDateTime dueTime;
+    
+    @Column(name = "glp_request_m3", nullable = false)
+    private int glpRequestM3;
+    
+    @Embedded
+    private Position position;
+    
+    @Column(name = "remaining_glp_m3", nullable = false)
+    private int remainingGlpM3;
 
-    @Column(name = "arrive_date", nullable = false)
-    private LocalDateTime arriveDate;
-
-    @Column(name = "due_date", nullable = false)
-    private LocalDateTime dueDate;
-
-    @Column(name = "glp_request", nullable = false)
-    @JsonProperty("glpRequest")
-    private double glpRequest;
-
-    // === Mutable Attributes ===
-    @Column(name = "remaining_glp", nullable = false)
-    @Setter
-    @JsonProperty("remainingGLP")
-    private double remainingGLP;
-
-    @Column(name = "delivery_date")
-    @Setter
-    @JsonProperty("deliveryDate")
-    private LocalDateTime deliveryDate;
-
-    @Enumerated(EnumType.STRING)
-    private OrderStatus status;
-
-    @Transient
-    private List<ServeRecord> records = new ArrayList<>();
-
-    // === Constructors ===
-    public Order(String id, LocalDateTime arriveDate, LocalDateTime dueDate, double glpRequest, Position position) {
-        super(position);
-        this.id = id;
-        this.arriveDate = arriveDate;
-        this.dueDate = dueDate;
-        this.glpRequest = glpRequest;
-        this.remainingGLP = glpRequest;
-        this.records = new ArrayList<>();
+    /**
+     * Método setter para permitir la actualización del GLP restante
+     */
+    public void setRemainingGlpM3(int remainingGlpM3) {
+        this.remainingGlpM3 = remainingGlpM3;
     }
-
-    public Order(String id, LocalDateTime arriveDate, LocalDateTime dueDate, double glpRequest,
-                 Position position, LocalDateTime deliveryDate) {
-        super(position);
+    
+    /**
+     * Constructor principal para crear un nuevo pedido
+     */
+    @Builder
+    public Order(String id, LocalDateTime arriveTime, LocalDateTime dueTime, int glpRequestM3, Position position) {
         this.id = id;
-        this.arriveDate = arriveDate;
-        this.dueDate = dueDate;
-        this.glpRequest = glpRequest;
-        this.remainingGLP = glpRequest;
-        this.deliveryDate = deliveryDate;
-        this.records = new ArrayList<>();
+        this.arriveTime = arriveTime;
+        this.dueTime = dueTime;
+        this.glpRequestM3 = glpRequestM3;
+        this.position = position;
+        
+        this.remainingGlpM3 = glpRequestM3;
     }
-
-    // === Logic ===
+    
+    /**
+     * Registra una entrega parcial o total del pedido y retorna el registro de entrega
+     */
+    @Transactional
+    public ServeRecord recordDelivery(int deliveredVolumeM3, String vehicleId, LocalDateTime serveDate) {
+        remainingGlpM3 -= Math.abs(deliveredVolumeM3);
+        remainingGlpM3 = Math.max(0, remainingGlpM3); // Asegurar que no sea negativo
+        
+        return new ServeRecord(vehicleId, this.id, Math.abs(deliveredVolumeM3), serveDate);
+    }
+    
+    /**
+     * Verifica si el pedido ha sido entregado completamente
+     */
     public boolean isDelivered() {
-        return remainingGLP < Constants.EPSILON;
+        return remainingGlpM3 <= 0;
     }
-
+    
+    /**
+     * Verifica si el pedido está vencido en relación a una fecha de referencia
+     */
     public boolean isOverdue(LocalDateTime referenceDateTime) {
-        return referenceDateTime.isAfter(dueDate);
+        return referenceDateTime.isAfter(dueTime);
     }
-
-    public long getRemainingMinutes(LocalDateTime currentDate) {
-        if (this.dueDate.isBefore(currentDate)) return 0;
-        return Duration.between(currentDate, dueDate).toMinutes();
+    
+    /**
+     * Calcula el tiempo restante en minutos hasta el vencimiento del pedido
+     */
+    public int timeUntilDue(LocalDateTime referenceDateTime) {
+        if (isDelivered())
+            return 0;
+        if (isOverdue(referenceDateTime))
+            return -1;
+            
+        Duration duration = Duration.between(referenceDateTime, dueTime);
+        long minutesUntilDue = duration.toMinutes();
+        
+        return (int) minutesUntilDue;
     }
-
-    public double getUrgency(LocalDateTime referenceDateTime) {
-        if (isDelivered()) return 0.0;
-        long remainingMinutes = getRemainingMinutes(referenceDateTime);
-        if (remainingMinutes <= 0) return Double.MAX_VALUE;
-        return remainingGLP / ((remainingMinutes / 60.0) + 1.0);
-    }
-
+    
+    /**
+     * Calcula la prioridad del pedido basado en su tiempo de vencimiento
+     */
     public double calculatePriority(LocalDateTime referenceDateTime) {
-        if (isDelivered()) return 0.0;
+        if (isDelivered())
+            return 0.0;
         int minutesUntilDue = timeUntilDue(referenceDateTime);
-        if (minutesUntilDue < 0) return 1000.0 + (-minutesUntilDue / 60.0);
+        if (minutesUntilDue < 0)
+            return 1000.0 + (-minutesUntilDue / 60.0);
         return 100.0 / (1.0 + (minutesUntilDue / 60.0));
     }
-
-    public int timeUntilDue(LocalDateTime referenceDateTime) {
-        if (isDelivered()) return 0;
-        if (isOverdue(referenceDateTime)) return -1;
-        return (int) Duration.between(referenceDateTime, dueDate).toMinutes();
-    }
-
-    public void recordDelivery(double deliveredVolume, String vehicleId, LocalDateTime serveDate) {
-        this.remainingGLP -= Math.abs(deliveredVolume);
-        this.remainingGLP = Math.max(0, this.remainingGLP);
-        this.records.add(new ServeRecord(vehicleId, this.id, Math.abs(deliveredVolume), serveDate));
-        this.deliveryDate = serveDate;
-    }
-
-    // === Cloning ===
-    @Override
-    public Order clone() {
-        Order clone = new Order(this.id, this.arriveDate, this.dueDate, this.glpRequest, this.position.clone(), this.deliveryDate);
-        clone.remainingGLP = this.remainingGLP;
-        clone.records = new ArrayList<>(this.records);
-        return clone;
-    }
-
-    // === Display ===
+    
     @Override
     public String toString() {
-        String statusIcon = isDelivered() ? "✅" : "⏳";
-        if (remainingGLP > Constants.EPSILON && glpRequest - remainingGLP > Constants.EPSILON) {
-            statusIcon = "⚠️";
-        }
-
-        return String.format("📦 %s %s [🕒 %s] [GLP: %.1f/%.1f m³] %s",
+        String status = isDelivered() ? "✅" : "⏳";
+        return String.format("📦 %s %s [🕒 %s] [GLP: %d/%d m³] %s",
                 id,
-                statusIcon,
-                dueDate.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")),
-                glpRequest - remainingGLP,
-                glpRequest,
-                position.toString());
+                status,
+                dueTime.format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")),
+                remainingGlpM3,
+                glpRequestM3,
+                position);
     }
-
-    // === CSV setters (opcionales) ===
-    public void setId(String id) { this.id = id; }
-    public void setArriveDate(LocalDateTime arriveDate) { this.arriveDate = arriveDate; }
-    public void setDueDate(LocalDateTime dueDate) { this.dueDate = dueDate; }
-    public void setGlpRequest(double glpRequest) { this.glpRequest = glpRequest; }
-    public void setStatus(OrderStatus status) { this.status = status; }
+    
+    /**
+     * Crea una copia del pedido
+     */
+    public Order clone() {
+        Order clonedOrder = Order.builder()
+                .id(this.id)
+                .arriveTime(this.arriveTime)
+                .dueTime(this.dueTime)
+                .glpRequestM3(this.glpRequestM3)
+                .position(this.position.clone())
+                .build();
+                
+        clonedOrder.remainingGlpM3 = this.remainingGlpM3;
+        
+        return clonedOrder;
+    }
 }

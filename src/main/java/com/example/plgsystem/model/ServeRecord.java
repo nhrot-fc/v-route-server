@@ -1,30 +1,59 @@
 package com.example.plgsystem.model;
 
-import java.time.LocalDateTime;
-
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+
+import jakarta.persistence.*;
+import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
- * Registro de entrega de GLP realizado por un vehículo.
- * Esta clase no se persiste en base de datos, es solo usada en memoria.
+ * Representa un registro de entrega de GLP
  */
+@Entity
+@Table(name = "serve_records")
 @Getter
 @NoArgsConstructor
-@AllArgsConstructor
-public class ServeRecord {
-    private String vehicleId;
-    private String orderId;
-    private double servedGlpM3;
-    private LocalDateTime serveTime;
+public class ServeRecord implements Serializable {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(name = "vehicle_id", nullable = false)
+    private String vehicleId;
+    
+    @Column(name = "order_id", nullable = false)
+    private String orderId;
+    
+    @Column(name = "volume_m3", nullable = false)
+    private int volumeM3;
+    
+    @Column(name = "serve_date", nullable = false)
+    private LocalDateTime serveDate;
+    
+    /**
+     * Constructor para crear un nuevo registro de servicio
+     */
+    public ServeRecord(String vehicleId, String orderId, int volumeM3, LocalDateTime serveDate) {
+        this.vehicleId = vehicleId;
+        this.orderId = orderId;
+        this.volumeM3 = volumeM3;
+        this.serveDate = serveDate;
+    }
+    
     @Override
     public String toString() {
-        return String.format("📝 %s→%s [GLP:%.1f m³] 🕒 %s",
-                vehicleId,
-                orderId,
-                servedGlpM3,
-                serveTime.format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")));
+        return String.format("📝 Vehículo %s entregó %d m³ en %s",
+                vehicleId, 
+                volumeM3, 
+                serveDate.format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")));
+    }
+    
+    /**
+     * Crea una copia del registro de servicio
+     */
+    public ServeRecord clone() {
+        return new ServeRecord(this.vehicleId, this.orderId, this.volumeM3, this.serveDate);
     }
 }

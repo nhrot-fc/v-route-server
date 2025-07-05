@@ -1,13 +1,13 @@
 package com.example.plgsystem.assignation;
 
-import com.example.plgsystem.model.Environment;
-import com.example.plgsystem.model.Vehicle;
-import com.example.plgsystem.model.Order;
-
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+
+import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.simulation.SimulationState;
 
 public class MetaheuristicAssignator implements Assignator {
 
@@ -26,10 +26,10 @@ public class MetaheuristicAssignator implements Assignator {
     private final int maxIterations;
     private final int tabuListSize;
     private final Random random = new Random();
-    private Environment environment;
+    private SimulationState environment;
     private double temperature;
 
-    public MetaheuristicAssignator(Environment environment) {
+    public MetaheuristicAssignator(SimulationState environment) {
         this.deliveryDistribuitor = new DeliveryDistribuitor(environment);
         this.solutionGenerator = new SolutionGenerator(environment);
         this.maxIterations = DEFAULT_MAX_ITERATIONS;
@@ -38,7 +38,7 @@ public class MetaheuristicAssignator implements Assignator {
     }
 
     @Override
-    public Solution solve(Environment env) {
+    public Solution solve(SimulationState env) {
         this.environment = env;
         this.temperature = TEMPERATURE_INITIAL;
 

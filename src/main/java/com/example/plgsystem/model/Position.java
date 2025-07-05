@@ -1,37 +1,44 @@
 package com.example.plgsystem.model;
 
-import jakarta.persistence.Embeddable;
 import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-@Embeddable
-@Getter
-@Setter
+import jakarta.persistence.Embeddable;
+import java.io.Serializable;
+import java.util.Objects;
+
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Position {
+@Embeddable
+public class Position implements Serializable {
     private int x;
     private int y;
-
-    public Position clone() {
-        return new Position(this.x, this.y);
+    
+    @Override
+    public String toString() {
+        return String.format("📍(%03d,%03d)", this.x, this.y);
     }
 
-    /**
-     * Calculates the Euclidean distance between this position and another position
-     * @param other The other position
-     * @return Distance in coordinate units
-     */
+    public Position clone() { 
+        return new Position(x, y);
+    }
+
     public double distanceTo(Position other) {
-        int dx = this.x - other.x;
-        int dy = this.y - other.y;
-        return Math.sqrt(dx * dx + dy * dy);
+        return Math.abs(this.x - other.x) + Math.abs(this.y - other.y);
     }
 
     @Override
-    public String toString() {
-        return String.format("📍(%d,%d)", x, y);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Position position = (Position) o;
+        return x == position.x && y == position.y;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(x, y);
     }
 }

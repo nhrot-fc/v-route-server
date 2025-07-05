@@ -1,250 +1,317 @@
 package com.example.plgsystem.controller;
 
+import com.example.plgsystem.dto.DeliveryRecordDTO;
+import com.example.plgsystem.dto.OrderDTO;
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Position;
-import com.example.plgsystem.repository.OrderRepository;
+import com.example.plgsystem.model.ServeRecord;
+import com.example.plgsystem.service.OrderService;
+import com.example.plgsystem.service.ServeRecordService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Optional;
 
-import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-@Transactional
+@WebMvcTest(OrderController.class)
 public class OrderControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private OrderRepository orderRepository;
+    @MockitoBean
+    private OrderService orderService;
+
+    @MockitoBean
+    private ServeRecordService serveRecordService;
 
     @Autowired
     private ObjectMapper objectMapper;
 
-    private Order testOrder;
-
-    @BeforeEach
-    public void setup() {
-        // Create a test order
-        Position position = new Position(30, 40);
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime deliveryDue = now.plusHours(4);
-        
-        testOrder = new Order("ORD-TEST-001", now, deliveryDue, 800.0, position);
-        testOrder = orderRepository.save(testOrder);
-    }
-
     @Test
     public void testGetAllOrders() throws Exception {
+        // Given
+        Order order1 = Order.builder()
+                .id("O001")
+                .arriveTime(LocalDateTime.now().minusDays(1))
+                .dueTime(LocalDateTime.now().plusDays(1))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        Order order2 = Order.builder()
+                .id("O002")
+                .arriveTime(LocalDateTime.now().minusDays(2))
+                .dueTime(LocalDateTime.now().plusDays(2))
+                .glpRequestM3(200)
+                .position(new Position(30, 40))
+                .build();
+
+        when(orderService.findAll()).thenReturn(Arrays.asList(order1, order2));
+
+        // When & Then
         mockMvc.perform(get("/api/orders"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))))
-                .andExpect(jsonPath("$[0].id", is("ORD-TEST-001")))
-                .andExpect(jsonPath("$[0].glpRequest", is(800.0)));
+                .andExpect(jsonPath("$[0].id").value("O001"))
+                .andExpect(jsonPath("$[1].id").value("O002"));
     }
 
     @Test
     public void testGetOrderById() throws Exception {
-        mockMvc.perform(get("/api/orders/{id}", testOrder.getId()))
+        // Given
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(LocalDateTime.now().minusDays(1))
+                .dueTime(LocalDateTime.now().plusDays(1))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        when(orderService.findById("O001")).thenReturn(Optional.of(order));
+
+        // When & Then
+        mockMvc.perform(get("/api/orders/O001"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.id", is(testOrder.getId())))
-                .andExpect(jsonPath("$.glpRequest", is(800.0)));
-        
-        // Test with non-existent ID
-        mockMvc.perform(get("/api/orders/NONEXISTENT"))
+                .andExpect(jsonPath("$.id").value("O001"))
+                .andExpect(jsonPath("$.glpRequestM3").value(100));
+    }
+
+    @Test
+    public void testGetOrderByIdNotFound() throws Exception {
+        // Given
+        when(orderService.findById("nonexistent")).thenReturn(Optional.empty());
+
+        // When & Then
+        mockMvc.perform(get("/api/orders/nonexistent"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     public void testGetPendingOrders() throws Exception {
-        // Create a completed order
-        Position pos2 = new Position(50, 60);
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime due2 = now.plusHours(6);
-        
-        Order completedOrder = new Order("ORD-COMP-001", now, due2, 500.0, pos2);
-        completedOrder.setRemainingGLP(0.0); // Fully delivered
-        orderRepository.save(completedOrder);
-        
-        // Test finding pending orders
-        mockMvc.perform(get("/api/orders/pending"))
+        // Given
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(LocalDateTime.now().minusDays(1))
+                .dueTime(LocalDateTime.now().plusDays(1))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        when(orderService.findPendingDeliveries()).thenReturn(Collections.singletonList(order));
+
+        // When & Then
+        mockMvc.perform(get("/api/orders").param("pending", "true"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(1))))
-                .andExpect(jsonPath("$[0].id", is("ORD-TEST-001")));
+                .andExpect(jsonPath("$[0].id").value("O001"));
     }
 
     @Test
-    public void testGetOrdersByDueTime() throws Exception {
-        // Create orders with different due times
-        Position pos = new Position(40, 50);
-        LocalDateTime now = LocalDateTime.now();
-        
-        // Order due in 2 hours
-        Order urgent = new Order("ORD-URGENT", now, now.plusHours(2), 300.0, pos);
-        orderRepository.save(urgent);
-        
-        // Order due in 8 hours
-        Order later = new Order("ORD-LATER", now, now.plusHours(8), 400.0, pos);
-        orderRepository.save(later);
-        
-        // Test finding orders due in next 3 hours
-        String dueTime = now.plusHours(3).toString();
-        
-        mockMvc.perform(get("/api/orders/due-by")
-                .param("time", dueTime))
+    public void testGetOverdueOrders() throws Exception {
+        // Given
+        LocalDateTime overdueAt = LocalDateTime.of(2025, 5, 15, 0, 0);
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(LocalDateTime.of(2025, 5, 10, 0, 0))
+                .dueTime(LocalDateTime.of(2025, 5, 12, 0, 0))  // Due before overdueAt
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        when(orderService.findOverdueOrders(overdueAt)).thenReturn(Collections.singletonList(order));
+
+        // When & Then
+        mockMvc.perform(get("/api/orders").param("overdueAt", "2025-05-15T00:00:00"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(1))))
-                .andExpect(jsonPath("$[0].id", is("ORD-URGENT")));
+                .andExpect(jsonPath("$[0].id").value("O001"));
     }
 
     @Test
-    public void testGetOrdersByDateRange() throws Exception {
-        // Create orders from different days
-        Position pos = new Position(60, 70);
-        LocalDateTime now = LocalDateTime.now();
-        
-        // Yesterday's order
-        LocalDateTime yesterday = now.minusDays(1);
-        Order yesterdayOrder = new Order("ORD-YESTERDAY", yesterday, yesterday.plusHours(4), 600.0, pos);
-        orderRepository.save(yesterdayOrder);
-        
-        // Tomorrow's order
-        LocalDateTime tomorrow = now.plusDays(1);
-        Order tomorrowOrder = new Order("ORD-TOMORROW", tomorrow, tomorrow.plusHours(4), 700.0, pos);
-        orderRepository.save(tomorrowOrder);
-        
-        // Test finding orders from a 3-day range
-        String startDate = yesterday.minusHours(1).toString();
-        String endDate = tomorrow.plusHours(1).toString();
-        
-        mockMvc.perform(get("/api/orders/date-range")
-                .param("startDate", startDate)
-                .param("endDate", endDate))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(3))))
-                .andExpect(jsonPath("$[*].id", hasItems("ORD-TEST-001", "ORD-YESTERDAY", "ORD-TOMORROW")));
-        
-        // Test finding only today's orders
-        String startToday = now.withHour(0).withMinute(0).toString();
-        String endToday = now.withHour(23).withMinute(59).toString();
-        
-        mockMvc.perform(get("/api/orders/date-range")
-                .param("startDate", startToday)
-                .param("endDate", endToday))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(1))))
-                .andExpect(jsonPath("$[0].id", is("ORD-TEST-001")));
-    }
+    public void testGetAvailableOrders() throws Exception {
+        // Given
+        LocalDateTime availableAt = LocalDateTime.of(2025, 5, 15, 0, 0);
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(LocalDateTime.of(2025, 5, 10, 0, 0))  // Available before availableAt
+                .dueTime(LocalDateTime.of(2025, 5, 20, 0, 0))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
 
-    @Test
-    public void testGetOrdersByRadius() throws Exception {
-        // Create orders at different locations
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime due = now.plusHours(4);
-        
-        // Order near the center
-        Position pos1 = new Position(55, 55);
-        Order nearOrder = new Order("ORD-NEAR", now, due, 200.0, pos1);
-        orderRepository.save(nearOrder);
-        
-        // Order far from the center
-        Position pos2 = new Position(80, 80);
-        Order farOrder = new Order("ORD-FAR", now, due, 300.0, pos2);
-        orderRepository.save(farOrder);
-        
-        // Test finding orders within 10 distance units from center
-        mockMvc.perform(get("/api/orders/radius")
-                .param("x", "50")
-                .param("y", "50")
-                .param("radius", "10.0"))
+        when(orderService.findAvailableOrders(availableAt)).thenReturn(Collections.singletonList(order));
+
+        // When & Then
+        mockMvc.perform(get("/api/orders").param("availableAt", "2025-05-15T00:00:00"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(1))))
-                .andExpect(jsonPath("$[0].id", is("ORD-NEAR")));
-        
-        // Test finding orders within 50 distance units from center
-        mockMvc.perform(get("/api/orders/radius")
-                .param("x", "50")
-                .param("y", "50")
-                .param("radius", "50.0"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(3))));
+                .andExpect(jsonPath("$[0].id").value("O001"));
     }
 
     @Test
     public void testCreateOrder() throws Exception {
-        // Create a new order
-        Position pos = new Position(90, 100);
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime due = now.plusHours(6);
-        
-        Order newOrder = new Order("ORD-NEW-001", now, due, 900.0, pos);
-        
+        // Given
+        OrderDTO orderDTO = new OrderDTO();
+        orderDTO.setId("O001");
+        orderDTO.setArriveTime(LocalDateTime.now().minusDays(1));
+        orderDTO.setDueTime(LocalDateTime.now().plusDays(1));
+        orderDTO.setGlpRequestM3(100);
+        orderDTO.setPosition(new Position(10, 20));
+        orderDTO.setRemainingGlpM3(100);
+
+        Order order = orderDTO.toEntity();
+
+        when(orderService.save(any(Order.class))).thenReturn(order);
+
+        // When & Then
         mockMvc.perform(post("/api/orders")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(newOrder)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is("ORD-NEW-001")))
-                .andExpect(jsonPath("$.glpRequest", is(900.0)))
-                .andExpect(jsonPath("$.remainingGLP", is(900.0)));
+                .content(objectMapper.writeValueAsString(orderDTO)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value("O001"));
     }
 
     @Test
-    public void testUpdateOrderDelivery() throws Exception {
-        // Deliver part of the order
-        double deliveredAmount = 300.0;
-        
-        mockMvc.perform(put("/api/orders/{id}/deliver", testOrder.getId())
-                .param("amount", String.valueOf(deliveredAmount)))
+    public void testUpdateOrder() throws Exception {
+        // Given
+        OrderDTO orderDTO = new OrderDTO();
+        orderDTO.setId("O001");
+        orderDTO.setArriveTime(LocalDateTime.now().minusDays(1));
+        orderDTO.setDueTime(LocalDateTime.now().plusDays(1));
+        orderDTO.setGlpRequestM3(100);
+        orderDTO.setPosition(new Position(10, 20));
+        orderDTO.setRemainingGlpM3(50); // Partially delivered
+
+        Order existingOrder = Order.builder()
+                .id("O001")
+                .arriveTime(LocalDateTime.now().minusDays(1))
+                .dueTime(LocalDateTime.now().plusDays(1))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        Order updatedOrder = orderDTO.toEntity();
+        updatedOrder.setRemainingGlpM3(50); // Make sure the remaining GLP is properly set
+
+        when(orderService.findById("O001")).thenReturn(Optional.of(existingOrder));
+        when(orderService.save(any(Order.class))).thenReturn(updatedOrder);
+
+        // When & Then
+        mockMvc.perform(put("/api/orders/O001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(orderDTO)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(testOrder.getId())))
-                .andExpect(jsonPath("$.glpRequest", is(800.0)))
-                .andExpect(jsonPath("$.remainingGLP", is(500.0)));
-        
-        // Deliver the rest
-        mockMvc.perform(put("/api/orders/{id}/deliver", testOrder.getId())
-                .param("amount", "500.0"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.remainingGLP", is(0.0)));
-        
-        // Try to deliver more than remaining
-        mockMvc.perform(put("/api/orders/{id}/deliver", testOrder.getId())
-                .param("amount", "100.0"))
-                .andExpect(status().isBadRequest());
+                .andExpect(jsonPath("$.id").value("O001"))
+                .andExpect(jsonPath("$.remainingGlpM3").value(50));
+    }
+
+    @Test
+    public void testUpdateOrderNotFound() throws Exception {
+        // Given
+        OrderDTO orderDTO = new OrderDTO();
+        orderDTO.setId("nonexistent");
+        orderDTO.setArriveTime(LocalDateTime.now().minusDays(1));
+        orderDTO.setDueTime(LocalDateTime.now().plusDays(1));
+        orderDTO.setGlpRequestM3(100);
+        orderDTO.setPosition(new Position(10, 20));
+
+        when(orderService.findById("nonexistent")).thenReturn(Optional.empty());
+
+        // When & Then
+        mockMvc.perform(put("/api/orders/nonexistent")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(orderDTO)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
     public void testDeleteOrder() throws Exception {
-        mockMvc.perform(delete("/api/orders/{id}", testOrder.getId()))
-                .andExpect(status().isOk());
-        
-        // Verify it's deleted
-        mockMvc.perform(get("/api/orders/{id}", testOrder.getId()))
+        // Given
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(LocalDateTime.now().minusDays(1))
+                .dueTime(LocalDateTime.now().plusDays(1))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        when(orderService.findById("O001")).thenReturn(Optional.of(order));
+        doNothing().when(orderService).deleteById("O001");
+
+        // When & Then
+        mockMvc.perform(delete("/api/orders/O001"))
+                .andExpect(status().isNoContent());
+
+        verify(orderService, times(1)).deleteById("O001");
+    }
+
+    @Test
+    public void testDeleteOrderNotFound() throws Exception {
+        // Given
+        when(orderService.findById("nonexistent")).thenReturn(Optional.empty());
+
+        // When & Then
+        mockMvc.perform(delete("/api/orders/nonexistent"))
                 .andExpect(status().isNotFound());
-        
-        // Try to delete non-existent order
-        mockMvc.perform(delete("/api/orders/NONEXISTENT"))
+
+        verify(orderService, never()).deleteById(anyString());
+    }
+
+    @Test
+    public void testRecordDelivery() throws Exception {
+        // Given
+        String orderId = "O001";
+        int deliveredVolumeM3 = 50;
+        String vehicleId = "V001";
+        LocalDateTime serveDate = LocalDateTime.now();
+
+        DeliveryRecordDTO deliveryRecordDTO = new DeliveryRecordDTO();
+        deliveryRecordDTO.setVolumeM3(deliveredVolumeM3);
+        deliveryRecordDTO.setVehicleId(vehicleId);
+        deliveryRecordDTO.setServeDate(serveDate);
+
+        ServeRecord serveRecord = new ServeRecord(vehicleId, orderId, deliveredVolumeM3, serveDate);
+
+        when(orderService.recordDelivery(eq(orderId), eq(deliveredVolumeM3), eq(vehicleId), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(serveRecord));
+        when(serveRecordService.save(any(ServeRecord.class))).thenReturn(serveRecord);
+
+        // When & Then
+        mockMvc.perform(post("/api/orders/O001/deliver")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(deliveryRecordDTO)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId").value(orderId))
+                .andExpect(jsonPath("$.vehicleId").value(vehicleId))
+                .andExpect(jsonPath("$.volumeM3").value(deliveredVolumeM3));
+    }
+
+    @Test
+    public void testRecordDeliveryOrderNotFound() throws Exception {
+        // Given
+        String orderId = "nonexistent";
+        DeliveryRecordDTO deliveryRecordDTO = new DeliveryRecordDTO();
+        deliveryRecordDTO.setVolumeM3(50);
+        deliveryRecordDTO.setVehicleId("V001");
+        deliveryRecordDTO.setServeDate(LocalDateTime.now());
+
+        when(orderService.recordDelivery(eq(orderId), eq(50), eq("V001"), any(LocalDateTime.class)))
+                .thenReturn(Optional.empty());
+
+        // When & Then
+        mockMvc.perform(post("/api/orders/nonexistent/deliver")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(deliveryRecordDTO)))
                 .andExpect(status().isNotFound());
     }
-}
+} 

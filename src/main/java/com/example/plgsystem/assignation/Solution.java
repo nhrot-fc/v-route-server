@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.example.plgsystem.models.Position;
-import com.example.plgsystem.models.Vehicle;
+import com.example.plgsystem.model.Position;
+import com.example.plgsystem.model.Vehicle;
 
 public class Solution {
     private final Map<Vehicle, List<DeliveryInstruction>> vehicleOrderAssignments;

@@ -1,9 +1,10 @@
-package com.example.plgsystems.assignation;
+package com.example.plgsystem.assignation;
+
+import java.time.LocalDateTime;
+import java.util.Objects;
 
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Position;
-import java.time.LocalDateTime;
-import java.util.Objects;
 
 public class DeliveryInstruction {
     private final Order originalOrder;

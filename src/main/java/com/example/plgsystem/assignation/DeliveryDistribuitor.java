@@ -1,10 +1,5 @@
 package com.example.plgsystem.assignation;
 
-import com.example.plgsystem.model.Environment;
-import com.example.plgsystem.model.Order;
-import com.example.plgsystem.model.Position;
-import com.example.plgsystem.model.Vehicle;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -13,12 +8,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.Position;
+import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.simulation.SimulationState;
+
 public class DeliveryDistribuitor {
 
-    private final Environment environment;
+    private final SimulationState environment;
     private final Random random = new Random();
 
-    public DeliveryDistribuitor(Environment environment) {
+    public DeliveryDistribuitor(SimulationState environment) {
         this.environment = environment;
     }
 

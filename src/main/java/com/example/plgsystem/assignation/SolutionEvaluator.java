@@ -1,16 +1,16 @@
 package com.example.plgsystem.assignation;
 
-import com.example.plgsystem.models.Environment;
-import com.example.plgsystem.models.Order;
-import com.example.plgsystem.models.Position;
-import com.example.plgsystem.models.Vehicle;
-
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.Position;
+import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.simulation.SimulationState;
 
 /**
  * Esta clase se encarga de evaluar la calidad de una solución asignación
@@ -40,7 +40,7 @@ public class SolutionEvaluator {
      * @param environment El entorno con información de órdenes y vehículos
      * @return Un score donde mayor valor indica mejor solución
      */
-    public static double evaluateSolution(Solution solution, Environment environment) {
+    public static double evaluateSolution(Solution solution, SimulationState environment) {
         // Obtener información de órdenes pendientes y asignaciones una sola vez
         Map<String, Order> pendingOrdersMap = getPendingOrdersMap(environment);
         Map<String, Integer> assignedGlpByOrderId = getAssignedGlpByOrderId(solution);
@@ -66,7 +66,7 @@ public class SolutionEvaluator {
     /**
      * Obtiene un mapa de todas las órdenes pendientes por ID
      */
-    private static Map<String, Order> getPendingOrdersMap(Environment environment) {
+    private static Map<String, Order> getPendingOrdersMap(SimulationState environment) {
         Map<String, Order> pendingOrdersMap = new HashMap<>();
         for (Order order : environment.getPendingOrders()) {
             pendingOrdersMap.put(order.getId(), order);
@@ -128,7 +128,7 @@ public class SolutionEvaluator {
     /**
      * Calcula bonus por entrega a tiempo o anticipada
      */
-    private static double calculateTimeBonus(Solution solution, Environment environment) {
+    private static double calculateTimeBonus(Solution solution, SimulationState environment) {
         double totalBonus = 0.0;
         LocalDateTime now = environment.getCurrentTime();
         Map<Vehicle, List<DeliveryInstruction>> assignments = solution.getVehicleOrderAssignments();
@@ -201,7 +201,7 @@ public class SolutionEvaluator {
     /**
      * Obtiene un resumen detallado de la evaluación
      */
-    public static String getDetailedEvaluation(Solution solution, Environment environment) {
+    public static String getDetailedEvaluation(Solution solution, SimulationState environment) {
         // Obtener información de órdenes pendientes y asignaciones una sola vez
         Map<String, Order> pendingOrdersMap = getPendingOrdersMap(environment);
         Map<String, Integer> assignedGlpByOrderId = getAssignedGlpByOrderId(solution);

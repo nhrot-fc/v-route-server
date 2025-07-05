@@ -1,6 +1,6 @@
 package com.example.plgsystem.assignation;
 
-import com.example.plgsystem.models.Vehicle;
+import com.example.plgsystem.model.Vehicle;
 
 public class TabuMove {
     private final Vehicle sourceVehicle;
