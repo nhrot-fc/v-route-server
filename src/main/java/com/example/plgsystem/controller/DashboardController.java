@@ -144,8 +144,8 @@ public class DashboardController {
         vehicleStatus.put("available", vehicleRepository.findByStatus(VehicleStatus.AVAILABLE));
         vehicleStatus.put("maintenance", vehicleRepository.findByStatus(VehicleStatus.MAINTENANCE));
         vehicleStatus.put("incident", vehicleRepository.findByStatus(VehicleStatus.INCIDENT));
-        vehicleStatus.put("inRoute", vehicleRepository.findByStatus(VehicleStatus.IN_ROUTE));
-        vehicleStatus.put("delivering", vehicleRepository.findByStatus(VehicleStatus.DELIVERING));
+        vehicleStatus.put("inRoute", vehicleRepository.findByStatus(VehicleStatus.DRIVING));
+        vehicleStatus.put("delivering", vehicleRepository.findByStatus(VehicleStatus.SERVING));
         
         return vehicleStatus;
     }

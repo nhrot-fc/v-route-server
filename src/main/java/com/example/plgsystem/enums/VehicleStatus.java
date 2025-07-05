@@ -10,12 +10,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum VehicleStatus {
     AVAILABLE("✅", "Disponible"),
-    IN_ROUTE("🚚", "En ruta"),
+    DRIVING("🚚", "En ruta"),
     MAINTENANCE("🔧", "En mantenimiento"),
     REFUELING("⛽", "Repostando"),
-    LOADING("🔄", "Cargando GLP"),
-    DELIVERING("📦", "Entregando"),
-    INCIDENT("🚨", "Con incidente");
+    RELOADING("🔄", "Cargando GLP"),
+    SERVING("📦", "Entregando"),
+    INCIDENT("🚨", "Con incidente"),
+    IDLE("🛑", "Ocioso");
 
     private final String icon;
     private final String description;

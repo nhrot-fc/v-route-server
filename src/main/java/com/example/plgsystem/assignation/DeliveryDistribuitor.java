@@ -1,20 +1,18 @@
 package com.example.plgsystem.assignation;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
 import com.example.plgsystem.model.Order;
-import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.simulation.SimulationState;
 
 public class DeliveryDistribuitor {
 
+    private static final int PACKAGE_SIZE = 5;
     private final SimulationState environment;
     private final Random random = new Random();
 
@@ -27,20 +25,14 @@ public class DeliveryDistribuitor {
         List<Vehicle> availableVehicles = environment.getAvailableVehicles();
         List<Order> pendingOrders = new ArrayList<>(environment.getPendingOrders());
 
-        // If there are no pending orders, return an empty solution
-        if (pendingOrders.isEmpty()) {
-            System.err.println("Warning: No pending orders to assign.");
-            // Still create empty lists for available vehicles
+        // If there are no pending orders or vehicles, return an empty solution
+        if (pendingOrders.isEmpty() || availableVehicles.isEmpty()) {
+            System.err.println("Warning: No pending orders or available vehicles for assignment.");
+            // Initialize empty lists for available vehicles
             for (Vehicle vehicle : availableVehicles) {
                 assignments.put(vehicle, new ArrayList<>());
             }
             return new Solution(assignments);
-        }
-
-        // If there are no available vehicles, return an empty solution
-        if (availableVehicles.isEmpty()) {
-            System.err.println("Warning: No available vehicles for assignment.");
-            return new Solution(new HashMap<>());
         }
 
         // Initialize assignment lists for each vehicle
@@ -48,75 +40,61 @@ public class DeliveryDistribuitor {
             assignments.put(vehicle, new ArrayList<>());
         }
 
-        // Sort orders by due time for better initial assignments
-        pendingOrders.sort(Comparator.comparing(Order::getDueTime, Comparator.nullsLast(Comparator.naturalOrder())));
-
-        // Assign each order
+        // Create mini packages of 5 GLP units from each order
+        List<DeliveryInstruction> allPackages = new ArrayList<>();
         for (Order order : pendingOrders) {
             int remainingGlpToAssign = order.getRemainingGlpM3();
-
+            
             // Skip if order has no remaining GLP
             if (remainingGlpToAssign <= 0) {
                 continue;
             }
-
-            // Create a probability distribution for vehicles based on proximity
-            List<Vehicle> sortedVehicles = getVehiclesSortedByProximity(availableVehicles, order);
-
-            // Assign splits until the order is fully assigned
+            
+            // Create packages of PACKAGE_SIZE (5) or smaller for the last package
             while (remainingGlpToAssign > 0) {
-                // Select a vehicle based on proximity (with some randomness)
-                Vehicle selectedVehicle = selectVehicleWithBias(sortedVehicles);
-
-                // Determine a split amount
-                int splitAmount = Math.min(remainingGlpToAssign, 5);
-
-                // Create and add the delivery instruction
-                DeliveryInstruction instruction = new DeliveryInstruction(order.clone(), splitAmount);
-                assignments.get(selectedVehicle).add(instruction);
-
-                // Update remaining GLP to assign
-                remainingGlpToAssign -= splitAmount;
+                int packageSize = Math.min(remainingGlpToAssign, PACKAGE_SIZE);
+                allPackages.add(new DeliveryInstruction(order.clone(), packageSize));
+                remainingGlpToAssign -= packageSize;
             }
+        }
+        
+        // Distribute packages using weighted random selection
+        for (DeliveryInstruction instruction : allPackages) {
+            Vehicle selectedVehicle = selectVehicleByCapacityWeight(availableVehicles);
+            assignments.get(selectedVehicle).add(instruction);
         }
 
         return new Solution(assignments);
     }
 
     /**
-     * Select a vehicle with bias towards those at the beginning of the list
-     * (which are assumed to be closer to the order)
+     * Select a vehicle with bias towards those with larger capacity
+     * Vehicles with more GLP capacity have a higher probability of being selected
      */
-    private Vehicle selectVehicleWithBias(List<Vehicle> sortedVehicles) {
-        if (sortedVehicles.isEmpty()) {
+    private Vehicle selectVehicleByCapacityWeight(List<Vehicle> vehicles) {
+        if (vehicles.isEmpty()) {
             throw new IllegalArgumentException("No vehicles available for selection");
         }
-
-        // Use a simple exponential bias toward the front of the list
-        double random = Math.pow(this.random.nextDouble(), 2); // Square to bias toward 0
-        int index = (int) (random * sortedVehicles.size());
-        return sortedVehicles.get(Math.min(index, sortedVehicles.size() - 1));
-    }
-
-    /**
-     * Get vehicles sorted by proximity to order
-     */
-    private List<Vehicle> getVehiclesSortedByProximity(List<Vehicle> vehicles, Order order) {
-        List<Vehicle> sortedVehicles = new ArrayList<>(vehicles);
-        final Position orderPosition = order.getPosition();
-
-        if (orderPosition == null) {
-            // If order has no position, shuffle randomly
-            Collections.shuffle(sortedVehicles, random);
-            return sortedVehicles;
+        
+        // Calculate total capacity for normalization
+        int totalCapacity = 0;
+        for (Vehicle vehicle : vehicles) {
+            totalCapacity += vehicle.getGlpCapacityM3();
         }
-
-        // Sort by distance to the order
-        sortedVehicles.sort(Comparator.comparingDouble(v -> {
-            Position vehiclePosition = v.getCurrentPosition();
-            return (vehiclePosition != null) ? vehiclePosition.distanceTo(orderPosition) : Double.MAX_VALUE;
-        }));
-
-        return sortedVehicles;
+        
+        // Generate a random value between 0 and total capacity
+        double randomValue = random.nextDouble() * totalCapacity;
+        
+        // Select vehicle based on weighted probability
+        double cumulativeWeight = 0;
+        for (Vehicle vehicle : vehicles) {
+            cumulativeWeight += vehicle.getGlpCapacityM3();
+            if (randomValue <= cumulativeWeight) {
+                return vehicle;
+            }
+        }
+        
+        // Fallback to the last vehicle (should not happen with proper implementation)
+        return vehicles.get(vehicles.size() - 1);
     }
 }

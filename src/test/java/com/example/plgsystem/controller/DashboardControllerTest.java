@@ -173,9 +173,9 @@ class DashboardControllerTest {
                 .thenReturn(Collections.singletonList(maintenanceVehicle));
         when(vehicleRepository.findByStatus(VehicleStatus.INCIDENT))
                 .thenReturn(Collections.emptyList());
-        when(vehicleRepository.findByStatus(VehicleStatus.IN_ROUTE))
+        when(vehicleRepository.findByStatus(VehicleStatus.DRIVING))
                 .thenReturn(Collections.emptyList());
-        when(vehicleRepository.findByStatus(VehicleStatus.DELIVERING))
+        when(vehicleRepository.findByStatus(VehicleStatus.SERVING))
                 .thenReturn(Collections.emptyList());
         
         // Act

@@ -41,11 +41,11 @@ public class VehicleTest {
         // When
         Position newPosition = new Position(15, 25);
         vehicle.setCurrentPosition(newPosition);
-        vehicle.setStatus(VehicleStatus.IN_ROUTE);
+        vehicle.setStatus(VehicleStatus.DRIVING);
         
         // Then
         assertEquals(newPosition, vehicle.getCurrentPosition());
-        assertEquals(VehicleStatus.IN_ROUTE, vehicle.getStatus());
+        assertEquals(VehicleStatus.DRIVING, vehicle.getStatus());
     }
 
     @Test

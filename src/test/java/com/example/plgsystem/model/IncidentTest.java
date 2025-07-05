@@ -13,7 +13,7 @@ public class IncidentTest {
 
     private Incident incident;
     private final String vehicleId = "V001";
-    private final IncidentType incidentType = IncidentType.TYPE_1;
+    private final IncidentType incidentType = IncidentType.TI1;
     private final Shift shift = Shift.T1;
     private final Position location = new Position(10, 20);
     private final LocalDateTime occurrenceTime = LocalDateTime.now().minusHours(1);
@@ -81,12 +81,12 @@ public class IncidentTest {
         assertEquals(expectedAvailability, incident.calculateAvailabilityTime());
         
         // Try with a different incident type
-        Incident criticalIncident = new Incident(vehicleId, IncidentType.TYPE_3, shift);
+        Incident criticalIncident = new Incident(vehicleId, IncidentType.TI3, shift);
         criticalIncident.setOccurrenceTime(occurrenceTime);
         
         LocalDateTime criticalExpectedAvailability = occurrenceTime
-                .plusHours(IncidentType.TYPE_3.getImmobilizationHours())
-                .plusHours(IncidentType.TYPE_3.getRepairHours());
+                .plusHours(IncidentType.TI3.getImmobilizationHours())
+                .plusHours(IncidentType.TI3.getRepairHours());
                 
         assertEquals(criticalExpectedAvailability, criticalIncident.calculateAvailabilityTime());
     }
@@ -97,7 +97,7 @@ public class IncidentTest {
         assertFalse(incident.requiresReturnToDepot());
         
         // TYPE_3 should require return to depot
-        Incident criticalIncident = new Incident(vehicleId, IncidentType.TYPE_3, shift);
+        Incident criticalIncident = new Incident(vehicleId, IncidentType.TI3, shift);
         assertTrue(criticalIncident.requiresReturnToDepot());
     }
 

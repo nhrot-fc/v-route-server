@@ -11,19 +11,19 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum IncidentType {
-    TYPE_1("Avería Tipo 1", 
+    TI1("Avería Tipo 1", 
           Constants.INCIDENT_TYPE_1_IMMOBILIZATION_HOURS, 
           0, 
           false, 
           "Incidente leve que puede ser resuelto en el lugar"),
           
-    TYPE_2("Avería Tipo 2", 
+    TI2("Avería Tipo 2", 
           Constants.INCIDENT_TYPE_2_IMMOBILIZATION_HOURS, 
           4, 
           true, 
           "Incidente moderado que requiere reparación en el depósito"),
           
-    TYPE_3("Avería Tipo 3", 
+    TI3("Avería Tipo 3", 
           Constants.INCIDENT_TYPE_3_IMMOBILIZATION_HOURS, 
           24, 
           true, 

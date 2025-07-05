@@ -96,13 +96,13 @@ public class VehicleRepositoryTest {
                 .type(VehicleType.TA)
                 .currentPosition(position2)
                 .build();
-        vehicle2.setStatus(VehicleStatus.IN_ROUTE);
+        vehicle2.setStatus(VehicleStatus.DRIVING);
 
         vehicleRepository.saveAll(List.of(vehicle1, vehicle2));
 
         // When
         List<Vehicle> availableVehicles = vehicleRepository.findByStatus(VehicleStatus.AVAILABLE);
-        List<Vehicle> inRouteVehicles = vehicleRepository.findByStatus(VehicleStatus.IN_ROUTE);
+        List<Vehicle> inRouteVehicles = vehicleRepository.findByStatus(VehicleStatus.DRIVING);
 
         // Then
         assertEquals(1, availableVehicles.size());

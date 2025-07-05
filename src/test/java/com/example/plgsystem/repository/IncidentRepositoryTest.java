@@ -29,7 +29,7 @@ public class IncidentRepositoryTest {
     @Test
     public void testSaveIncident() {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
         LocalDateTime occurrenceTime = LocalDateTime.now().minusHours(1);
         Position location = new Position(10, 20);
         
@@ -44,7 +44,7 @@ public class IncidentRepositoryTest {
         assertNotNull(savedIncident);
         assertNotNull(savedIncident.getId()); // ID should be generated
         assertEquals("V001", savedIncident.getVehicleId());
-        assertEquals(IncidentType.TYPE_1, savedIncident.getType());
+        assertEquals(IncidentType.TI1, savedIncident.getType());
         assertEquals(Shift.T1, savedIncident.getShift());
         assertEquals(occurrenceTime, savedIncident.getOccurrenceTime());
         assertEquals(location.getX(), savedIncident.getLocation().getX());
@@ -56,7 +56,7 @@ public class IncidentRepositoryTest {
     @Test
     public void testFindById() {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
         incident.setOccurrenceTime(LocalDateTime.now());
         incident.setLocation(new Position(10, 20));
         
@@ -72,14 +72,14 @@ public class IncidentRepositoryTest {
         assertTrue(found.isPresent());
         assertEquals(incidentId, found.get().getId());
         assertEquals("V001", found.get().getVehicleId());
-        assertEquals(IncidentType.TYPE_1, found.get().getType());
+        assertEquals(IncidentType.TI1, found.get().getType());
     }
 
     @Test
     public void testFindAll() {
         // Given
-        Incident incident1 = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
-        Incident incident2 = new Incident("V002", IncidentType.TYPE_2, Shift.T2);
+        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
+        Incident incident2 = new Incident("V002", IncidentType.TI2, Shift.T2);
         
         entityManager.persist(incident1);
         entityManager.persist(incident2);
@@ -95,7 +95,7 @@ public class IncidentRepositoryTest {
     @Test
     public void testUpdateIncident() {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
         incident.setOccurrenceTime(LocalDateTime.now());
         entityManager.persist(incident);
         entityManager.flush();
@@ -115,7 +115,7 @@ public class IncidentRepositoryTest {
     @Test
     public void testDeleteIncident() {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
         entityManager.persist(incident);
         entityManager.flush();
         
@@ -132,9 +132,9 @@ public class IncidentRepositoryTest {
     @Test
     public void testFindByVehicleId() {
         // Given
-        Incident incident1 = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
-        Incident incident2 = new Incident("V001", IncidentType.TYPE_2, Shift.T2); // Same vehicle
-        Incident incident3 = new Incident("V002", IncidentType.TYPE_3, Shift.T3); // Different vehicle
+        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
+        Incident incident2 = new Incident("V001", IncidentType.TI2, Shift.T2); // Same vehicle
+        Incident incident3 = new Incident("V002", IncidentType.TI3, Shift.T3); // Different vehicle
         
         entityManager.persist(incident1);
         entityManager.persist(incident2);
@@ -152,10 +152,10 @@ public class IncidentRepositoryTest {
     @Test
     public void testFindByResolved() {
         // Given
-        Incident incident1 = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
         incident1.setResolved(true); // Resolved
         
-        Incident incident2 = new Incident("V002", IncidentType.TYPE_2, Shift.T2); // Not resolved
+        Incident incident2 = new Incident("V002", IncidentType.TI2, Shift.T2); // Not resolved
         
         entityManager.persist(incident1);
         entityManager.persist(incident2);
@@ -181,16 +181,16 @@ public class IncidentRepositoryTest {
         LocalDateTime tomorrow = now.plusDays(1);
         LocalDateTime nextWeek = now.plusDays(7);
         
-        Incident incident1 = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
         incident1.setOccurrenceTime(yesterday);
         
-        Incident incident2 = new Incident("V002", IncidentType.TYPE_2, Shift.T2);
+        Incident incident2 = new Incident("V002", IncidentType.TI2, Shift.T2);
         incident2.setOccurrenceTime(now);
         
-        Incident incident3 = new Incident("V003", IncidentType.TYPE_3, Shift.T3);
+        Incident incident3 = new Incident("V003", IncidentType.TI3, Shift.T3);
         incident3.setOccurrenceTime(tomorrow);
         
-        Incident incident4 = new Incident("V004", IncidentType.TYPE_3, Shift.T3);
+        Incident incident4 = new Incident("V004", IncidentType.TI3, Shift.T3);
         incident4.setOccurrenceTime(nextWeek);
         
         entityManager.persist(incident1);
@@ -215,13 +215,13 @@ public class IncidentRepositoryTest {
         LocalDateTime yesterday = now.minusDays(1);
         LocalDateTime tomorrow = now.plusDays(1);
         
-        Incident incident1 = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
         incident1.setOccurrenceTime(yesterday);
         
-        Incident incident2 = new Incident("V001", IncidentType.TYPE_2, Shift.T2);
+        Incident incident2 = new Incident("V001", IncidentType.TI2, Shift.T2);
         incident2.setOccurrenceTime(tomorrow);
         
-        Incident incident3 = new Incident("V002", IncidentType.TYPE_3, Shift.T3);
+        Incident incident3 = new Incident("V002", IncidentType.TI3, Shift.T3);
         incident3.setOccurrenceTime(now);
         
         entityManager.persist(incident1);

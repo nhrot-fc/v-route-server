@@ -51,11 +51,11 @@ public class IncidentControllerTest {
     @Test
     public void testGetAllIncidents() throws Exception {
         // Given
-        Incident incident1 = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
         setId(incident1, 1L);
         incident1.setOccurrenceTime(LocalDateTime.now().minusHours(2));
         
-        Incident incident2 = new Incident("V002", IncidentType.TYPE_2, Shift.T2);
+        Incident incident2 = new Incident("V002", IncidentType.TI2, Shift.T2);
         setId(incident2, 2L);
         incident2.setOccurrenceTime(LocalDateTime.now().minusHours(1));
         
@@ -71,7 +71,7 @@ public class IncidentControllerTest {
     @Test
     public void testGetIncidentById() throws Exception {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
         setId(incident, 1L);
         incident.setOccurrenceTime(LocalDateTime.now());
         
@@ -97,11 +97,11 @@ public class IncidentControllerTest {
     @Test
     public void testGetIncidentsByVehicleId() throws Exception {
         // Given
-        Incident incident1 = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
         setId(incident1, 1L);
         incident1.setOccurrenceTime(LocalDateTime.now().minusDays(1));
         
-        Incident incident2 = new Incident("V001", IncidentType.TYPE_2, Shift.T2);
+        Incident incident2 = new Incident("V001", IncidentType.TI2, Shift.T2);
         setId(incident2, 2L);
         incident2.setOccurrenceTime(LocalDateTime.now());
         
@@ -120,11 +120,11 @@ public class IncidentControllerTest {
         LocalDateTime start = LocalDateTime.of(2025, 5, 1, 0, 0);
         LocalDateTime end = LocalDateTime.of(2025, 5, 31, 23, 59);
         
-        Incident incident1 = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
         setId(incident1, 1L);
         incident1.setOccurrenceTime(LocalDateTime.of(2025, 5, 15, 10, 0));
         
-        Incident incident2 = new Incident("V002", IncidentType.TYPE_2, Shift.T2);
+        Incident incident2 = new Incident("V002", IncidentType.TI2, Shift.T2);
         setId(incident2, 2L);
         incident2.setOccurrenceTime(LocalDateTime.of(2025, 5, 20, 14, 30));
         
@@ -146,7 +146,7 @@ public class IncidentControllerTest {
         LocalDateTime start = LocalDateTime.of(2025, 5, 1, 0, 0);
         LocalDateTime end = LocalDateTime.of(2025, 5, 31, 23, 59);
         
-        Incident incident1 = new Incident(vehicleId, IncidentType.TYPE_1, Shift.T1);
+        Incident incident1 = new Incident(vehicleId, IncidentType.TI1, Shift.T1);
         setId(incident1, 1L);
         incident1.setOccurrenceTime(LocalDateTime.of(2025, 5, 15, 10, 0));
         
@@ -167,13 +167,13 @@ public class IncidentControllerTest {
         // Given
         IncidentCreateDTO createDTO = new IncidentCreateDTO();
         createDTO.setVehicleId("V001");
-        createDTO.setType(IncidentType.TYPE_1);
+        createDTO.setType(IncidentType.TI1);
         createDTO.setShift(Shift.T1);
         createDTO.setOccurrenceTime(LocalDateTime.of(2025, 5, 15, 10, 0));
         createDTO.setLocation(new Position(10, 20));
         createDTO.setTransferableGlp(50.5);
         
-        Incident savedIncident = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident savedIncident = new Incident("V001", IncidentType.TI1, Shift.T1);
         setId(savedIncident, 1L);
         savedIncident.setOccurrenceTime(LocalDateTime.of(2025, 5, 15, 10, 0));
         savedIncident.setLocation(new Position(10, 20));
@@ -194,12 +194,12 @@ public class IncidentControllerTest {
     @Test
     public void testResolveIncident() throws Exception {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
         setId(incident, 1L);
         incident.setOccurrenceTime(LocalDateTime.now());
         incident.setResolved(false);
         
-        Incident resolvedIncident = new Incident("V001", IncidentType.TYPE_1, Shift.T1);
+        Incident resolvedIncident = new Incident("V001", IncidentType.TI1, Shift.T1);
         setId(resolvedIncident, 1L);
         resolvedIncident.setOccurrenceTime(LocalDateTime.now());
         resolvedIncident.setResolved(true);

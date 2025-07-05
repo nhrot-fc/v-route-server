@@ -135,7 +135,7 @@ public class VehicleControllerTest {
                 .type(VehicleType.TA)
                 .currentPosition(newPosition)
                 .build();
-        updatedVehicle.setStatus(VehicleStatus.IN_ROUTE);
+        updatedVehicle.setStatus(VehicleStatus.DRIVING);
 
         VehicleDTO updatedVehicleDTO = VehicleDTO.fromEntity(updatedVehicle);
 
@@ -148,7 +148,7 @@ public class VehicleControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(updatedVehicleDTO)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value(VehicleStatus.IN_ROUTE.toString()));
+                .andExpect(jsonPath("$.status").value(VehicleStatus.DRIVING.toString()));
     }
 
     @Test
