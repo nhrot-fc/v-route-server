@@ -2,6 +2,7 @@ package com.example.plgsystem.controller;
 
 import com.example.plgsystem.model.*;
 import com.example.plgsystem.repository.*;
+import com.example.plgsystem.enums.VehicleStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/dashboard")
@@ -55,20 +57,25 @@ public class DashboardController {
     public Map<String, Object> getDashboardOverview() {
         Map<String, Object> overview = new HashMap<>();
         
+        LocalDateTime now = LocalDateTime.now();
+        
         // Vehicle statistics
-        List<Vehicle> availableVehicles = vehicleRepository.findAvailableVehicles();
+        List<Vehicle> availableVehicles = vehicleRepository.findByStatusOrderByCurrentGlpM3Desc(VehicleStatus.AVAILABLE);
         List<Vehicle> maintenanceVehicles = vehicleRepository.findByStatus(VehicleStatus.MAINTENANCE);
-        List<Vehicle> brokenVehicles = vehicleRepository.findByStatus(VehicleStatus.BROKEN_DOWN);
+        List<Vehicle> incidentVehicles = vehicleRepository.findByStatus(VehicleStatus.INCIDENT);
         
         overview.put("totalVehicles", vehicleRepository.count());
         overview.put("availableVehicles", availableVehicles.size());
         overview.put("vehiclesInMaintenance", maintenanceVehicles.size());
-        overview.put("brokenVehicles", brokenVehicles.size());
+        overview.put("vehiclesWithIncidents", incidentVehicles.size());
         
         // Order statistics
-        List<Order> pendingOrders = orderRepository.findPendingOrders();
-        List<Order> completedOrders = orderRepository.findCompletedOrders();
-        List<Order> overdueOrders = orderRepository.findOverdueOrders(LocalDateTime.now());
+        List<Order> pendingOrders = orderRepository.findPendingDeliveries();
+        List<Order> completedOrders = orderRepository.findByRemainingGlpM3(0);
+        List<Order> overdueOrders = orderRepository.findByDueTimeBefore(now)
+            .stream()
+            .filter(order -> order.getRemainingGlpM3() > 0)
+            .collect(Collectors.toList());
         
         overview.put("totalOrders", orderRepository.count());
         overview.put("pendingOrders", pendingOrders.size());
@@ -76,33 +83,42 @@ public class DashboardController {
         overview.put("overdueOrders", overdueOrders.size());
         
         // Depot statistics
-        Double totalStorageCapacity = depotRepository.getTotalStorageCapacity();
-        Double currentTotalGLP = depotRepository.getCurrentTotalGLP();
+        List<Depot> depots = depotRepository.findAll();
+        double totalStorageCapacity = depots.stream().mapToDouble(Depot::getGlpCapacityM3).sum();
+        double currentTotalGLP = depots.stream().mapToDouble(Depot::getCurrentGlpM3).sum();
         
-        overview.put("totalStorageCapacity", totalStorageCapacity != null ? totalStorageCapacity : 0.0);
-        overview.put("currentTotalGLP", currentTotalGLP != null ? currentTotalGLP : 0.0);
+        overview.put("totalStorageCapacity", totalStorageCapacity);
+        overview.put("currentTotalGLP", currentTotalGLP);
         overview.put("storageUtilization", 
-                    totalStorageCapacity != null && totalStorageCapacity > 0 
-                    ? (currentTotalGLP != null ? currentTotalGLP / totalStorageCapacity * 100 : 0.0) 
-                    : 0.0);
+                    totalStorageCapacity > 0 ? (currentTotalGLP / totalStorageCapacity * 100) : 0.0);
         
         // Fleet capacity statistics
-        Double totalFleetCapacity = vehicleRepository.getTotalFleetCapacity();
-        Double availableFleetGLP = vehicleRepository.getAvailableFleetGLP();
+        List<Vehicle> allVehicles = vehicleRepository.findAll();
+        double totalFleetCapacity = allVehicles.stream().mapToDouble(Vehicle::getGlpCapacityM3).sum();
+        double availableFleetGLP = allVehicles.stream().mapToDouble(Vehicle::getCurrentGlpM3).sum();
         
-        overview.put("totalFleetCapacity", totalFleetCapacity != null ? totalFleetCapacity : 0.0);
-        overview.put("availableFleetGLP", availableFleetGLP != null ? availableFleetGLP : 0.0);
+        overview.put("totalFleetCapacity", totalFleetCapacity);
+        overview.put("availableFleetGLP", availableFleetGLP);
         
         // Current operational status
-        List<Blockage> activeBlockages = blockageRepository.findActiveBlockages(LocalDateTime.now());
-        List<Maintenance> activeMaintenance = maintenanceRepository.findActiveMaintenance(LocalDateTime.now());
-        List<Incident> activeIncidents = incidentRepository.findActiveIncidents(LocalDateTime.now());
+        List<Blockage> activeBlockages = blockageRepository.findAll().stream()
+            .filter(blockage -> blockage.isActiveAt(now))
+            .collect(Collectors.toList());
+        
+        List<Maintenance> activeMaintenance = maintenanceRepository.findAll().stream()
+            .filter(maintenance -> maintenance.getRealStart() != null && 
+                   (maintenance.getRealEnd() == null || now.isBefore(maintenance.getRealEnd())))
+            .collect(Collectors.toList());
+            
+        List<Incident> activeIncidents = incidentRepository.findAll().stream()
+            .filter(incident -> !incident.isResolved())
+            .collect(Collectors.toList());
         
         overview.put("activeBlockages", activeBlockages.size());
         overview.put("activeMaintenance", activeMaintenance.size());
         overview.put("activeIncidents", activeIncidents.size());
         
-        overview.put("timestamp", LocalDateTime.now());
+        overview.put("timestamp", now);
         
         return overview;
     }
@@ -127,7 +143,9 @@ public class DashboardController {
         
         vehicleStatus.put("available", vehicleRepository.findByStatus(VehicleStatus.AVAILABLE));
         vehicleStatus.put("maintenance", vehicleRepository.findByStatus(VehicleStatus.MAINTENANCE));
-        vehicleStatus.put("brokenDown", vehicleRepository.findByStatus(VehicleStatus.BROKEN_DOWN));
+        vehicleStatus.put("incident", vehicleRepository.findByStatus(VehicleStatus.INCIDENT));
+        vehicleStatus.put("inRoute", vehicleRepository.findByStatus(VehicleStatus.DRIVING));
+        vehicleStatus.put("delivering", vehicleRepository.findByStatus(VehicleStatus.SERVING));
         
         return vehicleStatus;
     }
@@ -150,8 +168,13 @@ public class DashboardController {
     public List<Order> getUrgentOrders(
         @Parameter(description = "Horas de anticipación para considerar urgente", example = "4")
         @RequestParam(defaultValue = "4") int hoursAhead) {
-        LocalDateTime deadline = LocalDateTime.now().plusHours(hoursAhead);
-        return orderRepository.findUrgentOrders(deadline);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime deadline = now.plusHours(hoursAhead);
+        
+        return orderRepository.findPendingDeliveries().stream()
+                .filter(order -> order.getDueTime().isBefore(deadline) && order.getDueTime().isAfter(now))
+                .sorted((o1, o2) -> o1.getDueTime().compareTo(o2.getDueTime()))
+                .collect(Collectors.toList());
     }
 
     @Operation(
@@ -168,12 +191,19 @@ public class DashboardController {
     @GetMapping("/system-health")
     public Map<String, Object> getSystemHealth() {
         Map<String, Object> health = new HashMap<>();
+        LocalDateTime now = LocalDateTime.now();
         
         // Calculate overall system health score (0-100)
         int totalVehicles = (int) vehicleRepository.count();
-        int availableVehicles = vehicleRepository.findAvailableVehicles().size();
-        int activeIncidents = incidentRepository.findActiveIncidents(LocalDateTime.now()).size();
-        int overdueOrders = orderRepository.findOverdueOrders(LocalDateTime.now()).size();
+        int availableVehicles = vehicleRepository.findByStatus(VehicleStatus.AVAILABLE).size();
+        
+        int activeIncidents = incidentRepository.findAll().stream()
+            .filter(incident -> !incident.isResolved())
+            .collect(Collectors.toList()).size();
+            
+        int overdueOrders = orderRepository.findByDueTimeBefore(now).stream()
+            .filter(order -> order.getRemainingGlpM3() > 0)
+            .collect(Collectors.toList()).size();
         
         double vehicleHealthScore = totalVehicles > 0 ? (double) availableVehicles / totalVehicles * 100 : 0;
         double incidentHealthScore = Math.max(0, 100 - (activeIncidents * 10)); // Each incident reduces score by 10

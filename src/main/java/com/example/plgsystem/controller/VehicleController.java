@@ -1,201 +1,203 @@
 package com.example.plgsystem.controller;
 
+import com.example.plgsystem.dto.DeliveryRecordDTO;
+import com.example.plgsystem.dto.ServeRecordDTO;
+import com.example.plgsystem.dto.VehicleDTO;
+import com.example.plgsystem.model.ServeRecord;
 import com.example.plgsystem.model.Vehicle;
-import com.example.plgsystem.model.VehicleStatus;
-import com.example.plgsystem.model.VehicleType;
-import com.example.plgsystem.model.Position;
-import com.example.plgsystem.repository.VehicleRepository;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.plgsystem.enums.VehicleStatus;
+import com.example.plgsystem.enums.VehicleType;
+import com.example.plgsystem.service.ServeRecordService;
+import com.example.plgsystem.service.VehicleService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/vehicles")
-@Tag(name = "Vehicles", description = "Gestión de vehículos del sistema PLG")
 public class VehicleController {
 
-    @Autowired
-    private VehicleRepository vehicleRepository;
+    private final VehicleService vehicleService;
+    private final ServeRecordService serveRecordService;
 
-    @Operation(summary = "Obtener todos los vehículos", description = "Retorna una lista de todos los vehículos en el sistema")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Lista de vehículos obtenida exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Vehicle.class)) })
-    })
-    @GetMapping
-    public List<Vehicle> getAllVehicles() {
-        System.out.println("Fetching all vehicles from the repository");
-        return vehicleRepository.findAll();
+    public VehicleController(VehicleService vehicleService, ServeRecordService serveRecordService) {
+        this.vehicleService = vehicleService;
+        this.serveRecordService = serveRecordService;
     }
 
-    @Operation(summary = "Obtener vehículo por ID", description = "Retorna un vehículo específico por su ID")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Vehículo encontrado",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Vehicle.class)) }),
-        @ApiResponse(responseCode = "404", description = "Vehículo no encontrado", content = @Content)
-    })
-    @GetMapping("/{id}")
-    public ResponseEntity<Vehicle> getVehicleById(
-            @Parameter(description = "ID del vehículo") @PathVariable String id) {
-        Optional<Vehicle> vehicle = vehicleRepository.findById(id);
-        return vehicle.map(ResponseEntity::ok)
-                     .orElse(ResponseEntity.notFound().build());
-    }
-
-    @Operation(summary = "Obtener vehículos por estado", description = "Retorna vehículos filtrados por estado")
-    @GetMapping("/status/{status}")
-    public List<Vehicle> getVehiclesByStatus(
-            @Parameter(description = "Estado del vehículo") @PathVariable VehicleStatus status) {
-        return vehicleRepository.findByStatus(status);
-    }
-
-    @Operation(summary = "Obtener vehículos disponibles", description = "Retorna todos los vehículos disponibles")
-    @GetMapping("/available")
-    public List<Vehicle> getAvailableVehicles() {
-        return vehicleRepository.findAvailableVehicles();
-    }
-
-    @Operation(summary = "Obtener vehículos por tipo", description = "Retorna vehículos filtrados por tipo")
-    @GetMapping("/type/{type}")
-    public List<Vehicle> getVehiclesByType(
-            @Parameter(description = "Tipo de vehículo") @PathVariable VehicleType type) {
-        return vehicleRepository.findByType(type);
-    }
-
-    @Operation(summary = "Obtener vehículos por radio", description = "Retorna vehículos dentro de un radio específico")
-    @GetMapping("/radius")
-    public List<Vehicle> getVehiclesByRadius(
-            @Parameter(description = "Coordenada X del centro") @RequestParam double x, 
-            @Parameter(description = "Coordenada Y del centro") @RequestParam double y, 
-            @Parameter(description = "Radio de búsqueda") @RequestParam double radius) {
-        return vehicleRepository.findByRadius(x, y, radius);
-    }
-
-    @Operation(summary = "Crear nuevo vehículo", description = "Crea un nuevo vehículo en el sistema")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Vehículo creado exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Vehicle.class)) })
-    })
+    /**
+     * Crear un nuevo vehículo
+     */
     @PostMapping
-    public ResponseEntity<Vehicle> createVehicle(
-            @Parameter(description = "Datos del vehículo a crear") @RequestBody Vehicle vehicle) {
-        Vehicle savedVehicle = vehicleRepository.save(vehicle);
-        return ResponseEntity.ok(savedVehicle);
+    public ResponseEntity<VehicleDTO> create(@RequestBody VehicleDTO vehicleDTO) {
+        Vehicle vehicle = vehicleDTO.toEntity();
+        Vehicle savedVehicle = vehicleService.save(vehicle);
+        return new ResponseEntity<>(VehicleDTO.fromEntity(savedVehicle), HttpStatus.CREATED);
     }
 
-    @Operation(summary = "Eliminar vehículo", description = "Elimina un vehículo del sistema")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Vehículo eliminado exitosamente"),
-        @ApiResponse(responseCode = "404", description = "Vehículo no encontrado")
-    })
+    /**
+     * Obtener un vehículo por ID
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<VehicleDTO> getById(@PathVariable String id) {
+        Optional<Vehicle> vehicle = vehicleService.findById(id);
+        return vehicle.map(v -> ResponseEntity.ok(VehicleDTO.fromEntity(v)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Listar todos los vehículos con opciones de filtrado y paginación opcional
+     */
+    @GetMapping
+    public ResponseEntity<?> list(
+            @RequestParam(required = false) VehicleType type,
+            @RequestParam(required = false) VehicleStatus status,
+            @RequestParam(required = false) Integer minGlp,
+            @RequestParam(required = false) Double minFuel,
+            @RequestParam(required = false) Boolean paginated,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
+        
+        // Si paginated es null o false, devolvemos todos los resultados sin paginar
+        if (paginated == null || !paginated) {
+            List<Vehicle> vehicles;
+            
+            if (type != null) {
+                vehicles = vehicleService.findByType(type);
+            } else if (status != null) {
+                vehicles = vehicleService.findByStatus(status);
+            } else if (minGlp != null) {
+                vehicles = vehicleService.findByMinimumGlp(minGlp);
+            } else if (minFuel != null) {
+                vehicles = vehicleService.findByMinimumFuel(minFuel);
+            } else {
+                vehicles = vehicleService.findAll();
+            }
+            
+            List<VehicleDTO> vehicleDTOs = vehicles.stream()
+                    .map(VehicleDTO::fromEntity)
+                    .collect(Collectors.toList());
+                    
+            return ResponseEntity.ok(vehicleDTOs);
+        }
+        
+        // Si paginated es true, devolvemos resultados paginados
+        Sort sort = direction.equalsIgnoreCase("desc") ? 
+                Sort.by(sortBy).descending() : 
+                Sort.by(sortBy).ascending();
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Vehicle> vehicles;
+        
+        if (type != null) {
+            vehicles = vehicleService.findByTypePaged(type, pageable);
+        } else if (status != null) {
+            vehicles = vehicleService.findByStatusPaged(status, pageable);
+        } else if (minGlp != null) {
+            vehicles = vehicleService.findByMinimumGlpPaged(minGlp, pageable);
+        } else if (minFuel != null) {
+            vehicles = vehicleService.findByMinimumFuelPaged(minFuel, pageable);
+        } else {
+            vehicles = vehicleService.findAllPaged(pageable);
+        }
+        
+        Page<VehicleDTO> vehicleDTOs = vehicles.map(VehicleDTO::fromEntity);
+                
+        return ResponseEntity.ok(vehicleDTOs);
+    }
+
+    /**
+     * Actualizar un vehículo existente
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<VehicleDTO> update(@PathVariable String id, @RequestBody VehicleDTO vehicleDTO) {
+        return vehicleService.findById(id)
+                .map(existingVehicle -> {
+                    // Actualizar solo los campos permitidos
+                    existingVehicle.setCurrentPosition(vehicleDTO.getCurrentPosition());
+                    existingVehicle.setStatus(vehicleDTO.getStatus());
+                    
+                    Vehicle updatedVehicle = vehicleService.save(existingVehicle);
+                    return ResponseEntity.ok(VehicleDTO.fromEntity(updatedVehicle));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Eliminar un vehículo por ID
+     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteVehicle(
-            @Parameter(description = "ID del vehículo a eliminar") @PathVariable String id) {
-        if (vehicleRepository.existsById(id)) {
-            vehicleRepository.deleteById(id);
-            return ResponseEntity.ok().build();
-        }
-        return ResponseEntity.notFound().build();
+    public ResponseEntity<Void> delete(@PathVariable String id) {
+        return vehicleService.findById(id)
+                .map(vehicle -> {
+                    vehicleService.deleteById(id);
+                    return ResponseEntity.noContent().<Void>build();
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
-
-    @Operation(summary = "Actualizar posición del vehículo", description = "Actualiza la posición actual del vehículo")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Posición actualizada exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Vehicle.class)) }),
-        @ApiResponse(responseCode = "404", description = "Vehículo no encontrado")
-    })
-    @PutMapping("/{id}/position")
-    public ResponseEntity<Vehicle> updateVehiclePosition(
-            @Parameter(description = "ID del vehículo") @PathVariable String id, 
-            @Parameter(description = "Nueva posición") @RequestBody Position position) {
-        Optional<Vehicle> optionalVehicle = vehicleRepository.findById(id);
-        if (optionalVehicle.isPresent()) {
-            Vehicle vehicle = optionalVehicle.get();
-            vehicle.setCurrentPosition(position);
-            Vehicle updatedVehicle = vehicleRepository.save(vehicle);
-            return ResponseEntity.ok(updatedVehicle);
-        }
-        return ResponseEntity.notFound().build();
+    
+    /**
+     * Recargar combustible de un vehículo
+     */
+    @PostMapping("/{id}/refuel")
+    public ResponseEntity<VehicleDTO> refuel(@PathVariable String id) {
+        return vehicleService.refuelVehicle(id)
+                .map(vehicle -> ResponseEntity.ok(VehicleDTO.fromEntity(vehicle)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
-
-    @Operation(summary = "Actualizar nivel de GLP", description = "Actualiza el nivel de GLP del vehículo (cantidad a agregar/quitar)")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Nivel de GLP actualizado exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Vehicle.class)) }),
-        @ApiResponse(responseCode = "404", description = "Vehículo no encontrado")
-    })
-    @PutMapping("/{id}/glp")
-    public ResponseEntity<Vehicle> updateGLPLevel(
-            @Parameter(description = "ID del vehículo") @PathVariable String id, 
-            @Parameter(description = "Cantidad de GLP a agregar (positivo) o quitar (negativo)") @RequestParam double amount) {
-        Optional<Vehicle> optionalVehicle = vehicleRepository.findById(id);
-        if (optionalVehicle.isPresent()) {
-            Vehicle vehicle = optionalVehicle.get();
-            double newLevel = vehicle.getCurrentGLP() + amount;
-            vehicle.setCurrentGLP(Math.max(0, newLevel)); // Ensure it doesn't go negative
-            Vehicle updatedVehicle = vehicleRepository.save(vehicle);
-            return ResponseEntity.ok(updatedVehicle);
-        }
-        return ResponseEntity.notFound().build();
+    
+    /**
+     * Recargar GLP de un vehículo
+     */
+    @PostMapping("/{id}/refill")
+    public ResponseEntity<VehicleDTO> refillGlp(@PathVariable String id, @RequestParam int volumeM3) {
+        return vehicleService.refillGlp(id, volumeM3)
+                .map(vehicle -> ResponseEntity.ok(VehicleDTO.fromEntity(vehicle)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
-
-    @Operation(summary = "Actualizar estado del vehículo", description = "Actualiza el estado operacional del vehículo")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Estado actualizado exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Vehicle.class)) }),
-        @ApiResponse(responseCode = "404", description = "Vehículo no encontrado")
-    })
-    @PutMapping("/{id}/status")
-    public ResponseEntity<Vehicle> updateVehicleStatus(
-            @Parameter(description = "ID del vehículo") @PathVariable String id, 
-            @Parameter(description = "Nuevo estado del vehículo") @RequestParam VehicleStatus status) {
-        Optional<Vehicle> optionalVehicle = vehicleRepository.findById(id);
-        if (optionalVehicle.isPresent()) {
-            Vehicle vehicle = optionalVehicle.get();
-            vehicle.setStatus(status);
-            Vehicle updatedVehicle = vehicleRepository.save(vehicle);
-            return ResponseEntity.ok(updatedVehicle);
-        }
-        return ResponseEntity.notFound().build();
+    
+    /**
+     * Realizar entrega de un pedido
+     */
+    @PostMapping("/{id}/serve")
+    public ResponseEntity<ServeRecordDTO> serveOrder(
+            @PathVariable String id, 
+            @RequestParam String orderId,
+            @RequestBody DeliveryRecordDTO deliveryRecord) {
+        
+        LocalDateTime deliveryTime = deliveryRecord.getServeDate() != null ? 
+                deliveryRecord.getServeDate() : LocalDateTime.now();
+        
+        return vehicleService.serveOrder(id, orderId, deliveryRecord.getVolumeM3(), deliveryTime)
+                .map(serveRecord -> {
+                    ServeRecord savedRecord = serveRecordService.save(serveRecord);
+                    return ResponseEntity.ok(ServeRecordDTO.fromEntity(savedRecord));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
-
-    @Operation(summary = "Obtener capacidad total de la flota", description = "Retorna la capacidad total de GLP de todos los vehículos")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Capacidad total obtenida exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Double.class)) })
-    })
-    @GetMapping("/fleet/capacity")
-    public ResponseEntity<Double> getTotalFleetCapacity() {
-        Double capacity = vehicleRepository.getTotalFleetCapacity();
-        return ResponseEntity.ok(capacity != null ? capacity : 0.0);
-    }
-
-    @Operation(summary = "Obtener GLP disponible en la flota", description = "Retorna el total de GLP disponible en vehículos disponibles")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "GLP disponible obtenido exitosamente",
-                    content = { @Content(mediaType = "application/json", 
-                               schema = @Schema(implementation = Double.class)) })
-    })
-    @GetMapping("/fleet/available-glp")
-    public ResponseEntity<Double> getAvailableFleetGLP() {
-        Double glp = vehicleRepository.getAvailableFleetGLP();
-        return ResponseEntity.ok(glp != null ? glp : 0.0);
+    
+    /**
+     * Actualizar la posición de un vehículo y consumir combustible según la distancia
+     */
+    @PostMapping("/{id}/move")
+    public ResponseEntity<VehicleDTO> moveVehicle(
+            @PathVariable String id,
+            @RequestParam double distanceKm) {
+        
+        return vehicleService.moveVehicle(id, distanceKm)
+                .map(vehicle -> ResponseEntity.ok(VehicleDTO.fromEntity(vehicle)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

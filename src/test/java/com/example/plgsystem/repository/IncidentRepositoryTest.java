@@ -1,159 +1,272 @@
 package com.example.plgsystem.repository;
 
-import com.example.plgsystem.model.*;
+import com.example.plgsystem.enums.IncidentType;
+import com.example.plgsystem.enums.Shift;
+import com.example.plgsystem.enums.VehicleType;
+import com.example.plgsystem.model.Incident;
+import com.example.plgsystem.model.Position;
+import com.example.plgsystem.model.Vehicle;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-@ActiveProfiles("test")
+@TestPropertySource(locations = "classpath:application-test.properties")
 public class IncidentRepositoryTest {
+
+    @Autowired
+    private TestEntityManager entityManager;
 
     @Autowired
     private IncidentRepository incidentRepository;
 
-    @Autowired
-    private VehicleRepository vehicleRepository;
+    private Vehicle createTestVehicle(String id) {
+        Vehicle vehicle = Vehicle.builder()
+                .id(id)
+                .type(VehicleType.TA)
+                .currentPosition(new Position(10, 20))
+                .build();
+        return entityManager.persist(vehicle);
+    }
 
     @Test
-    public void testIncidentPersistence() {
-        // Create a test vehicle first
-        Position vehiclePos = new Position(10, 20);
-        Vehicle vehicle = new Vehicle("INC-VEH-001", VehicleType.TA, vehiclePos);
-        vehicle = vehicleRepository.save(vehicle);
-
-        // Create and save incident
-        Incident incident = new Incident();
-        incident.setVehicleId(vehicle.getId());
-        incident.setTimestamp(LocalDateTime.now());
-        incident.setType(IncidentType.TYPE_2);
-        incident.setDescription("Engine overheating");
-        incident.setResolved(false);
-        incident.setPosition(vehiclePos);
-
+    public void testSaveIncident() {
+        // Given
+        Vehicle vehicle = createTestVehicle("V001");
+        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
+        LocalDateTime occurrenceTime = LocalDateTime.now().minusHours(1);
+        Position location = new Position(10, 20);
+        
+        incident.setOccurrenceTime(occurrenceTime);
+        incident.setLocation(location);
+        incident.setTransferableGlp(50.0);
+        
+        // When
         Incident savedIncident = incidentRepository.save(incident);
+        
+        // Then
+        assertNotNull(savedIncident);
+        assertNotNull(savedIncident.getId()); // ID should be generated
+        assertEquals("V001", savedIncident.getVehicleId());
+        assertEquals(IncidentType.TI1, savedIncident.getType());
+        assertEquals(Shift.T1, savedIncident.getShift());
+        assertEquals(occurrenceTime, savedIncident.getOccurrenceTime());
+        assertEquals(location.getX(), savedIncident.getLocation().getX());
+        assertEquals(location.getY(), savedIncident.getLocation().getY());
+        assertEquals(50.0, savedIncident.getTransferableGlp());
+        assertFalse(savedIncident.isResolved());
+    }
 
-        // Assert incident was saved correctly
-        assertThat(savedIncident.getId()).isNotNull();
-        assertThat(savedIncident.getVehicleId()).isEqualTo("INC-VEH-001");
-        assertThat(savedIncident.getType()).isEqualTo(IncidentType.TYPE_2);
-        assertThat(savedIncident.getDescription()).isEqualTo("Engine overheating");
-        assertThat(savedIncident.isResolved()).isFalse();
+    @Test
+    public void testFindById() {
+        // Given
+        Vehicle vehicle = createTestVehicle("V001");
+        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
+        incident.setOccurrenceTime(LocalDateTime.now());
+        incident.setLocation(new Position(10, 20));
+        
+        entityManager.persist(incident);
+        entityManager.flush();
+        
+        Long incidentId = incident.getId();
+        
+        // When
+        Optional<Incident> found = incidentRepository.findById(incidentId);
+        
+        // Then
+        assertTrue(found.isPresent());
+        assertEquals(incidentId, found.get().getId());
+        assertEquals("V001", found.get().getVehicleId());
+        assertEquals(IncidentType.TI1, found.get().getType());
+    }
+
+    @Test
+    public void testFindAll() {
+        // Given
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, Shift.T2);
+        
+        entityManager.persist(incident1);
+        entityManager.persist(incident2);
+        entityManager.flush();
+        
+        // When
+        List<Incident> incidents = incidentRepository.findAll();
+        
+        // Then
+        assertEquals(2, incidents.size());
+    }
+
+    @Test
+    public void testUpdateIncident() {
+        // Given
+        Vehicle vehicle = createTestVehicle("V001");
+        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
+        incident.setOccurrenceTime(LocalDateTime.now());
+        entityManager.persist(incident);
+        entityManager.flush();
+        
+        Long incidentId = incident.getId();
+        
+        // When
+        Incident savedIncident = incidentRepository.findById(incidentId).get();
+        savedIncident.setResolved(true);
+        incidentRepository.save(savedIncident);
+        
+        // Then
+        Incident updatedIncident = incidentRepository.findById(incidentId).get();
+        assertTrue(updatedIncident.isResolved());
+    }
+
+    @Test
+    public void testDeleteIncident() {
+        // Given
+        Vehicle vehicle = createTestVehicle("V001");
+        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
+        entityManager.persist(incident);
+        entityManager.flush();
+        
+        Long incidentId = incident.getId();
+        
+        // When
+        incidentRepository.deleteById(incidentId);
+        
+        // Then
+        Optional<Incident> deleted = incidentRepository.findById(incidentId);
+        assertFalse(deleted.isPresent());
     }
 
     @Test
     public void testFindByVehicleId() {
-        // Create two test vehicles
-        Position pos1 = new Position(10, 20);
-        Position pos2 = new Position(30, 40);
+        // Given
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
         
-        Vehicle vehicle1 = new Vehicle("INC-VEH-002", VehicleType.TA, pos1);
-        vehicle1 = vehicleRepository.save(vehicle1);
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+        Incident incident2 = new Incident(vehicle1, IncidentType.TI2, Shift.T2); // Same vehicle
+        Incident incident3 = new Incident(vehicle2, IncidentType.TI3, Shift.T3); // Different vehicle
         
-        Vehicle vehicle2 = new Vehicle("INC-VEH-003", VehicleType.TA, pos2);
-        vehicle2 = vehicleRepository.save(vehicle2);
-
-        // Create incidents for both vehicles
-        LocalDateTime now = LocalDateTime.now();
+        entityManager.persist(incident1);
+        entityManager.persist(incident2);
+        entityManager.persist(incident3);
+        entityManager.flush();
         
-        Incident incident1 = new Incident();
-        incident1.setVehicleId(vehicle1.getId());
-        incident1.setTimestamp(now);
-        incident1.setType(IncidentType.TYPE_2);
-        incident1.setDescription("Vehicle 1 failure");
-        incident1.setResolved(false);
-        incident1.setPosition(pos1);
-        incidentRepository.save(incident1);
+        // When
+        List<Incident> vehicleIncidents = incidentRepository.findByVehicleId("V001");
         
-        Incident incident2 = new Incident();
-        incident2.setVehicleId(vehicle2.getId());
-        incident2.setTimestamp(now);
-        incident2.setType(IncidentType.TYPE_3);
-        incident2.setDescription("Vehicle 2 accident");
-        incident2.setResolved(false);
-        incident2.setPosition(pos2);
-        incidentRepository.save(incident2);
-        
-        // Test finding incidents by vehicle ID
-        List<Incident> vehicle1Incidents = incidentRepository.findByVehicleId(vehicle1.getId());
-        
-        assertThat(vehicle1Incidents).hasSize(1);
-        assertThat(vehicle1Incidents.get(0).getDescription()).isEqualTo("Vehicle 1 failure");
+        // Then
+        assertEquals(2, vehicleIncidents.size());
+        assertTrue(vehicleIncidents.stream().allMatch(i -> i.getVehicleId().equals("V001")));
     }
 
     @Test
-    public void testFindByType() {
-        // Create test vehicle
-        Position pos = new Position(15, 25);
-        Vehicle vehicle = new Vehicle("INC-VEH-004", VehicleType.TA, pos);
-        vehicle = vehicleRepository.save(vehicle);
-
-        // Create incidents of different types
-        LocalDateTime now = LocalDateTime.now();
+    public void testFindByResolved() {
+        // Given
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
         
-        Incident accident = new Incident();
-        accident.setVehicleId(vehicle.getId());
-        accident.setTimestamp(now);
-        accident.setType(IncidentType.TYPE_3);
-        accident.setDescription("Traffic accident");
-        accident.setResolved(false);
-        accident.setPosition(pos);
-        incidentRepository.save(accident);
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+        incident1.setResolved(true); // Resolved
         
-        Incident mechanical = new Incident();
-        mechanical.setVehicleId(vehicle.getId());
-        mechanical.setTimestamp(now.plusHours(1));
-        mechanical.setType(IncidentType.TYPE_2);
-        mechanical.setDescription("Engine failure");
-        mechanical.setResolved(false);
-        mechanical.setPosition(pos);
-        incidentRepository.save(mechanical);
+        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, Shift.T2); // Not resolved
         
-        // Test finding by type
-        List<Incident> accidents = incidentRepository.findByType(IncidentType.TYPE_3);
+        entityManager.persist(incident1);
+        entityManager.persist(incident2);
+        entityManager.flush();
         
-        assertThat(accidents).hasSize(1);
-        assertThat(accidents.get(0).getDescription()).isEqualTo("Traffic accident");
-    }
-
-    @Test
-    public void testFindUnresolvedIncidents() {
-        // Create test vehicle
-        Position pos = new Position(25, 35);
-        Vehicle vehicle = new Vehicle("INC-VEH-005", VehicleType.TA, pos);
-        vehicle = vehicleRepository.save(vehicle);
-        
-        // Create resolved and unresolved incidents
-        LocalDateTime now = LocalDateTime.now();
-        
-        Incident resolved = new Incident();
-        resolved.setVehicleId(vehicle.getId());
-        resolved.setTimestamp(now.minusHours(2));
-        resolved.setType(IncidentType.TYPE_3);
-        resolved.setDescription("Resolved incident");
-        resolved.setResolved(true);
-        resolved.setPosition(pos);
-        incidentRepository.save(resolved);
-        
-        Incident unresolved = new Incident();
-        unresolved.setVehicleId(vehicle.getId());
-        unresolved.setTimestamp(now);
-        unresolved.setType(IncidentType.TYPE_2);
-        unresolved.setDescription("Unresolved incident");
-        unresolved.setResolved(false);
-        unresolved.setPosition(pos);
-        incidentRepository.save(unresolved);
-        
-        // Test finding unresolved incidents
+        // When
+        List<Incident> resolvedIncidents = incidentRepository.findByResolved(true);
         List<Incident> unresolvedIncidents = incidentRepository.findByResolved(false);
         
-        assertThat(unresolvedIncidents).hasSize(1);
-        assertThat(unresolvedIncidents.get(0).getDescription()).isEqualTo("Unresolved incident");
+        // Then
+        assertEquals(1, resolvedIncidents.size());
+        assertEquals(incident1.getId(), resolvedIncidents.get(0).getId());
+        
+        assertEquals(1, unresolvedIncidents.size());
+        assertEquals(incident2.getId(), unresolvedIncidents.get(0).getId());
     }
-}
+
+    @Test
+    public void testFindByOccurrenceTimeBetween() {
+        // Given
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime yesterday = now.minusDays(1);
+        LocalDateTime tomorrow = now.plusDays(1);
+        LocalDateTime nextWeek = now.plusDays(7);
+        
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        Vehicle vehicle3 = createTestVehicle("V003");
+        Vehicle vehicle4 = createTestVehicle("V004");
+        
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+        incident1.setOccurrenceTime(yesterday);
+        
+        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, Shift.T2);
+        incident2.setOccurrenceTime(now);
+        
+        Incident incident3 = new Incident(vehicle3, IncidentType.TI3, Shift.T3);
+        incident3.setOccurrenceTime(tomorrow);
+        
+        Incident incident4 = new Incident(vehicle4, IncidentType.TI3, Shift.T3);
+        incident4.setOccurrenceTime(nextWeek);
+        
+        entityManager.persist(incident1);
+        entityManager.persist(incident2);
+        entityManager.persist(incident3);
+        entityManager.persist(incident4);
+        entityManager.flush();
+        
+        // When - Find incidents between yesterday and tomorrow inclusive
+        List<Incident> recentIncidents = incidentRepository.findByOccurrenceTimeBetween(
+            yesterday.minusHours(1), tomorrow.plusHours(1));  // Add extra padding on both sides
+        
+        // Then
+        assertEquals(3, recentIncidents.size());
+        assertFalse(recentIncidents.stream().anyMatch(i -> i.getVehicleId().equals("V004")));
+    }
+
+    @Test
+    public void testFindByVehicleIdAndOccurrenceTimeBetween() {
+        // Given
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime yesterday = now.minusDays(1);
+        LocalDateTime tomorrow = now.plusDays(1);
+        
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+        incident1.setOccurrenceTime(yesterday);
+        
+        Incident incident2 = new Incident(vehicle1, IncidentType.TI2, Shift.T2);
+        incident2.setOccurrenceTime(tomorrow);
+        
+        Incident incident3 = new Incident(vehicle2, IncidentType.TI3, Shift.T3);
+        incident3.setOccurrenceTime(now);
+        
+        entityManager.persist(incident1);
+        entityManager.persist(incident2);
+        entityManager.persist(incident3);
+        entityManager.flush();
+        
+        // When - Find incidents for V001 between yesterday and tomorrow
+        List<Incident> v1Incidents = incidentRepository.findByVehicleIdAndOccurrenceTimeBetween(
+            "V001", yesterday.minusHours(1), tomorrow.plusHours(1));
+        
+        // Then
+        assertEquals(2, v1Incidents.size());
+        assertTrue(v1Incidents.stream().allMatch(i -> i.getVehicleId().equals("V001")));
+    }
+} 

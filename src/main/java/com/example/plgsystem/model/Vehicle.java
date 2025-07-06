@@ -1,184 +1,191 @@
 package com.example.plgsystem.model;
 
-import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import com.example.plgsystem.enums.VehicleStatus;
+import com.example.plgsystem.enums.VehicleType;
+import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.NoArgsConstructor;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.*;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Representa un vehículo de transporte de GLP en el sistema
+ */
 @Entity
 @Table(name = "vehicles")
 @Getter
-@NoArgsConstructor
-public class Vehicle {
-    // immutable attributes
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Vehicle implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
     @Id
     private String id;
     
     @Enumerated(EnumType.STRING)
-    @Column(name = "vehicle_type", nullable = false)
+    @Column(nullable = false)
     private VehicleType type;
     
-    @Column(name = "glp_capacity", nullable = false)
-    @JsonProperty("glpCapacity")
-    private double glpCapacity;
+    @Column(name = "glp_capacity_m3", nullable = false)
+    private int glpCapacityM3;
     
-    @Column(name = "fuel_capacity", nullable = false)
-    @JsonProperty("fuelCapacity")
-    private double fuelCapacity;
+    @Column(name = "fuel_capacity_gal", nullable = false)
+    private double fuelCapacityGal;
     
-    // mutable attributes
     @Embedded
-    @AttributeOverrides({
-        @AttributeOverride(name = "x", column = @Column(name = "current_position_x")),
-        @AttributeOverride(name = "y", column = @Column(name = "current_position_y"))
-    })
-    @Setter
     private Position currentPosition;
     
-    @Column(name = "current_glp", nullable = false)
-    @Setter
-    @JsonProperty("currentGLP")
-    private double currentGLP;
+    @Column(name = "current_glp_m3", nullable = false)
+    private int currentGlpM3;
     
-    @Column(name = "current_fuel", nullable = false)
-    @Setter
-    @JsonProperty("currentFuel")
-    private double currentFuel;
+    @Column(name = "current_fuel_gal", nullable = false)
+    private double currentFuelGal;
     
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
-    @Setter
+    @Column(nullable = false)
     private VehicleStatus status;
-
-    // Constructors
+    
+    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Incident> incidents = new ArrayList<>();
+    
+    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ServeRecord> serveRecords = new ArrayList<>();
+    
+    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Maintenance> maintenances = new ArrayList<>();
+    
+    /**
+     * Constructor principal para crear un nuevo vehículo
+     */
+    @Builder
     public Vehicle(String id, VehicleType type, Position currentPosition) {
         this.id = id;
         this.type = type;
-        this.glpCapacity = type.getGlpCapacity(); // Updated getter
-        this.fuelCapacity = Constants.VEHICLE_FUEL_CAPACITY;
+        this.glpCapacityM3 = type.getCapacityM3();
+        this.fuelCapacityGal = Constants.VEHICLE_FUEL_CAPACITY_GAL;
         this.currentPosition = currentPosition;
-        this.currentGLP = 0; // Initial GLP level, could be full or empty based on starting scenario
-        this.currentFuel = this.fuelCapacity; // Assume starts with a full tank of fuel
+        this.currentGlpM3 = 0;
+        this.currentFuelGal = this.fuelCapacityGal;
         this.status = VehicleStatus.AVAILABLE;
     }
-
-    public Vehicle(String id, VehicleType type, double currentGLP, double currentFuel, VehicleStatus status, Position currentPosition) {
-        this.id = id;
-        this.type = type;
-        this.glpCapacity = type.getGlpCapacity();
-        this.fuelCapacity = Constants.VEHICLE_FUEL_CAPACITY;
-        this.currentPosition = currentPosition;
-        this.currentGLP = currentGLP;
-        this.currentFuel = currentFuel;
-        this.status = status;
-    }
-
-    // Public methods
-    public double getCurrentGlpWeightTon() {
-        return this.type.convertGlpM3ToTon(this.currentGLP);
-    }
-
-    public double getCurrentCombinedWeightTon() {
-        return this.type.getTareWeightTon() + getCurrentGlpWeightTon();
+    
+    /**
+     * Establece la posición actual del vehículo
+     */
+    public void setCurrentPosition(Position position) {
+        this.currentPosition = position;
     }
 
     /**
-     * Consumes fuel based on the distance traveled and current weight.
-     * Updates the currentFuelLevelGallons.
-     * Throws IllegalArgumentException if not enough fuel.
-     * Formula: Consumo [Galones] = (Distancia [Km] * Peso Combinado [Ton]) / 180
-     * @param distanceKm The distance traveled in kilometers.
+     * Establece el estado del vehículo
+     */
+    public void setStatus(VehicleStatus status) {
+        this.status = status;
+    }
+    
+    /**
+     * Consume combustible basado en la distancia recorrida y el peso transportado
      */
     public void consumeFuel(double distanceKm) {
-        if (distanceKm < Constants.EPSILON) return; // No distance, no fuel consumption
-
-        double combinedWeight = getCurrentCombinedWeightTon();
-        double fuelConsumedGallons = (distanceKm * combinedWeight) / Constants.CONSUMPTION_FACTOR;
-
-        if (this.currentFuel < fuelConsumedGallons - Constants.EPSILON) {
-            // Not enough fuel for the entire trip. What to do?
-            // Option 1: Throw exception. Planner must check feasibility.
-            // Option 2: Consume all remaining fuel and report how much distance was covered.
-            // For now, throw an exception, as the planner should ensure sufficient fuel.
-            
-            // throw new IllegalStateException( 
-            // "Vehicle " + id + " does not have enough fuel for " + distanceKm + " km. Needs " +
-            //    fuelConsumedGallons + ", has " + this.currentFuel);
-        }
-        this.currentFuel -= fuelConsumedGallons;
+        double combinedWeight = this.type.convertGlpM3ToTon(this.currentGlpM3) + this.type.getTareWeightTon();
+        double fuelConsumedGallons = Math.abs((distanceKm * combinedWeight) / Constants.CONSUMPTION_FACTOR);
+        this.currentFuelGal = Math.max(0, this.currentFuelGal - fuelConsumedGallons);
     }
 
-    public void reFuel(double gallons) {
-        this.currentFuel = Math.min(this.currentFuel + gallons, this.fuelCapacity);
-        if (this.currentFuel + gallons > this.fuelCapacity + Constants.EPSILON) {
-            // Or log a warning if trying to overfill
-        }
-        this.currentFuel = Math.max(0, this.currentFuel); // Ensure not negative
+    /**
+     * Calcula el combustible necesario para recorrer una distancia determinada
+     */
+    public double calculateFuelNeeded(double distanceKm) {
+        double combinedWeight = this.type.convertGlpM3ToTon(this.currentGlpM3)
+                + this.type.getTareWeightTon();
+        return Math.abs((distanceKm * combinedWeight) / Constants.CONSUMPTION_FACTOR);
     }
 
-    public double dispenseGlp(double GLPVolume) {
-        // if (!this.canDispenseGLP(GLPVolume)) throw new IllegalArgumentException("Not enough GLP to dispense " + GLPVolume);
-        this.currentGLP = Math.max(this.currentGLP - GLPVolume, 0);
-        return this.currentGLP;
+    /**
+     * Reabastece completamente el tanque de combustible
+     */
+    public void refuel() {
+        this.currentFuelGal = this.fuelCapacityGal;
     }
 
-    public boolean canDispenseGLP(double GLPVolume) {
-        return this.currentGLP >= GLPVolume - Constants.EPSILON;
+    /**
+     * Dispensa GLP al cliente
+     */
+    public void dispenseGlp(int glpVolumeM3) {
+        this.currentGlpM3 = Math.max(0, this.currentGlpM3 - Math.abs(glpVolumeM3));
     }
 
-    public boolean serveOrder(Order order, LocalDateTime currentTime) {
-        double volumeToServe = order.getRemainingVolume();
-
-        if (volumeToServe <= Constants.EPSILON) {
-            if (order.getDeliveryDate() == null) {
-                 order.recordDelivery(0, currentTime);
-            }
-            return true;
-        }
-
-        if (canDispenseGLP(volumeToServe)) {
-            this.currentGLP = Math.max(0, this.currentGLP - volumeToServe);
-            order.recordDelivery(volumeToServe, currentTime);
-            return true;
-        }
-         
-        return false;
+    /**
+     * Verifica si el vehículo puede dispensar un determinado volumen de GLP
+     */
+    public boolean canDispenseGLP(int glpVolumeM3) {
+        return this.currentGlpM3 >= Math.abs(glpVolumeM3);
     }
 
-    public void refill(double GLPVolume) {
-        // if (this.currentGLP + GLPVolume > this.glpCapacity + Constants.EPSILON) throw new IllegalArgumentException("Cannot refill GLP beyond capacity for vehicle " + id);
-        this.currentGLP = Math.min(this.currentGLP + GLPVolume, this.glpCapacity);
+    /**
+     * Recarga GLP en el vehículo
+     */
+    public void refill(int glpVolumeM3) {
+        this.currentGlpM3 = Math.min(this.glpCapacityM3, this.currentGlpM3 + Math.abs(glpVolumeM3));
     }
 
-    // Clone
+    /**
+     * Realiza una entrega a un pedido
+     */
+    @Transactional
+    public ServeRecord serveOrder(Order order, int glpVolumeM3, LocalDateTime serveDate) {
+        int absoluteVolume = Math.abs(glpVolumeM3);
+        this.dispenseGlp(absoluteVolume);
+        return order.recordDelivery(absoluteVolume, this, serveDate);
+    }
+    
+    /**
+     * Agrega un incidente al vehículo
+     */
+    public void addIncident(Incident incident) {
+        incidents.add(incident);
+    }
+    
+    /**
+     * Agrega un mantenimiento al vehículo
+     */
+    public void addMaintenance(Maintenance maintenance) {
+        maintenances.add(maintenance);
+    }
+    
+    /**
+     * Crea una copia del vehículo
+     */
     public Vehicle clone() {
-        return new Vehicle(
-            this.id,
-            this.type,
-            this.currentGLP,
-            this.currentFuel,
-            this.status,
-            this.currentPosition.clone()
-        );
+        Vehicle clonedVehicle = Vehicle.builder()
+                .id(this.id)
+                .type(this.type)
+                .currentPosition(this.currentPosition.clone())
+                .build();
+        
+        clonedVehicle.currentGlpM3 = this.currentGlpM3;
+        clonedVehicle.currentFuelGal = this.currentFuelGal;
+        clonedVehicle.status = this.status;
+        
+        return clonedVehicle;
     }
 
     @Override
     public String toString() {
-        String statusIcon = "🔄";
-        if (status == VehicleStatus.AVAILABLE) statusIcon = "✅";
-        else if (status == VehicleStatus.MAINTENANCE) statusIcon = "🔧";
-        else if (status == VehicleStatus.BROKEN_DOWN) statusIcon = "🚫";
-        
-        return String.format("🚛 %s-%s %s [GLP:%.1f/%.1f m³][⛽:%.1f/%.1f gal] %s",
+        return String.format("🚛 %s-%s %s [🛢️ %d/%d m³][⛽ %.1f/%.1f gal] %s",
                 type.name(),
                 id,
-                statusIcon,
-                currentGLP, 
-                glpCapacity,
-                currentFuel, 
-                fuelCapacity,
+                status.getIcon(),
+                currentGlpM3,
+                glpCapacityM3,
+                currentFuelGal,
+                fuelCapacityGal,
                 currentPosition.toString());
     }
 }

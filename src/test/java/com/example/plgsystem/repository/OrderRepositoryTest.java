@@ -5,167 +5,282 @@ import com.example.plgsystem.model.Position;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-@ActiveProfiles("test")
+@TestPropertySource(locations = "classpath:application-test.properties")
 public class OrderRepositoryTest {
+
+    @Autowired
+    private TestEntityManager entityManager;
 
     @Autowired
     private OrderRepository orderRepository;
 
     @Test
-    public void testOrderPersistence() {
-        // Create and save an order
-        Position orderPosition = new Position(20, 30);
+    public void testSaveOrder() {
+        // Given
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime deliveryDue = now.plusHours(8);
-        
-        Order order = new Order("ORD-001", now, deliveryDue, 500.0, orderPosition);
-        
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        // When
         Order savedOrder = orderRepository.save(order);
-        
-        // Assert the order was saved correctly
-        assertThat(savedOrder.getId()).isEqualTo("ORD-001");
-        assertThat(savedOrder.getGlpRequest()).isEqualTo(500.0);
-        assertThat(savedOrder.getRemainingGLP()).isEqualTo(500.0);
-        assertThat(savedOrder.getPosition().getX()).isEqualTo(20);
-        assertThat(savedOrder.getPosition().getY()).isEqualTo(30);
-        assertThat(savedOrder.getArriveDate()).isEqualToIgnoringNanos(now);
-        assertThat(savedOrder.getDueDate()).isEqualToIgnoringNanos(deliveryDue);
+
+        // Then
+        assertNotNull(savedOrder);
+        assertEquals("O001", savedOrder.getId());
+        assertEquals(100, savedOrder.getGlpRequestM3());
+        assertEquals(100, savedOrder.getRemainingGlpM3());
     }
 
     @Test
-    public void testFindPendingOrders() {
-        // Create pending order (not fully fulfilled)
-        Position pos1 = new Position(10, 20);
+    public void testFindById() {
+        // Given
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime deliveryDue1 = now.plusHours(4);
-        
-        Order pendingOrder = new Order("ORD-PEND-001", now, deliveryDue1, 1000.0, pos1);
-        pendingOrder.setRemainingGLP(500.0); // Partially fulfilled
-        orderRepository.save(pendingOrder);
-        
-        // Create completed order
-        Position pos2 = new Position(30, 40);
-        LocalDateTime deliveryDue2 = now.plusHours(6);
-        
-        Order completedOrder = new Order("ORD-COMP-001", now, deliveryDue2, 800.0, pos2);
-        completedOrder.setRemainingGLP(0.0); // Fully fulfilled
-        orderRepository.save(completedOrder);
-        
-        // Test finding pending orders
-        List<Order> pendingOrders = orderRepository.findPendingOrders();
-        
-        assertThat(pendingOrders).hasSize(1);
-        assertThat(pendingOrders.get(0).getId()).isEqualTo("ORD-PEND-001");
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+        entityManager.persist(order);
+        entityManager.flush();
+
+        // When
+        Optional<Order> found = orderRepository.findById("O001");
+
+        // Then
+        assertTrue(found.isPresent());
+        assertEquals("O001", found.get().getId());
+        assertEquals(100, found.get().getGlpRequestM3());
     }
 
     @Test
-    public void testFindOrdersByDueDate() {
+    public void testFindAll() {
+        // Given
+        LocalDateTime now = LocalDateTime.now();
+        Order order1 = Order.builder()
+                .id("O001")
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        Order order2 = Order.builder()
+                .id("O002")
+                .arriveTime(now.plusHours(1))
+                .dueTime(now.plusHours(5))
+                .glpRequestM3(150)
+                .position(new Position(30, 40))
+                .build();
+
+        entityManager.persist(order1);
+        entityManager.persist(order2);
+        entityManager.flush();
+
+        // When
+        List<Order> orders = orderRepository.findAll();
+
+        // Then
+        assertEquals(2, orders.size());
+        assertTrue(orders.stream().anyMatch(o -> o.getId().equals("O001")));
+        assertTrue(orders.stream().anyMatch(o -> o.getId().equals("O002")));
+    }
+
+    @Test
+    public void testUpdateOrder() {
+        // Given
+        LocalDateTime now = LocalDateTime.now();
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+        entityManager.persist(order);
+        entityManager.flush();
+
+        // When
+        Order savedOrder = orderRepository.findById("O001").get();
+        savedOrder.setRemainingGlpM3(50); // Partially delivered
+        orderRepository.save(savedOrder);
+
+        // Then
+        Order updatedOrder = orderRepository.findById("O001").get();
+        assertEquals(50, updatedOrder.getRemainingGlpM3());
+        assertEquals(100, updatedOrder.getGlpRequestM3()); // Original request remains unchanged
+    }
+
+    @Test
+    public void testDeleteOrder() {
+        // Given
+        LocalDateTime now = LocalDateTime.now();
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+        entityManager.persist(order);
+        entityManager.flush();
+
+        // When
+        orderRepository.deleteById("O001");
+
+        // Then
+        Optional<Order> deleted = orderRepository.findById("O001");
+        assertFalse(deleted.isPresent());
+    }
+
+    @Test
+    public void testFindPendingDeliveries() {
+        // Given
         LocalDateTime now = LocalDateTime.now();
         
-        // Create orders with different due dates
-        // Order due in 2 hours
-        Position pos1 = new Position(10, 20);
-        LocalDateTime due1 = now.plusHours(2);
-        Order order1 = new Order("ORD-DUE-1", now, due1, 300.0, pos1);
-        orderRepository.save(order1);
-        
-        // Order due in 6 hours
-        Position pos2 = new Position(30, 40);
-        LocalDateTime due2 = now.plusHours(6);
-        Order order2 = new Order("ORD-DUE-2", now, due2, 400.0, pos2);
-        orderRepository.save(order2);
-        
-        // Order due in 12 hours
-        Position pos3 = new Position(50, 60);
-        LocalDateTime due3 = now.plusHours(12);
-        Order order3 = new Order("ORD-DUE-3", now, due3, 500.0, pos3);
-        orderRepository.save(order3);
-        
-        // Test finding orders due in the next 4 hours
-        List<Order> urgentOrders = orderRepository.findOrdersByDueDate(now, now.plusHours(4));
-        
-        assertThat(urgentOrders).hasSize(1);
-        assertThat(urgentOrders.get(0).getId()).isEqualTo("ORD-DUE-1");
-        
-        // Test finding orders due in the next 8 hours
-        List<Order> soonDueOrders = orderRepository.findOrdersByDueDate(now, now.plusHours(8));
-        
-        assertThat(soonDueOrders).hasSize(2);
-        assertThat(soonDueOrders).extracting("id").contains("ORD-DUE-1", "ORD-DUE-2");
+        // Order with pending delivery
+        Order pendingOrder = Order.builder()
+                .id("O001")
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        // Order with completed delivery
+        Order completedOrder = Order.builder()
+                .id("O002")
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(150)
+                .position(new Position(30, 40))
+                .build();
+        completedOrder.setRemainingGlpM3(0); // Mark as delivered
+
+        entityManager.persist(pendingOrder);
+        entityManager.persist(completedOrder);
+        entityManager.flush();
+
+        // When
+        List<Order> pendingOrders = orderRepository.findPendingDeliveries();
+
+        // Then
+        assertEquals(1, pendingOrders.size());
+        assertEquals("O001", pendingOrders.get(0).getId());
     }
 
     @Test
-    public void testFindOrdersByRadius() {
-        // Create orders at different locations
-        Position center = new Position(50, 50);
+    public void testFindByDueTimeBefore() {
+        // Given
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime due = now.plusHours(4);
         
-        // Order near the center point
-        Position pos1 = new Position(55, 55);
-        Order nearOrder = new Order("ORD-NEAR-1", now, due, 200.0, pos1);
-        orderRepository.save(nearOrder);
-        
-        // Order far from the center point
-        Position pos2 = new Position(80, 80);
-        Order farOrder = new Order("ORD-FAR-1", now, due, 300.0, pos2);
-        orderRepository.save(farOrder);
-        
-        // Test finding orders within 10 distance units from center
-        List<Order> nearbyOrders = orderRepository.findOrdersByRadius(center.getX(), center.getY(), 10.0);
-        
-        assertThat(nearbyOrders).hasSize(1);
-        assertThat(nearbyOrders.get(0).getId()).isEqualTo("ORD-NEAR-1");
-        
-        // Test finding orders within 50 distance units from center (should include both)
-        List<Order> allOrders = orderRepository.findOrdersByRadius(center.getX(), center.getY(), 50.0);
-        
-        assertThat(allOrders).hasSize(2);
+        // Order due soon
+        Order soonDueOrder = Order.builder()
+                .id("O001")
+                .arriveTime(now.minusHours(2))
+                .dueTime(now.plusHours(1))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        // Order due later
+        Order laterDueOrder = Order.builder()
+                .id("O002")
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(150)
+                .position(new Position(30, 40))
+                .build();
+
+        entityManager.persist(soonDueOrder);
+        entityManager.persist(laterDueOrder);
+        entityManager.flush();
+
+        // When
+        List<Order> overdueOrders = orderRepository.findByDueTimeBefore(now.plusHours(2));
+
+        // Then
+        assertEquals(1, overdueOrders.size());
+        assertEquals("O001", overdueOrders.get(0).getId());
     }
 
     @Test
-    public void testFindOrdersByDateRange() {
-        // Create orders from different times
-        Position pos = new Position(30, 30);
+    public void testFindByArriveTimeLessThanEqual() {
+        // Given
+        LocalDateTime now = LocalDateTime.now();
         
-        // Yesterday's order
-        LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
-        LocalDateTime yesterdayDue = yesterday.plusHours(4);
-        Order yesterdayOrder = new Order("ORD-YESTERDAY", yesterday, yesterdayDue, 400.0, pos);
-        orderRepository.save(yesterdayOrder);
-        
-        // Today's order
-        LocalDateTime today = LocalDateTime.now();
-        LocalDateTime todayDue = today.plusHours(4);
-        Order todayOrder = new Order("ORD-TODAY", today, todayDue, 500.0, pos);
-        orderRepository.save(todayOrder);
-        
-        // Tomorrow's order
-        LocalDateTime tomorrow = LocalDateTime.now().plusDays(1);
-        LocalDateTime tomorrowDue = tomorrow.plusHours(4);
-        Order tomorrowOrder = new Order("ORD-TOMORROW", tomorrow, tomorrowDue, 600.0, pos);
-        orderRepository.save(tomorrowOrder);
-        
-        // Test finding orders from today
-        LocalDateTime startOfToday = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
-        LocalDateTime endOfToday = startOfToday.plusDays(1).minusNanos(1);
-        
-        List<Order> todaysOrders = orderRepository.findOrdersByDateRange(startOfToday, endOfToday);
-        
-        assertThat(todaysOrders).hasSize(1);
-        assertThat(todaysOrders.get(0).getId()).isEqualTo("ORD-TODAY");
-        
-        // Test finding orders for a 3-day period (yesterday to tomorrow)
-        List<Order> threeDayOrders = orderRepository.findOrdersByDateRange(yesterday.minusHours(1), tomorrow.plusHours(1));
-        
-        assertThat(threeDayOrders).hasSize(3);
+        // Order already arrived
+        Order arrivedOrder = Order.builder()
+                .id("O001")
+                .arriveTime(now.minusHours(1))
+                .dueTime(now.plusHours(3))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        // Order not yet arrived
+        Order futureOrder = Order.builder()
+                .id("O002")
+                .arriveTime(now.plusHours(2))
+                .dueTime(now.plusHours(6))
+                .glpRequestM3(150)
+                .position(new Position(30, 40))
+                .build();
+
+        entityManager.persist(arrivedOrder);
+        entityManager.persist(futureOrder);
+        entityManager.flush();
+
+        // When
+        List<Order> availableOrders = orderRepository.findByArriveTimeLessThanEqual(now);
+
+        // Then
+        assertEquals(1, availableOrders.size());
+        assertEquals("O001", availableOrders.get(0).getId());
     }
-}
+
+    @Test
+    public void testSaveOrderWithGeneratedId() {
+        // Given
+        LocalDateTime now = LocalDateTime.now();
+        String generatedId = java.util.UUID.randomUUID().toString();
+        
+        Order order = Order.builder()
+                .id(generatedId)
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        // When
+        Order savedOrder = orderRepository.save(order);
+
+        // Then
+        assertNotNull(savedOrder);
+        assertEquals(generatedId, savedOrder.getId());
+        assertEquals(100, savedOrder.getGlpRequestM3());
+        assertEquals(100, savedOrder.getRemainingGlpM3());
+        
+        // Verify it can be retrieved from the database
+        Optional<Order> retrievedOrder = orderRepository.findById(generatedId);
+        assertTrue(retrievedOrder.isPresent());
+        assertEquals(generatedId, retrievedOrder.get().getId());
+    }
+} 

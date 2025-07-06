@@ -1,195 +1,183 @@
 package com.example.plgsystem.controller;
 
+import com.example.plgsystem.dto.DeliveryRecordDTO;
+import com.example.plgsystem.dto.OrderDTO;
+import com.example.plgsystem.dto.ServeRecordDTO;
 import com.example.plgsystem.model.Order;
-import com.example.plgsystem.model.OrderStatus;
-import com.example.plgsystem.repository.OrderRepository;
-import com.example.plgsystem.service.CSVService;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.plgsystem.model.ServeRecord;
+import com.example.plgsystem.service.OrderService;
+import com.example.plgsystem.service.ServeRecordService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/orders")
-@Tag(name = "Orders", description = "Gestión de órdenes de entrega del sistema PLG")
 public class OrderController {
 
-    @Autowired
-    private OrderRepository orderRepository;
-    @Autowired
-    private CSVService csvService;
+    private final OrderService orderService;
+    private final ServeRecordService serveRecordService;
 
-    @Operation(summary = "Obtener todas las órdenes", description = "Retorna la lista completa de órdenes registradas")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Lista de órdenes obtenida exitosamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class)) })
-    })
-    @GetMapping
-    public List<Order> getAllOrders() {
-        return orderRepository.findAll();
+    public OrderController(OrderService orderService, ServeRecordService serveRecordService) {
+        this.orderService = orderService;
+        this.serveRecordService = serveRecordService;
     }
 
-    @Operation(summary = "Obtener orden por ID", description = "Retorna una orden específica")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Orden encontrada", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class)) }),
-            @ApiResponse(responseCode = "404", description = "Orden no encontrada")
-    })
-    @GetMapping("/{id}")
-    public ResponseEntity<Order> getOrderById(
-            @Parameter(description = "ID de la orden") @PathVariable String id) {
-        Optional<Order> order = orderRepository.findById(id);
-        return order.map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
-    @Operation(summary = "Obtener órdenes pendientes", description = "Retorna todas las órdenes que están pendientes de entrega")
-    @GetMapping("/pending")
-    public List<Order> getPendingOrders() {
-        return orderRepository.findPendingOrders();
-    }
-
-    @Operation(summary = "Obtener órdenes completadas", description = "Retorna todas las órdenes que han sido completadas")
-    @GetMapping("/completed")
-    public List<Order> getCompletedOrders() {
-        return orderRepository.findCompletedOrders();
-    }
-
-    @Operation(summary = "Obtener órdenes vencidas", description = "Retorna todas las órdenes que han superado su fecha límite")
-    @GetMapping("/overdue")
-    public List<Order> getOverdueOrders() {
-        return orderRepository.findOverdueOrders(LocalDateTime.now());
-    }
-
-    @Operation(summary = "Obtener órdenes urgentes", description = "Retorna órdenes que deben ser entregadas en las próximas horas")
-    @GetMapping("/urgent")
-    public List<Order> getUrgentOrders(
-            @Parameter(description = "Horas hacia adelante para considerar urgente") @RequestParam(defaultValue = "4") int hoursAhead) {
-        LocalDateTime deadline = LocalDateTime.now().plusHours(hoursAhead);
-        return orderRepository.findUrgentOrders(deadline);
-    }
-
-    @Operation(summary = "Crear nueva orden", description = "Registra una nueva orden en el sistema")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Orden creada exitosamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class)) })
-    })
+    /**
+     * Crear un nuevo pedido
+     */
     @PostMapping
-    public Order createOrder(@RequestBody Order order) {
-        order.setId(null); // Ensure a new ID is generated by the database
-        return orderRepository.save(order);
-    }
-
-    @Operation(summary = "Registrar entrega", description = "Registra la entrega de una cantidad específica de GLP para una orden")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Entrega registrada exitosamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class)) }),
-            @ApiResponse(responseCode = "400", description = "Cantidad de entrega inválida"),
-            @ApiResponse(responseCode = "404", description = "Orden no encontrada")
-    })
-    @PutMapping("/{id}/deliver")
-    public ResponseEntity<Order> recordDelivery(
-            @Parameter(description = "ID de la orden") @PathVariable String id,
-            @Parameter(description = "Volumen entregado") @RequestParam("amount") double deliveredVolume) {
-        Optional<Order> optionalOrder = orderRepository.findById(id);
-        if (optionalOrder.isPresent()) {
-            Order order = optionalOrder.get();
-
-            // Check if trying to deliver more than remaining
-            if (deliveredVolume > order.getRemainingGLP()) {
-                return ResponseEntity.badRequest().build();
-            }
-
-            order.recordDelivery(deliveredVolume, LocalDateTime.now());
-            Order updatedOrder = orderRepository.save(order);
-            return ResponseEntity.ok(updatedOrder);
+    public ResponseEntity<OrderDTO> create(@RequestBody OrderDTO orderDTO) {
+        if (orderDTO.getId() == null || orderDTO.getId().isEmpty()) {
+            // Generate a unique ID if not provided
+            orderDTO.setId(java.util.UUID.randomUUID().toString());
         }
-        return ResponseEntity.notFound().build();
+        Order order = orderDTO.toEntity();
+        Order savedOrder = orderService.save(order);
+        return new ResponseEntity<>(OrderDTO.fromEntity(savedOrder), HttpStatus.CREATED);
     }
 
-    @Operation(summary = "Obtener órdenes por rango de fechas", description = "Retorna órdenes en un rango de fechas específico")
-    @GetMapping("/date-range")
-    public List<Order> getOrdersByDateRange(
-            @Parameter(description = "Fecha de inicio (ISO 8601)") @RequestParam String startDate,
-            @Parameter(description = "Fecha de fin (ISO 8601)") @RequestParam String endDate) {
-        LocalDateTime start = LocalDateTime.parse(startDate);
-        LocalDateTime end = LocalDateTime.parse(endDate);
-        return orderRepository.findOrdersByArrivalDateRange(start, end);
+    /**
+     * Actualizar un pedido existente
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<OrderDTO> update(@PathVariable String id, @RequestBody OrderDTO orderDTO) {
+        return orderService.findById(id)
+                .map(existingOrder -> {
+                    Order order = orderDTO.toEntity();
+                    // En lugar de usar setId, construimos un nuevo objeto con el ID correcto
+                    Order orderWithCorrectId = Order.builder()
+                            .id(id)
+                            .arriveTime(order.getArriveTime())
+                            .dueTime(order.getDueTime())
+                            .glpRequestM3(order.getGlpRequestM3())
+                            .position(order.getPosition())
+                            .build();
+                    orderWithCorrectId.setRemainingGlpM3(order.getRemainingGlpM3());
+                    Order updatedOrder = orderService.save(orderWithCorrectId);
+                    return ResponseEntity.ok(OrderDTO.fromEntity(updatedOrder));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    @Operation(summary = "Obtener órdenes por fecha límite", description = "Retorna órdenes que deben ser entregadas antes de una fecha específica")
-    @GetMapping("/due-by")
-    public List<Order> getOrdersByDueTime(
-            @Parameter(description = "Fecha límite (ISO 8601)") @RequestParam String time) {
-        LocalDateTime dueTime = LocalDateTime.parse(time);
-        return orderRepository.findOrdersByDueDate(LocalDateTime.now(), dueTime);
+    /**
+     * Obtener un pedido por ID
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<OrderDTO> getById(@PathVariable String id) {
+        Optional<Order> order = orderService.findById(id);
+        return order.map(o -> ResponseEntity.ok(OrderDTO.fromEntity(o)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    @Operation(summary = "Obtener órdenes por radio", description = "Retorna órdenes dentro de un radio específico desde una posición")
-    @GetMapping("/radius")
-    public List<Order> getOrdersByRadius(
-            @Parameter(description = "Coordenada X del centro") @RequestParam int x,
-            @Parameter(description = "Coordenada Y del centro") @RequestParam int y,
-            @Parameter(description = "Radio de búsqueda") @RequestParam double radius) {
-        return orderRepository.findOrdersByRadius(x, y, radius);
+    /**
+     * Listar todos los pedidos con opciones de filtrado y paginación opcional
+     */
+    @GetMapping
+    public ResponseEntity<?> list(
+            @RequestParam(required = false) Boolean pending,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime overdueAt,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime availableAt,
+            @RequestParam(required = false) Boolean paginated,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
+        
+        // Si paginated es null o false, devolvemos todos los resultados sin paginar
+        if (paginated == null || !paginated) {
+            List<Order> orders;
+            
+            if (Boolean.TRUE.equals(pending)) {
+                // Filtrar por pedidos pendientes
+                orders = orderService.findPendingDeliveries();
+            } else if (overdueAt != null) {
+                // Filtrar por pedidos vencidos
+                orders = orderService.findOverdueOrders(overdueAt);
+            } else if (availableAt != null) {
+                // Filtrar por pedidos disponibles
+                orders = orderService.findAvailableOrders(availableAt);
+            } else {
+                // Sin filtros, retornar todos
+                orders = orderService.findAll();
+            }
+            
+            List<OrderDTO> orderDTOs = orders.stream()
+                    .map(OrderDTO::fromEntity)
+                    .collect(Collectors.toList());
+                    
+            return ResponseEntity.ok(orderDTOs);
+        }
+        
+        // Si paginated es true, devolvemos resultados paginados
+        Sort sort = direction.equalsIgnoreCase("desc") ? 
+                Sort.by(sortBy).descending() : 
+                Sort.by(sortBy).ascending();
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Order> orderPage;
+        
+        if (Boolean.TRUE.equals(pending)) {
+            // Filtrar por pedidos pendientes
+            orderPage = orderService.findPendingDeliveriesPaged(pageable);
+        } else if (overdueAt != null) {
+            // Filtrar por pedidos vencidos
+            orderPage = orderService.findOverdueOrdersPaged(overdueAt, pageable);
+        } else if (availableAt != null) {
+            // Filtrar por pedidos disponibles
+            orderPage = orderService.findAvailableOrdersPaged(availableAt, pageable);
+        } else {
+            // Sin filtros, retornar todos
+            orderPage = orderService.findAllPaged(pageable);
+        }
+        
+        return ResponseEntity.ok(orderPage.map(OrderDTO::fromEntity));
     }
 
-    @Operation(summary = "Eliminar orden", description = "Elimina una orden del sistema")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Orden eliminada exitosamente"),
-            @ApiResponse(responseCode = "404", description = "Orden no encontrada")
-    })
+    /**
+     * Eliminar un pedido por ID
+     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteOrder(
-            @Parameter(description = "ID de la orden a eliminar") @PathVariable String id) {
-        if (orderRepository.existsById(id)) {
-            orderRepository.deleteById(id);
-            return ResponseEntity.ok().build();
-        }
-        return ResponseEntity.notFound().build();
+    public ResponseEntity<Void> delete(@PathVariable String id) {
+        return orderService.findById(id)
+                .map(order -> {
+                    orderService.deleteById(id);
+                    return ResponseEntity.noContent().<Void>build();
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
-
-    @Operation(summary = "Obtener órdenes por estado", description = "Retorna todas las órdenes con un estado específico (PENDING, COMPLETED, OVERDUE, etc.)")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Órdenes obtenidas exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Order.class))),
-            @ApiResponse(responseCode = "400", description = "Estado inválido")
-    })
-    @GetMapping("/status/{status}")
-    public List<Order> getOrdersByStatus(
-            @Parameter(description = "Estado de la orden (ej: PENDING, COMPLETED, OVERDUE)", example = "PENDING") @PathVariable("status") OrderStatus status) {
-        return orderRepository.findByStatus(status);
+    
+    /**
+     * Registrar entrega de un pedido
+     */
+    @PostMapping("/{id}/deliver")
+    public ResponseEntity<ServeRecordDTO> recordDelivery(
+            @PathVariable String id,
+            @RequestBody DeliveryRecordDTO deliveryRecord) {
+        
+        LocalDateTime deliveryTime = deliveryRecord.getServeDate() != null ? 
+                deliveryRecord.getServeDate() : LocalDateTime.now();
+        
+        return orderService.recordDelivery(
+                id, 
+                deliveryRecord.getVolumeM3(), 
+                deliveryRecord.getVehicleId(), 
+                deliveryTime)
+                .map(serveRecord -> {
+                    ServeRecord savedRecord = serveRecordService.save(serveRecord);
+                    return ResponseEntity.ok(ServeRecordDTO.fromEntity(savedRecord));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
-
-    @Operation(summary = "Cargar órdenes desde archivo CSV", description = "Carga un archivo CSV con órdenes y las guarda en la base de datos")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Órdenes importadas correctamente"),
-            @ApiResponse(responseCode = "400", description = "Error al procesar el archivo")
-    })
-    @PostMapping("/import-csv")
-    public ResponseEntity<String> importOrdersFromCSV(@RequestParam("file") MultipartFile file) {
-        try {
-            List<Order> orders = csvService.parseCSV(file);
-            // Ensure all orders from CSV are treated as new entities
-            for (Order order : orders) {
-                order.setId(null); // Set ID to null to ensure a new ID is generated
-            }
-            orderRepository.saveAll(orders);
-            return ResponseEntity.ok("Órdenes importadas correctamente: " + orders.size());
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error al procesar el archivo: " + e.getMessage());
-        }
-    }
-
 }

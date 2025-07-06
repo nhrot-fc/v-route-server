@@ -1,203 +1,233 @@
 package com.example.plgsystem.controller;
 
-import com.example.plgsystem.model.*;
-import com.example.plgsystem.repository.MaintenanceRepository;
-import com.example.plgsystem.repository.VehicleRepository;
+import com.example.plgsystem.dto.MaintenanceCreateDTO;
+import com.example.plgsystem.model.Maintenance;
+import com.example.plgsystem.service.MaintenanceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Optional;
 
-import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-@Transactional
+@WebMvcTest(MaintenanceController.class)
 public class MaintenanceControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private MaintenanceRepository maintenanceRepository;
-
-    @Autowired
-    private VehicleRepository vehicleRepository;
+    @MockitoBean
+    private MaintenanceService maintenanceService;
 
     @Autowired
     private ObjectMapper objectMapper;
 
-    private Vehicle testVehicle;
-    private Maintenance testMaintenance;
-
-    @BeforeEach
-    public void setup() {
-        // Create a test vehicle
-        Position position = new Position(10, 10);
-        testVehicle = new Vehicle("MAINT-TEST-001", VehicleType.TA, position);
-        testVehicle = vehicleRepository.save(testVehicle);
+    @Test
+    public void testGetAllMaintenances() throws Exception {
+        // Given
+        Maintenance maintenance1 = new Maintenance("V001", LocalDate.now());
+        Maintenance maintenance2 = new Maintenance("V002", LocalDate.now().plusDays(1));
         
-        // Create a test maintenance record
-        LocalDateTime now = LocalDateTime.now();
-        testMaintenance = new Maintenance();
-        testMaintenance.setVehicleId(testVehicle.getId());
-        testMaintenance.setStartDate(now);
-        testMaintenance.setEndDate(now.plusHours(2));
-        testMaintenance.setType(MaintenanceType.PREVENTIVE);
-        testMaintenance.setDescription("Test maintenance");
-        testMaintenance.setCompleted(false);
-        testMaintenance = maintenanceRepository.save(testMaintenance);
-    }
+        when(maintenanceService.findAll()).thenReturn(Arrays.asList(maintenance1, maintenance2));
 
-    @Test
-    public void testGetAllMaintenance() throws Exception {
-        mockMvc.perform(get("/api/maintenance"))
+        // When & Then
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))))
-                .andExpect(jsonPath("$[0].vehicleId", is(testVehicle.getId())))
-                .andExpect(jsonPath("$[0].type", is(testMaintenance.getType().toString())))
-                .andExpect(jsonPath("$[0].description", is(testMaintenance.getDescription())));
+                .andExpect(jsonPath("$[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$[1].vehicleId").value("V002"));
     }
-
+    
     @Test
-    public void testGetMaintenanceById() throws Exception {
-        mockMvc.perform(get("/api/maintenance/{id}", testMaintenance.getId()))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.id", is(testMaintenance.getId().intValue())))
-                .andExpect(jsonPath("$.vehicleId", is(testVehicle.getId())))
-                .andExpect(jsonPath("$.type", is(testMaintenance.getType().toString())));
+    public void testGetAllMaintenances_WithPagination() throws Exception {
+        // Given
+        Maintenance maintenance1 = new Maintenance("V001", LocalDate.now());
+        Maintenance maintenance2 = new Maintenance("V002", LocalDate.now().plusDays(1));
         
-        // Test with non-existent ID
-        mockMvc.perform(get("/api/maintenance/9999"))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    public void testGetMaintenanceByVehicle() throws Exception {
-        mockMvc.perform(get("/api/maintenance/vehicle/{vehicleId}", testVehicle.getId()))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(1))))
-                .andExpect(jsonPath("$[0].vehicleId", is(testVehicle.getId())));
+        Page<Maintenance> maintenancePage = new PageImpl<>(
+                Arrays.asList(maintenance1, maintenance2),
+                PageRequest.of(0, 10),
+                2
+        );
         
-        // Test with non-existent vehicle ID
-        mockMvc.perform(get("/api/maintenance/vehicle/NONEXISTENT"))
+        when(maintenanceService.findAllPaged(any(Pageable.class))).thenReturn(maintenancePage);
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "true")
+                .param("page", "0")
+                .param("size", "10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$.content[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$.content[1].vehicleId").value("V002"))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
-    public void testGetMaintenanceByType() throws Exception {
-        mockMvc.perform(get("/api/maintenance/type/{type}", MaintenanceType.PREVENTIVE))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))))
-                .andExpect(jsonPath("$[0].type", is(MaintenanceType.PREVENTIVE.toString())));
+    public void testGetMaintenancesByVehicleId() throws Exception {
+        // Given
+        Maintenance maintenance1 = new Maintenance("V001", LocalDate.now());
+        Maintenance maintenance2 = new Maintenance("V001", LocalDate.now().plusDays(1));
         
-        // Test with a type that doesn't have any records
-        mockMvc.perform(get("/api/maintenance/type/{type}", MaintenanceType.CORRECTIVE))
+        when(maintenanceService.findByVehicleId("V001")).thenReturn(Arrays.asList(maintenance1, maintenance2));
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false")
+                .param("vehicleId", "V001"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$[1].vehicleId").value("V001"));
     }
 
     @Test
-    public void testGetActiveMaintenance() throws Exception {
-        mockMvc.perform(get("/api/maintenance/active"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-    }
-
-    @Test
-    public void testGetActiveMaintenanceForVehicle() throws Exception {
-        mockMvc.perform(get("/api/maintenance/active/vehicle/{vehicleId}", testVehicle.getId()))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-    }
-
-    @Test
-    public void testGetUpcomingMaintenance() throws Exception {
-        // Create maintenance scheduled for tomorrow
-        LocalDateTime tomorrow = LocalDateTime.now().plusDays(1);
-        Maintenance upcomingMaintenance = new Maintenance();
-        upcomingMaintenance.setVehicleId(testVehicle.getId());
-        upcomingMaintenance.setStartDate(tomorrow);
-        upcomingMaintenance.setEndDate(tomorrow.plusHours(3));
-        upcomingMaintenance.setType(MaintenanceType.PREVENTIVE);
-        upcomingMaintenance.setDescription("Upcoming maintenance");
-        upcomingMaintenance.setCompleted(false);
-        maintenanceRepository.save(upcomingMaintenance);
+    public void testGetMaintenancesByDate() throws Exception {
+        // Given
+        LocalDate date = LocalDate.of(2025, 5, 15);
+        Maintenance maintenance1 = new Maintenance("V001", date);
+        Maintenance maintenance2 = new Maintenance("V002", date);
         
-        String startDate = LocalDateTime.now().toString();
-        String endDate = LocalDateTime.now().plusDays(2).toString();
-        
-        mockMvc.perform(get("/api/maintenance/upcoming")
-                .param("startDate", startDate)
-                .param("endDate", endDate))
+        when(maintenanceService.findByDate(date)).thenReturn(Arrays.asList(maintenance1, maintenance2));
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false")
+                .param("date", "2025-05-15"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))))
-                .andExpect(jsonPath("$[0].description", is("Upcoming maintenance")));
+                .andExpect(jsonPath("$[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$[1].vehicleId").value("V002"));
+    }
+
+    @Test
+    public void testGetMaintenancesByVehicleIdAndDate() throws Exception {
+        // Given
+        LocalDate date = LocalDate.of(2025, 5, 15);
+        Maintenance maintenance = new Maintenance("V001", date);
+        
+        when(maintenanceService.findByVehicleIdAndDate("V001", date)).thenReturn(Collections.singletonList(maintenance));
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false")
+                .param("vehicleId", "V001")
+                .param("date", "2025-05-15"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].vehicleId").value("V001"));
+    }
+
+    @Test
+    public void testGetMaintenancesByDateRange() throws Exception {
+        // Given
+        LocalDate startDate = LocalDate.of(2025, 5, 1);
+        LocalDate endDate = LocalDate.of(2025, 5, 31);
+        Maintenance maintenance1 = new Maintenance("V001", startDate);
+        Maintenance maintenance2 = new Maintenance("V002", endDate);
+        
+        when(maintenanceService.findByDateRange(startDate, endDate)).thenReturn(Arrays.asList(maintenance1, maintenance2));
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false")
+                .param("startDate", "2025-05-01")
+                .param("endDate", "2025-05-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$[1].vehicleId").value("V002"));
+    }
+
+    @Test
+    public void testGetActiveMaintenances() throws Exception {
+        // Given
+        Maintenance maintenance1 = new Maintenance("V001", LocalDate.now());
+        maintenance1.setRealStart(LocalDateTime.now().minusHours(2));
+        
+        Maintenance maintenance2 = new Maintenance("V002", LocalDate.now());
+        maintenance2.setRealStart(LocalDateTime.now().minusHours(1));
+        
+        when(maintenanceService.findActiveMaintenances()).thenReturn(Arrays.asList(maintenance1, maintenance2));
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances/active")
+                .param("paginated", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$[1].vehicleId").value("V002"));
+    }
+    
+    @Test
+    public void testGetActiveMaintenances_WithPagination() throws Exception {
+        // Given
+        Maintenance maintenance1 = new Maintenance("V001", LocalDate.now());
+        maintenance1.setRealStart(LocalDateTime.now().minusHours(2));
+        
+        Maintenance maintenance2 = new Maintenance("V002", LocalDate.now());
+        maintenance2.setRealStart(LocalDateTime.now().minusHours(1));
+        
+        Page<Maintenance> maintenancePage = new PageImpl<>(
+                Arrays.asList(maintenance1, maintenance2),
+                PageRequest.of(0, 10),
+                2
+        );
+        
+        when(maintenanceService.findActiveMaintenancesPaged(any(Pageable.class))).thenReturn(maintenancePage);
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances/active")
+                .param("paginated", "true")
+                .param("page", "0")
+                .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$.content[1].vehicleId").value("V002"))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
     public void testCreateMaintenance() throws Exception {
-        // Create a new maintenance record
-        LocalDateTime futureDate = LocalDateTime.now().plusDays(3);
-        Maintenance newMaintenance = new Maintenance();
-        newMaintenance.setVehicleId(testVehicle.getId());
-        newMaintenance.setStartDate(futureDate);
-        newMaintenance.setEndDate(futureDate.plusHours(4));
-        newMaintenance.setType(MaintenanceType.CORRECTIVE);
-        newMaintenance.setDescription("New maintenance");
-        newMaintenance.setCompleted(false);
+        // Given
+        MaintenanceCreateDTO createDTO = new MaintenanceCreateDTO();
+        createDTO.setVehicleId("V001");
+        createDTO.setAssignedDate(LocalDate.of(2025, 5, 15));
         
-        mockMvc.perform(post("/api/maintenance")
+        Maintenance maintenance = new Maintenance("V001", LocalDate.of(2025, 5, 15));
+        
+        when(maintenanceService.createMaintenance(eq("V001"), any(LocalDate.class))).thenReturn(maintenance);
+
+        // When & Then
+        mockMvc.perform(post("/api/maintenances")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(newMaintenance)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.vehicleId", is(testVehicle.getId())))
-                .andExpect(jsonPath("$.type", is(MaintenanceType.CORRECTIVE.toString())))
-                .andExpect(jsonPath("$.description", is("New maintenance")));
+                .content(objectMapper.writeValueAsString(createDTO)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.vehicleId").value("V001"));
     }
-
+    
     @Test
-    public void testScheduleMaintenance() throws Exception {
-        String vehicleId = testVehicle.getId();
-        String startDate = LocalDateTime.now().plusDays(5).toString();
-        MaintenanceType type = MaintenanceType.PREVENTIVE;
+    public void testGetMaintenanceById() throws Exception {
+        // Given
+        Maintenance maintenance = new Maintenance("V001", LocalDate.of(2025, 5, 15));
         
-        mockMvc.perform(post("/api/maintenance/schedule")
-                .param("vehicleId", vehicleId)
-                .param("startDate", startDate)
-                .param("type", type.toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.vehicleId", is(vehicleId)))
-                .andExpect(jsonPath("$.type", is(type.toString())))
-                .andExpect(jsonPath("$.completed", is(false)));
-    }
+        when(maintenanceService.findById(1L)).thenReturn(Optional.of(maintenance));
 
-    @Test
-    public void testCompleteMaintenance() throws Exception {
-        mockMvc.perform(put("/api/maintenance/{id}/complete", testMaintenance.getId()))
+        // When & Then
+        mockMvc.perform(get("/api/maintenances/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(testMaintenance.getId().intValue())))
-                .andExpect(jsonPath("$.endDate", notNullValue()));
-        
-        // Test with non-existent ID
-        mockMvc.perform(put("/api/maintenance/9999/complete"))
-                .andExpect(status().isNotFound());
+                .andExpect(jsonPath("$.vehicleId").value("V001"));
     }
-}
+} 

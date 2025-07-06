@@ -2,194 +2,378 @@ package com.example.plgsystem.controller;
 
 import com.example.plgsystem.model.Blockage;
 import com.example.plgsystem.model.Position;
-import com.example.plgsystem.repository.BlockageRepository;
+import com.example.plgsystem.service.BlockageService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-@Transactional
+@WebMvcTest(BlockageController.class)
 public class BlockageControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private BlockageRepository blockageRepository;
+    @MockitoBean
+    private BlockageService blockageService;
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    private Blockage testBlockage;
-
-    @BeforeEach
-    public void setup() {
-        // Create a test blockage using the proper constructor
-        Position startNode = new Position(30, 40);
-        Position endNode = new Position(35, 45);
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime end = now.plusHours(3);
-        
-        testBlockage = new Blockage(startNode, endNode, now, end);
-        testBlockage = blockageRepository.save(testBlockage);
+    
+    // Utility method to set ID using reflection
+    private void setId(Blockage blockage, Long id) {
+        try {
+            Field idField = Blockage.class.getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(blockage, id);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set ID field", e);
+        }
     }
 
     @Test
-    public void testGetAllBlockages() throws Exception {
-        mockMvc.perform(get("/api/blockages"))
+    public void testGetAllBlockages_WithPagination() throws Exception {
+        // Given
+        LocalDateTime startTime1 = LocalDateTime.of(2025, 5, 1, 8, 0);
+        LocalDateTime endTime1 = LocalDateTime.of(2025, 5, 1, 12, 0);
+        List<Position> blockagePoints1 = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21),
+                new Position(10, 22)
+        );
+        Blockage blockage1 = new Blockage(startTime1, endTime1, blockagePoints1);
+        setId(blockage1, 1L);
+        
+        LocalDateTime startTime2 = LocalDateTime.of(2025, 5, 2, 14, 0);
+        LocalDateTime endTime2 = LocalDateTime.of(2025, 5, 2, 18, 0);
+        List<Position> blockagePoints2 = Arrays.asList(
+                new Position(30, 40),
+                new Position(31, 40),
+                new Position(32, 40)
+        );
+        Blockage blockage2 = new Blockage(startTime2, endTime2, blockagePoints2);
+        setId(blockage2, 2L);
+        
+        List<Blockage> blockages = Arrays.asList(blockage1, blockage2);
+        Page<Blockage> blockagePage = new PageImpl<>(blockages, PageRequest.of(0, 10), 2);
+        
+        when(blockageService.findAllPaged(any(Pageable.class))).thenReturn(blockagePage);
+
+        // When & Then
+        mockMvc.perform(get("/api/blockages")
+                .param("paginated", "true")
+                .param("page", "0")
+                .param("size", "10")
+                .param("sortBy", "id")
+                .param("direction", "asc"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))));
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].id").value(1))
+                .andExpect(jsonPath("$.content[1].id").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
     public void testGetBlockageById() throws Exception {
-        mockMvc.perform(get("/api/blockages/{id}", testBlockage.getId()))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.id", is(testBlockage.getId().intValue())));
+        // Given
+        LocalDateTime startTime = LocalDateTime.of(2025, 5, 1, 8, 0);
+        LocalDateTime endTime = LocalDateTime.of(2025, 5, 1, 12, 0);
+        List<Position> blockagePoints = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21),
+                new Position(10, 22)
+        );
+        Blockage blockage = new Blockage(startTime, endTime, blockagePoints);
+        setId(blockage, 1L);
         
-        // Test with non-existent ID
-        mockMvc.perform(get("/api/blockages/9999"))
+        when(blockageService.findById(1L)).thenReturn(Optional.of(blockage));
+
+        // When & Then
+        mockMvc.perform(get("/api/blockages/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.startTime").isNotEmpty())
+                .andExpect(jsonPath("$.endTime").isNotEmpty());
+    }
+
+    @Test
+    public void testGetBlockageByIdNotFound() throws Exception {
+        // Given
+        when(blockageService.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        mockMvc.perform(get("/api/blockages/999"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    public void testGetActiveBlockages() throws Exception {
-        // Add one future blockage
-        Position futureStartNode = new Position(50, 60);
-        Position futureEndNode = new Position(55, 65);
-        LocalDateTime future = LocalDateTime.now().plusDays(1);
+    public void testGetActiveBlockages_WithPagination() throws Exception {
+        // Given
+        LocalDateTime activeTime = LocalDateTime.of(2025, 5, 1, 10, 0);
         
-        Blockage futureBlockage = new Blockage(futureStartNode, futureEndNode, future, future.plusHours(2));
-        blockageRepository.save(futureBlockage);
+        LocalDateTime startTime = LocalDateTime.of(2025, 5, 1, 8, 0);
+        LocalDateTime endTime = LocalDateTime.of(2025, 5, 1, 12, 0);
+        List<Position> blockagePoints = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21)
+        );
+        Blockage blockage = new Blockage(startTime, endTime, blockagePoints);
+        setId(blockage, 1L);
         
-        mockMvc.perform(get("/api/blockages/active"))
+        List<Blockage> blockages = Collections.singletonList(blockage);
+        Page<Blockage> blockagePage = new PageImpl<>(blockages, PageRequest.of(0, 10), 1);
+        
+        when(blockageService.findByActiveAtDateTimePaged(eq(activeTime), any(Pageable.class))).thenReturn(blockagePage);
+
+        // When & Then
+        mockMvc.perform(get("/api/blockages")
+                .param("paginated", "true")
+                .param("activeAt", "2025-05-01T10:00:00")
+                .param("page", "0")
+                .param("size", "10")
+                .param("sortBy", "id")
+                .param("direction", "asc"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(1)))); // Only the current blockage is active
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].id").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test
-    public void testGetActiveBlockagesAt() throws Exception {
-        // Test at current time (should find our test blockage)
-        String currentTime = LocalDateTime.now().toString();
+    public void testGetBlockagesByTimeRange_WithPagination() throws Exception {
+        // Given
+        LocalDateTime startRange = LocalDateTime.of(2025, 5, 1, 0, 0);
+        LocalDateTime endRange = LocalDateTime.of(2025, 5, 31, 23, 59);
         
-        mockMvc.perform(get("/api/blockages/active/{dateTime}", currentTime))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(1))));
+        LocalDateTime startTime = LocalDateTime.of(2025, 5, 15, 8, 0);
+        LocalDateTime endTime = LocalDateTime.of(2025, 5, 15, 12, 0);
+        List<Position> blockagePoints = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21)
+        );
+        Blockage blockage = new Blockage(startTime, endTime, blockagePoints);
+        setId(blockage, 1L);
         
-        // Test at future time (should find none)
-        String futureTime = LocalDateTime.now().plusDays(2).toString();
+        List<Blockage> blockages = Collections.singletonList(blockage);
+        Page<Blockage> blockagePage = new PageImpl<>(blockages, PageRequest.of(0, 10), 1);
         
-        mockMvc.perform(get("/api/blockages/active/{dateTime}", futureTime))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(0)));
-    }
+        when(blockageService.findByTimeRangePaged(eq(startRange), eq(endRange), any(Pageable.class))).thenReturn(blockagePage);
 
-    @Test
-    public void testGetBlockagesByDateRange() throws Exception {
-        // Create a blockage for tomorrow
-        Position tomorrowStartNode = new Position(60, 70);
-        Position tomorrowEndNode = new Position(65, 75);
-        LocalDateTime tomorrow = LocalDateTime.now().plusDays(1);
-        LocalDateTime tomorrowEnd = tomorrow.plusHours(2);
-        
-        Blockage tomorrowBlockage = new Blockage(tomorrowStartNode, tomorrowEndNode, tomorrow, tomorrowEnd);
-        blockageRepository.save(tomorrowBlockage);
-        
-        // Test range including today and tomorrow
-        String startDate = LocalDateTime.now().minusHours(1).toString();
-        String endDate = LocalDateTime.now().plusDays(2).toString();
-        
-        mockMvc.perform(get("/api/blockages/date-range")
-                .param("startDate", startDate)
-                .param("endDate", endDate))
+        // When & Then
+        mockMvc.perform(get("/api/blockages")
+                .param("paginated", "true")
+                .param("startTime", "2025-05-01T00:00:00")
+                .param("endTime", "2025-05-31T23:59:00")
+                .param("page", "0")
+                .param("size", "10")
+                .param("sortBy", "startTime")
+                .param("direction", "desc"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(2))));
-        
-        // Test range for only tomorrow
-        String tomorrowStart = tomorrow.minusHours(1).toString();
-        String tomorrowEndStr = tomorrow.plusHours(3).toString();
-        
-        mockMvc.perform(get("/api/blockages/date-range")
-                .param("startDate", tomorrowStart)
-                .param("endDate", tomorrowEndStr))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(equalTo(1))));
-    }
-
-    @Test
-    public void testGetBlockagesForSegment() throws Exception {
-        // Our test blockage has startNode at (30,40) and endNode at (35,45)
-        // Test segment that matches the blockage exactly
-        mockMvc.perform(get("/api/blockages/segment")
-                .param("x1", "30")
-                .param("y1", "40")
-                .param("x2", "35")
-                .param("y2", "45"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))));
-        
-        // Test segment far from blockage
-        mockMvc.perform(get("/api/blockages/segment")
-                .param("x1", "100")
-                .param("y1", "100")
-                .param("x2", "110")
-                .param("y2", "110"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].id").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test
     public void testCreateBlockage() throws Exception {
-        // Create a new blockage
-        Position newStartNode = new Position(80, 90);
-        Position newEndNode = new Position(85, 95);
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime end = now.plusHours(5);
+        // Given
+        LocalDateTime startTime = LocalDateTime.of(2025, 5, 15, 8, 0);
+        LocalDateTime endTime = LocalDateTime.of(2025, 5, 15, 12, 0);
+        List<Position> blockagePoints = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21),
+                new Position(10, 22)
+        );
+        Blockage blockage = new Blockage(startTime, endTime, blockagePoints);
         
-        Blockage newBlockage = new Blockage(newStartNode, newEndNode, now, end);
+        Blockage savedBlockage = new Blockage(startTime, endTime, blockagePoints);
+        setId(savedBlockage, 1L);
         
+        when(blockageService.save(any(Blockage.class))).thenReturn(savedBlockage);
+
+        // When & Then
         mockMvc.perform(post("/api/blockages")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(newBlockage)))
+                .content(objectMapper.writeValueAsString(blockage)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1));
+    }
+
+    @Test
+    public void testUpdateBlockage() throws Exception {
+        // Given
+        LocalDateTime originalStart = LocalDateTime.of(2025, 5, 15, 8, 0);
+        LocalDateTime originalEnd = LocalDateTime.of(2025, 5, 15, 12, 0);
+        List<Position> originalPoints = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21)
+        );
+        Blockage originalBlockage = new Blockage(originalStart, originalEnd, originalPoints);
+        setId(originalBlockage, 1L);
+        
+        // Updated blockage has different time
+        LocalDateTime updatedStart = LocalDateTime.of(2025, 5, 15, 9, 0);
+        LocalDateTime updatedEnd = LocalDateTime.of(2025, 5, 15, 13, 0);
+        Blockage updatedBlockage = new Blockage(updatedStart, updatedEnd, originalPoints);
+        setId(updatedBlockage, 1L);
+        
+        when(blockageService.findById(1L)).thenReturn(Optional.of(originalBlockage));
+        when(blockageService.save(any(Blockage.class))).thenReturn(updatedBlockage);
+
+        // When & Then
+        mockMvc.perform(put("/api/blockages/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updatedBlockage)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", notNullValue()));
+                .andExpect(jsonPath("$.startTime").value("2025-05-15T09:00:00"))
+                .andExpect(jsonPath("$.endTime").value("2025-05-15T13:00:00"));
+    }
+
+    @Test
+    public void testUpdateBlockageNotFound() throws Exception {
+        // Given
+        LocalDateTime startTime = LocalDateTime.of(2025, 5, 15, 8, 0);
+        LocalDateTime endTime = LocalDateTime.of(2025, 5, 15, 12, 0);
+        List<Position> blockagePoints = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21)
+        );
+        Blockage blockage = new Blockage(startTime, endTime, blockagePoints);
+        setId(blockage, 999L);
+        
+        when(blockageService.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        mockMvc.perform(put("/api/blockages/999")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(blockage)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
     public void testDeleteBlockage() throws Exception {
-        mockMvc.perform(delete("/api/blockages/{id}", testBlockage.getId()))
-                .andExpect(status().isOk());
+        // Given
+        LocalDateTime startTime = LocalDateTime.of(2025, 5, 15, 8, 0);
+        LocalDateTime endTime = LocalDateTime.of(2025, 5, 15, 12, 0);
+        List<Position> blockagePoints = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21)
+        );
+        Blockage blockage = new Blockage(startTime, endTime, blockagePoints);
+        setId(blockage, 1L);
         
-        // Verify it's deleted
-        mockMvc.perform(get("/api/blockages/{id}", testBlockage.getId()))
-                .andExpect(status().isNotFound());
+        when(blockageService.findById(1L)).thenReturn(Optional.of(blockage));
+        doNothing().when(blockageService).deleteById(1L);
+
+        // When & Then
+        mockMvc.perform(delete("/api/blockages/1"))
+                .andExpect(status().isNoContent());
         
-        // Try to delete non-existent blockage
-        mockMvc.perform(delete("/api/blockages/9999"))
-                .andExpect(status().isNotFound());
+        verify(blockageService, times(1)).deleteById(1L);
     }
-}
+
+    @Test
+    public void testDeleteBlockageNotFound() throws Exception {
+        // Given
+        when(blockageService.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        mockMvc.perform(delete("/api/blockages/999"))
+                .andExpect(status().isNotFound());
+        
+        verify(blockageService, never()).deleteById(999L);
+    }
+    
+    @Test
+    public void testPaginationParameters() throws Exception {
+        // Given
+        LocalDateTime startTime = LocalDateTime.of(2025, 5, 1, 8, 0);
+        LocalDateTime endTime = LocalDateTime.of(2025, 5, 1, 12, 0);
+        List<Position> blockagePoints = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21)
+        );
+        Blockage blockage = new Blockage(startTime, endTime, blockagePoints);
+        setId(blockage, 1L);
+        
+        List<Blockage> blockages = Collections.singletonList(blockage);
+        Page<Blockage> blockagePage = new PageImpl<>(blockages, PageRequest.of(1, 5), 11);
+        
+        when(blockageService.findAllPaged(any(Pageable.class))).thenReturn(blockagePage);
+
+        // When & Then
+        mockMvc.perform(get("/api/blockages")
+                .param("paginated", "true")
+                .param("page", "1")
+                .param("size", "5")
+                .param("sortBy", "startTime")
+                .param("direction", "desc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].id").value(1))
+                .andExpect(jsonPath("$.totalElements").value(11))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.number").value(1))
+                .andExpect(jsonPath("$.size").value(5));
+        
+        // Verify that the correct page request was passed
+        verify(blockageService).findAllPaged(PageRequest.of(1, 5, Sort.by("startTime").descending()));
+    }
+    
+    @Test
+    public void testGetAllBlockages_WithoutPagination() throws Exception {
+        // Given
+        LocalDateTime startTime1 = LocalDateTime.of(2025, 5, 1, 8, 0);
+        LocalDateTime endTime1 = LocalDateTime.of(2025, 5, 1, 12, 0);
+        List<Position> blockagePoints1 = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21),
+                new Position(10, 22)
+        );
+        Blockage blockage1 = new Blockage(startTime1, endTime1, blockagePoints1);
+        setId(blockage1, 1L);
+        
+        LocalDateTime startTime2 = LocalDateTime.of(2025, 5, 2, 14, 0);
+        LocalDateTime endTime2 = LocalDateTime.of(2025, 5, 2, 18, 0);
+        List<Position> blockagePoints2 = Arrays.asList(
+                new Position(30, 40),
+                new Position(31, 40),
+                new Position(32, 40)
+        );
+        Blockage blockage2 = new Blockage(startTime2, endTime2, blockagePoints2);
+        setId(blockage2, 2L);
+        
+        List<Blockage> blockages = Arrays.asList(blockage1, blockage2);
+        
+        when(blockageService.findAll()).thenReturn(blockages);
+
+        // When & Then
+        mockMvc.perform(get("/api/blockages")
+                .param("paginated", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[1].id").value(2));
+    }
+} 
