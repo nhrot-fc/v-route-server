@@ -7,6 +7,8 @@ import jakarta.persistence.*;
 import java.io.Serializable;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Representa un pedido de GLP en el sistema
@@ -36,6 +38,9 @@ public class Order implements Stop, Serializable {
     
     @Column(name = "remaining_glp_m3", nullable = false)
     private int remainingGlpM3;
+    
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ServeRecord> serveRecords = new ArrayList<>();
 
     /**
      * Método setter para permitir la actualización del GLP restante
@@ -66,7 +71,22 @@ public class Order implements Stop, Serializable {
         remainingGlpM3 -= Math.abs(deliveredVolumeM3);
         remainingGlpM3 = Math.max(0, remainingGlpM3); // Asegurar que no sea negativo
         
-        return new ServeRecord(vehicleId, this.id, Math.abs(deliveredVolumeM3), serveDate);
+        ServeRecord record = new ServeRecord(vehicleId, this.id, Math.abs(deliveredVolumeM3), serveDate);
+        serveRecords.add(record);
+        return record;
+    }
+    
+    /**
+     * Registra una entrega parcial o total del pedido con relaciones a entidades
+     */
+    @Transactional
+    public ServeRecord recordDelivery(int deliveredVolumeM3, Vehicle vehicle, LocalDateTime serveDate) {
+        remainingGlpM3 -= Math.abs(deliveredVolumeM3);
+        remainingGlpM3 = Math.max(0, remainingGlpM3); // Asegurar que no sea negativo
+        
+        ServeRecord record = new ServeRecord(vehicle, this, Math.abs(deliveredVolumeM3), serveDate);
+        serveRecords.add(record);
+        return record;
     }
     
     /**

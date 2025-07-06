@@ -11,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.*;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Representa un vehículo de transporte de GLP en el sistema
@@ -48,6 +50,15 @@ public class Vehicle implements Serializable {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private VehicleStatus status;
+    
+    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Incident> incidents = new ArrayList<>();
+    
+    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ServeRecord> serveRecords = new ArrayList<>();
+    
+    @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Maintenance> maintenances = new ArrayList<>();
     
     /**
      * Constructor principal para crear un nuevo vehículo
@@ -131,7 +142,21 @@ public class Vehicle implements Serializable {
     public ServeRecord serveOrder(Order order, int glpVolumeM3, LocalDateTime serveDate) {
         int absoluteVolume = Math.abs(glpVolumeM3);
         this.dispenseGlp(absoluteVolume);
-        return order.recordDelivery(absoluteVolume, this.id, serveDate);
+        return order.recordDelivery(absoluteVolume, this, serveDate);
+    }
+    
+    /**
+     * Agrega un incidente al vehículo
+     */
+    public void addIncident(Incident incident) {
+        incidents.add(incident);
+    }
+    
+    /**
+     * Agrega un mantenimiento al vehículo
+     */
+    public void addMaintenance(Maintenance maintenance) {
+        maintenances.add(maintenance);
     }
     
     /**

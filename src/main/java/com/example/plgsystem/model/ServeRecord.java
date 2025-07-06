@@ -20,11 +20,19 @@ public class ServeRecord implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(name = "vehicle_id", nullable = false)
+    @Column(name = "vehicle_id", nullable = false, insertable = false, updatable = false)
     private String vehicleId;
     
-    @Column(name = "order_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id", nullable = false)
+    private Vehicle vehicle;
+    
+    @Column(name = "order_id", nullable = false, insertable = false, updatable = false)
     private String orderId;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false)
+    private Order order;
     
     @Column(name = "volume_m3", nullable = false)
     private int volumeM3;
@@ -38,6 +46,18 @@ public class ServeRecord implements Serializable {
     public ServeRecord(String vehicleId, String orderId, int volumeM3, LocalDateTime serveDate) {
         this.vehicleId = vehicleId;
         this.orderId = orderId;
+        this.volumeM3 = volumeM3;
+        this.serveDate = serveDate;
+    }
+    
+    /**
+     * Constructor con relaciones a entidades
+     */
+    public ServeRecord(Vehicle vehicle, Order order, int volumeM3, LocalDateTime serveDate) {
+        this.vehicle = vehicle;
+        this.vehicleId = vehicle.getId();
+        this.order = order;
+        this.orderId = order.getId();
         this.volumeM3 = volumeM3;
         this.serveDate = serveDate;
     }

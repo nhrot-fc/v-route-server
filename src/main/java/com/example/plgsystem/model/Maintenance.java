@@ -27,8 +27,12 @@ public class Maintenance implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(name = "vehicle_id", nullable = false)
+    @Column(name = "vehicle_id", nullable = false, insertable = false, updatable = false)
     private String vehicleId;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id", nullable = false)
+    private Vehicle vehicle;
     
     @Column(name = "assigned_date", nullable = false)
     private LocalDate assignedDate;
@@ -46,6 +50,15 @@ public class Maintenance implements Serializable {
      */
     public Maintenance(String vehicleId, LocalDate assignedDate) {
         this.vehicleId = vehicleId;
+        this.assignedDate = assignedDate;
+    }
+    
+    /**
+     * Constructor con relación al vehículo
+     */
+    public Maintenance(Vehicle vehicle, LocalDate assignedDate) {
+        this.vehicle = vehicle;
+        this.vehicleId = vehicle.getId();
         this.assignedDate = assignedDate;
     }
     

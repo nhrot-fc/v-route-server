@@ -2,8 +2,10 @@ package com.example.plgsystem.repository;
 
 import com.example.plgsystem.enums.IncidentType;
 import com.example.plgsystem.enums.Shift;
+import com.example.plgsystem.enums.VehicleType;
 import com.example.plgsystem.model.Incident;
 import com.example.plgsystem.model.Position;
+import com.example.plgsystem.model.Vehicle;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -26,10 +28,20 @@ public class IncidentRepositoryTest {
     @Autowired
     private IncidentRepository incidentRepository;
 
+    private Vehicle createTestVehicle(String id) {
+        Vehicle vehicle = Vehicle.builder()
+                .id(id)
+                .type(VehicleType.TA)
+                .currentPosition(new Position(10, 20))
+                .build();
+        return entityManager.persist(vehicle);
+    }
+
     @Test
     public void testSaveIncident() {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
+        Vehicle vehicle = createTestVehicle("V001");
+        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
         LocalDateTime occurrenceTime = LocalDateTime.now().minusHours(1);
         Position location = new Position(10, 20);
         
@@ -56,7 +68,8 @@ public class IncidentRepositoryTest {
     @Test
     public void testFindById() {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
+        Vehicle vehicle = createTestVehicle("V001");
+        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
         incident.setOccurrenceTime(LocalDateTime.now());
         incident.setLocation(new Position(10, 20));
         
@@ -78,8 +91,11 @@ public class IncidentRepositoryTest {
     @Test
     public void testFindAll() {
         // Given
-        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
-        Incident incident2 = new Incident("V002", IncidentType.TI2, Shift.T2);
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, Shift.T2);
         
         entityManager.persist(incident1);
         entityManager.persist(incident2);
@@ -95,7 +111,8 @@ public class IncidentRepositoryTest {
     @Test
     public void testUpdateIncident() {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
+        Vehicle vehicle = createTestVehicle("V001");
+        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
         incident.setOccurrenceTime(LocalDateTime.now());
         entityManager.persist(incident);
         entityManager.flush();
@@ -115,7 +132,8 @@ public class IncidentRepositoryTest {
     @Test
     public void testDeleteIncident() {
         // Given
-        Incident incident = new Incident("V001", IncidentType.TI1, Shift.T1);
+        Vehicle vehicle = createTestVehicle("V001");
+        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
         entityManager.persist(incident);
         entityManager.flush();
         
@@ -132,9 +150,12 @@ public class IncidentRepositoryTest {
     @Test
     public void testFindByVehicleId() {
         // Given
-        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
-        Incident incident2 = new Incident("V001", IncidentType.TI2, Shift.T2); // Same vehicle
-        Incident incident3 = new Incident("V002", IncidentType.TI3, Shift.T3); // Different vehicle
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+        Incident incident2 = new Incident(vehicle1, IncidentType.TI2, Shift.T2); // Same vehicle
+        Incident incident3 = new Incident(vehicle2, IncidentType.TI3, Shift.T3); // Different vehicle
         
         entityManager.persist(incident1);
         entityManager.persist(incident2);
@@ -152,10 +173,13 @@ public class IncidentRepositoryTest {
     @Test
     public void testFindByResolved() {
         // Given
-        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
         incident1.setResolved(true); // Resolved
         
-        Incident incident2 = new Incident("V002", IncidentType.TI2, Shift.T2); // Not resolved
+        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, Shift.T2); // Not resolved
         
         entityManager.persist(incident1);
         entityManager.persist(incident2);
@@ -181,16 +205,21 @@ public class IncidentRepositoryTest {
         LocalDateTime tomorrow = now.plusDays(1);
         LocalDateTime nextWeek = now.plusDays(7);
         
-        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        Vehicle vehicle3 = createTestVehicle("V003");
+        Vehicle vehicle4 = createTestVehicle("V004");
+        
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
         incident1.setOccurrenceTime(yesterday);
         
-        Incident incident2 = new Incident("V002", IncidentType.TI2, Shift.T2);
+        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, Shift.T2);
         incident2.setOccurrenceTime(now);
         
-        Incident incident3 = new Incident("V003", IncidentType.TI3, Shift.T3);
+        Incident incident3 = new Incident(vehicle3, IncidentType.TI3, Shift.T3);
         incident3.setOccurrenceTime(tomorrow);
         
-        Incident incident4 = new Incident("V004", IncidentType.TI3, Shift.T3);
+        Incident incident4 = new Incident(vehicle4, IncidentType.TI3, Shift.T3);
         incident4.setOccurrenceTime(nextWeek);
         
         entityManager.persist(incident1);
@@ -215,13 +244,16 @@ public class IncidentRepositoryTest {
         LocalDateTime yesterday = now.minusDays(1);
         LocalDateTime tomorrow = now.plusDays(1);
         
-        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
         incident1.setOccurrenceTime(yesterday);
         
-        Incident incident2 = new Incident("V001", IncidentType.TI2, Shift.T2);
+        Incident incident2 = new Incident(vehicle1, IncidentType.TI2, Shift.T2);
         incident2.setOccurrenceTime(tomorrow);
         
-        Incident incident3 = new Incident("V002", IncidentType.TI3, Shift.T3);
+        Incident incident3 = new Incident(vehicle2, IncidentType.TI3, Shift.T3);
         incident3.setOccurrenceTime(now);
         
         entityManager.persist(incident1);

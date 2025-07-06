@@ -28,8 +28,12 @@ public class Incident implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(name = "vehicle_id", nullable = false)
+    @Column(name = "vehicle_id", nullable = false, insertable = false, updatable = false)
     private String vehicleId;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id", nullable = false)
+    private Vehicle vehicle;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -60,6 +64,18 @@ public class Incident implements Serializable {
      */
     public Incident(String vehicleId, IncidentType type, Shift shift) {
         this.vehicleId = vehicleId;
+        this.type = type;
+        this.shift = shift;
+        this.resolved = false;
+        this.transferableGlp = 0;
+    }
+    
+    /**
+     * Constructor con la relación al vehículo
+     */
+    public Incident(Vehicle vehicle, IncidentType type, Shift shift) {
+        this.vehicle = vehicle;
+        this.vehicleId = vehicle.getId();
         this.type = type;
         this.shift = shift;
         this.resolved = false;

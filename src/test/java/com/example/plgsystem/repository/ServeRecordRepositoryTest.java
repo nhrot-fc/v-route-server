@@ -1,6 +1,10 @@
 package com.example.plgsystem.repository;
 
+import com.example.plgsystem.enums.VehicleType;
+import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.ServeRecord;
+import com.example.plgsystem.model.Vehicle;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -22,12 +26,34 @@ public class ServeRecordRepositoryTest {
 
     @Autowired
     private ServeRecordRepository serveRecordRepository;
+    
+    private Vehicle createTestVehicle(String id) {
+        Vehicle vehicle = Vehicle.builder()
+                .id(id)
+                .type(VehicleType.TA)
+                .currentPosition(new Position(10, 20))
+                .build();
+        return entityManager.persist(vehicle);
+    }
+    
+    private Order createTestOrder(String id, LocalDateTime time) {
+        Order order = Order.builder()
+                .id(id)
+                .arriveTime(time)
+                .dueTime(time.plusHours(4))
+                .glpRequestM3(100)
+                .position(new Position(30, 40))
+                .build();
+        return entityManager.persist(order);
+    }
 
     @Test
     public void testSaveServeRecord() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        ServeRecord record = new ServeRecord("V001", "O001", 50, now);
+        Vehicle vehicle = createTestVehicle("V001");
+        Order order = createTestOrder("O001", now);
+        ServeRecord record = new ServeRecord(vehicle, order, 50, now);
 
         // When
         ServeRecord savedRecord = serveRecordRepository.save(record);
@@ -45,7 +71,9 @@ public class ServeRecordRepositoryTest {
     public void testFindById() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        ServeRecord record = new ServeRecord("V001", "O001", 50, now);
+        Vehicle vehicle = createTestVehicle("V001");
+        Order order = createTestOrder("O001", now);
+        ServeRecord record = new ServeRecord(vehicle, order, 50, now);
         entityManager.persist(record);
         entityManager.flush();
 
@@ -66,8 +94,13 @@ public class ServeRecordRepositoryTest {
     public void testFindAll() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        ServeRecord record1 = new ServeRecord("V001", "O001", 50, now);
-        ServeRecord record2 = new ServeRecord("V002", "O002", 75, now.plusHours(1));
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        Order order1 = createTestOrder("O001", now);
+        Order order2 = createTestOrder("O002", now.plusHours(1));
+        
+        ServeRecord record1 = new ServeRecord(vehicle1, order1, 50, now);
+        ServeRecord record2 = new ServeRecord(vehicle2, order2, 75, now.plusHours(1));
 
         entityManager.persist(record1);
         entityManager.persist(record2);
@@ -84,18 +117,19 @@ public class ServeRecordRepositoryTest {
     public void testUpdateServeRecord() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        ServeRecord record = new ServeRecord("V001", "O001", 50, now);
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Order order1 = createTestOrder("O001", now);
+        Vehicle vehicle2 = createTestVehicle("V002");
+        Order order2 = createTestOrder("O002", now.plusHours(1));
+        
+        ServeRecord record = new ServeRecord(vehicle1, order1, 50, now);
         entityManager.persist(record);
         entityManager.flush();
 
         Long recordId = record.getId();
-
-        // When - Note: In real scenario, you normally wouldn't update serve records
-        // This test is for completeness of CRUD operations
-        ServeRecord savedRecord = serveRecordRepository.findById(recordId).get();
         
         // Since ServeRecord doesn't have setters, we need to create a new record and update it
-        ServeRecord updatedRecord = new ServeRecord(savedRecord.getVehicleId(), savedRecord.getOrderId(), 75, savedRecord.getServeDate());
+        ServeRecord updatedRecord = new ServeRecord(vehicle2, order2, 75, now.plusHours(1));
         // We can't set the ID directly, so we need to delete the old record and save the new one
         serveRecordRepository.deleteById(recordId);
         ServeRecord newRecord = serveRecordRepository.save(updatedRecord);
@@ -103,14 +137,17 @@ public class ServeRecordRepositoryTest {
         // Then
         assertNotNull(newRecord.getId());
         assertEquals(75, newRecord.getVolumeM3());
-        assertEquals("V001", newRecord.getVehicleId());
+        assertEquals("V002", newRecord.getVehicleId());
+        assertEquals("O002", newRecord.getOrderId());
     }
 
     @Test
     public void testDeleteServeRecord() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        ServeRecord record = new ServeRecord("V001", "O001", 50, now);
+        Vehicle vehicle = createTestVehicle("V001");
+        Order order = createTestOrder("O001", now);
+        ServeRecord record = new ServeRecord(vehicle, order, 50, now);
         entityManager.persist(record);
         entityManager.flush();
 
@@ -128,9 +165,15 @@ public class ServeRecordRepositoryTest {
     public void testFindByOrderId() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        ServeRecord record1 = new ServeRecord("V001", "O001", 50, now);
-        ServeRecord record2 = new ServeRecord("V002", "O001", 25, now.plusHours(1)); // Same order
-        ServeRecord record3 = new ServeRecord("V003", "O002", 75, now.plusHours(2)); // Different order
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        Vehicle vehicle3 = createTestVehicle("V003");
+        Order order1 = createTestOrder("O001", now);
+        Order order2 = createTestOrder("O002", now.plusHours(2));
+        
+        ServeRecord record1 = new ServeRecord(vehicle1, order1, 50, now);
+        ServeRecord record2 = new ServeRecord(vehicle2, order1, 25, now.plusHours(1)); // Same order
+        ServeRecord record3 = new ServeRecord(vehicle3, order2, 75, now.plusHours(2)); // Different order
 
         entityManager.persist(record1);
         entityManager.persist(record2);
@@ -149,9 +192,15 @@ public class ServeRecordRepositoryTest {
     public void testFindByVehicleId() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        ServeRecord record1 = new ServeRecord("V001", "O001", 50, now);
-        ServeRecord record2 = new ServeRecord("V001", "O002", 25, now.plusHours(1)); // Same vehicle
-        ServeRecord record3 = new ServeRecord("V002", "O003", 75, now.plusHours(2)); // Different vehicle
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        Order order1 = createTestOrder("O001", now);
+        Order order2 = createTestOrder("O002", now.plusHours(1));
+        Order order3 = createTestOrder("O003", now.plusHours(2));
+        
+        ServeRecord record1 = new ServeRecord(vehicle1, order1, 50, now);
+        ServeRecord record2 = new ServeRecord(vehicle1, order2, 25, now.plusHours(1)); // Same vehicle
+        ServeRecord record3 = new ServeRecord(vehicle2, order3, 75, now.plusHours(2)); // Different vehicle
 
         entityManager.persist(record1);
         entityManager.persist(record2);
@@ -174,10 +223,20 @@ public class ServeRecordRepositoryTest {
         LocalDateTime tomorrow = now.plusDays(1);
         LocalDateTime nextWeek = now.plusDays(7);
         
-        ServeRecord record1 = new ServeRecord("V001", "O001", 50, yesterday);
-        ServeRecord record2 = new ServeRecord("V002", "O002", 75, now);
-        ServeRecord record3 = new ServeRecord("V003", "O003", 100, tomorrow);
-        ServeRecord record4 = new ServeRecord("V004", "O004", 125, nextWeek);
+        Vehicle vehicle1 = createTestVehicle("V001");
+        Vehicle vehicle2 = createTestVehicle("V002");
+        Vehicle vehicle3 = createTestVehicle("V003");
+        Vehicle vehicle4 = createTestVehicle("V004");
+        
+        Order order1 = createTestOrder("O001", yesterday);
+        Order order2 = createTestOrder("O002", now);
+        Order order3 = createTestOrder("O003", tomorrow);
+        Order order4 = createTestOrder("O004", nextWeek);
+        
+        ServeRecord record1 = new ServeRecord(vehicle1, order1, 50, yesterday);
+        ServeRecord record2 = new ServeRecord(vehicle2, order2, 75, now);
+        ServeRecord record3 = new ServeRecord(vehicle3, order3, 100, tomorrow);
+        ServeRecord record4 = new ServeRecord(vehicle4, order4, 125, nextWeek);
 
         entityManager.persist(record1);
         entityManager.persist(record2);
