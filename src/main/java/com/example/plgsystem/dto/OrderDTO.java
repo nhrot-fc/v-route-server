@@ -38,7 +38,7 @@ public class OrderDTO {
     // Conversión desde DTO a entidad
     public Order toEntity() {
         return Order.builder()
-                .id(id)
+                .id(id != null && !id.isEmpty() ? id : java.util.UUID.randomUUID().toString())
                 .arriveTime(arriveTime)
                 .dueTime(dueTime)
                 .glpRequestM3(glpRequestM3)

@@ -1,5 +1,7 @@
 package com.example.plgsystem.controller;
 
+import com.example.plgsystem.dto.SimulationReportDTO;
+import com.example.plgsystem.dto.SimulationStateDTO;
 import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.model.Blockage;
 import com.example.plgsystem.model.Order;
@@ -52,30 +54,75 @@ public class SimulationController {
         return ResponseEntity.ok(simulations);
     }
 
-    @Operation(summary = "Crear nueva simulación", description = "Crea una nueva instancia de simulación")
+    @Operation(summary = "Crear nueva simulación", description = "Crea una nueva instancia de simulación según el tipo especificado")
     @PostMapping
     public ResponseEntity<Map<String, Object>> createSimulation(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String description,
-            @RequestParam(required = false) String startDate) {
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = true) String simulationType,
+            @RequestParam(required = false) String dataSource,
+            @RequestParam(required = false) Integer durationDays) {
         
         LocalDateTime startDateTime = startDate != null ? 
             LocalDateTime.parse(startDate) : LocalDateTime.now();
             
-        Simulation simulation = simulationManager.createSimulation(name, description, startDateTime);
+        // Create simulation with appropriate parameters based on type
+        Simulation simulation;
+        
+        switch (simulationType.toLowerCase()) {
+            case "daily":
+                // Daily operations - use current data from database
+                simulation = simulationManager.createSimulation(
+                    name != null ? name : "Operaciones Diarias", 
+                    description != null ? description : "Simulación con datos actuales", 
+                    startDateTime,
+                    "daily");
+                break;
+                
+            case "weekly":
+                // Weekly simulation - use data files for 7 days
+                simulation = simulationManager.createSimulation(
+                    name != null ? name : "Simulación Semanal", 
+                    description != null ? description : "Simulación con datos históricos por 7 días", 
+                    startDateTime,
+                    "weekly");
+                
+                // Set simulation to run for 7 days maximum
+                simulationManager.configureSimulation(simulation.getId(), dataSource, 7);
+                break;
+                
+            case "collapse":
+                // Collapse simulation - use all data files
+                simulation = simulationManager.createSimulation(
+                    name != null ? name : "Simulación hasta Colapso", 
+                    description != null ? description : "Simulación con datos históricos hasta procesar todo", 
+                    startDateTime,
+                    "collapse");
+                
+                // Set simulation to run until all data is processed
+                simulationManager.configureSimulation(simulation.getId(), dataSource, durationDays != null ? durationDays : 0);
+                break;
+                
+            default:
+                return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Tipo de simulación inválido. Use 'daily', 'weekly', o 'collapse'"
+                ));
+        }
         
         Map<String, Object> response = new HashMap<>();
         response.put("id", simulation.getId());
         response.put("name", simulation.getName());
         response.put("description", simulation.getDescription());
         response.put("createdAt", simulation.getCreatedAt());
+        response.put("simulationType", simulationType);
         
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(summary = "Obtener estado de una simulación", description = "Obtiene el estado actual de una simulación específica")
     @GetMapping("/{id}/status")
-    public ResponseEntity<Map<String, Object>> getSimulationStatus(
+    public ResponseEntity<SimulationStateDTO> getSimulationStatus(
             @Parameter(description = "ID de la simulación") @PathVariable String id) {
         
         Optional<Simulation> simulationOpt = simulationManager.getSimulation(id);
@@ -84,25 +131,20 @@ public class SimulationController {
         }
         
         Simulation simulation = simulationOpt.get();
-        Map<String, Object> status = new HashMap<>();
-        status.put("id", simulation.getId());
-        status.put("name", simulation.getName());
-        status.put("description", simulation.getDescription());
-        status.put("createdAt", simulation.getCreatedAt());
-        status.put("lastUpdated", simulation.getLastUpdated());
-        status.put("currentTime", simulation.getState().getCurrentTime());
-        status.put("isRunning", simulationManager.isSimulationRunning(id));
-        status.put("pendingOrders", simulation.getState().getPendingOrders().size());
-        status.put("activeVehicles", simulation.getState().getAvailableVehicles().size());
-        status.put("activeBlockages", simulation.getState().getActiveBlockagesAt(
-            simulation.getState().getCurrentTime()).size());
+        boolean isRunning = simulationManager.isSimulationRunning(id);
         
-        return ResponseEntity.ok(status);
+        SimulationStateDTO stateDTO = SimulationStateDTO.fromSimulationState(
+            simulation.getId(),
+            simulation.getState(),
+            isRunning
+        );
+        
+        return ResponseEntity.ok(stateDTO);
     }
 
     @Operation(summary = "Obtener detalles del entorno", description = "Obtiene información detallada del entorno de simulación")
     @GetMapping("/{id}/environment")
-    public ResponseEntity<Map<String, Object>> getEnvironment(
+    public ResponseEntity<SimulationStateDTO> getEnvironment(
             @Parameter(description = "ID de la simulación") @PathVariable String id) {
         
         Optional<Simulation> simulationOpt = simulationManager.getSimulation(id);
@@ -111,17 +153,35 @@ public class SimulationController {
         }
         
         Simulation simulation = simulationOpt.get();
-        Map<String, Object> environment = new HashMap<>();
-        environment.put("currentTime", simulation.getState().getCurrentTime());
-        environment.put("mainDepot", simulation.getState().getMainDepot());
-        environment.put("auxDepots", simulation.getState().getAuxDepots());
-        environment.put("vehicleCount", simulation.getState().getVehicles().size());
-        environment.put("orderCount", simulation.getState().getOrderQueue().size());
-        environment.put("pendingOrders", simulation.getState().getPendingOrders().size());
-        environment.put("activeBlockages", simulation.getState().getActiveBlockagesAt(
-            simulation.getState().getCurrentTime()).size());
+        boolean isRunning = simulationManager.isSimulationRunning(id);
         
-        return ResponseEntity.ok(environment);
+        SimulationStateDTO stateDTO = SimulationStateDTO.fromSimulationState(
+            simulation.getId(),
+            simulation.getState(),
+            isRunning
+        );
+        
+        return ResponseEntity.ok(stateDTO);
+    }
+    
+    @Operation(summary = "Obtener reporte de simulación", description = "Obtiene el reporte de una simulación finalizada")
+    @GetMapping("/{id}/report")
+    public ResponseEntity<SimulationReportDTO> getSimulationReport(
+            @Parameter(description = "ID de la simulación") @PathVariable String id) {
+        
+        Optional<SimulationReportDTO> reportOpt = simulationManager.getSimulationReport(id);
+        if (reportOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        return ResponseEntity.ok(reportOpt.get());
+    }
+    
+    @Operation(summary = "Listar todos los reportes de simulación", description = "Obtiene todos los reportes de simulaciones finalizadas")
+    @GetMapping("/reports")
+    public ResponseEntity<List<SimulationReportDTO>> getAllReports() {
+        List<SimulationReportDTO> reports = simulationManager.getAllSimulationReports();
+        return ResponseEntity.ok(reports);
     }
 
     @Operation(summary = "Listar vehículos", description = "Obtiene la lista de vehículos en la simulación")

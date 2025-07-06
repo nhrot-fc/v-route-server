@@ -432,4 +432,23 @@ public class Orchestrator {
     public int getTicksPerReplan() {
         return this.ticksPerReplan;
     }
+
+    /**
+     * Gets the current simulation statistics
+     * 
+     * @return The simulation statistics object
+     */
+    public SimulationStats getStats() {
+        return this.stats;
+    }
+
+    /**
+     * Sets the algorithm configuration for this orchestrator.
+     * 
+     * @param config The algorithm configuration to use
+     */
+    public void setAlgorithmConfig(AlgorithmConfig config) {
+        this.config = config;
+        logger.info("Updated algorithm configuration: maxDays=" + config.getSimulationMaxDays());
+    }
 }

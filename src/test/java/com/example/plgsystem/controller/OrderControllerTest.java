@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.mockito.ArgumentMatchers.argThat;
 
 @WebMvcTest(OrderController.class)
 public class OrderControllerTest {
@@ -179,6 +180,37 @@ public class OrderControllerTest {
                 .content(objectMapper.writeValueAsString(orderDTO)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value("O001"));
+            
+        // Verify that the ID was preserved and not auto-generated
+        verify(orderService).save(argThat(o -> o.getId().equals("O001")));
+    }
+
+    @Test
+    public void testCreateOrderWithoutId() throws Exception {
+        // Given
+        OrderDTO orderDTO = new OrderDTO();
+        // No ID set explicitly
+        orderDTO.setArriveTime(LocalDateTime.now().minusDays(1));
+        orderDTO.setDueTime(LocalDateTime.now().plusDays(1));
+        orderDTO.setGlpRequestM3(100);
+        orderDTO.setPosition(new Position(10, 20));
+        orderDTO.setRemainingGlpM3(100);
+
+        // Mock the behavior of ID generation and saving
+        when(orderService.save(any(Order.class))).thenAnswer(invocation -> {
+            Order savedOrder = invocation.getArgument(0);
+            return savedOrder;
+        });
+
+        // When & Then
+        mockMvc.perform(post("/api/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(orderDTO)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists());
+            
+        // Verify that save was called with an order that had an auto-generated ID
+        verify(orderService).save(argThat(order -> order.getId() != null));
     }
 
     @Test

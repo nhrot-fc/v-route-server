@@ -64,7 +64,7 @@ public class CSVService {
                     LocalDateTime dueTime = arriveTime.plusHours(dueHours);
 
                     // Generate a unique ID for the order
-                    String orderId = "ORD-" + UUID.randomUUID().toString().substring(0, 8);
+                    String orderId = UUID.randomUUID().toString();
                     
                     // Create the order using the Builder pattern
                     Order order = Order.builder()

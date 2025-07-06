@@ -254,4 +254,33 @@ public class OrderRepositoryTest {
         assertEquals(1, availableOrders.size());
         assertEquals("O001", availableOrders.get(0).getId());
     }
+
+    @Test
+    public void testSaveOrderWithGeneratedId() {
+        // Given
+        LocalDateTime now = LocalDateTime.now();
+        String generatedId = java.util.UUID.randomUUID().toString();
+        
+        Order order = Order.builder()
+                .id(generatedId)
+                .arriveTime(now)
+                .dueTime(now.plusHours(4))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        // When
+        Order savedOrder = orderRepository.save(order);
+
+        // Then
+        assertNotNull(savedOrder);
+        assertEquals(generatedId, savedOrder.getId());
+        assertEquals(100, savedOrder.getGlpRequestM3());
+        assertEquals(100, savedOrder.getRemainingGlpM3());
+        
+        // Verify it can be retrieved from the database
+        Optional<Order> retrievedOrder = orderRepository.findById(generatedId);
+        assertTrue(retrievedOrder.isPresent());
+        assertEquals(generatedId, retrievedOrder.get().getId());
+    }
 } 

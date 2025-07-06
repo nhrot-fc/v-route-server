@@ -34,6 +34,10 @@ public class OrderController {
      */
     @PostMapping
     public ResponseEntity<OrderDTO> create(@RequestBody OrderDTO orderDTO) {
+        if (orderDTO.getId() == null || orderDTO.getId().isEmpty()) {
+            // Generate a unique ID if not provided
+            orderDTO.setId(java.util.UUID.randomUUID().toString());
+        }
         Order order = orderDTO.toEntity();
         Order savedOrder = orderService.save(order);
         return new ResponseEntity<>(OrderDTO.fromEntity(savedOrder), HttpStatus.CREATED);

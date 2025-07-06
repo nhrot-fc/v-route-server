@@ -1,5 +1,6 @@
 package com.example.plgsystem.dto;
 
+import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.model.Position;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,4 +18,17 @@ public class DepotDTO {
     private int glpCapacityM3;
     private boolean canRefuel;
     private int currentGlpM3;
+    
+    /**
+     * Convierte una entidad Depot a DepotDTO
+     */
+    public static DepotDTO fromEntity(Depot depot) {
+        return new DepotDTO(
+            depot.getId(),
+            depot.getPosition(),
+            depot.getGlpCapacityM3(),
+            depot.isCanRefuel(),
+            depot.getCurrentGlpM3()
+        );
+    }
 }
