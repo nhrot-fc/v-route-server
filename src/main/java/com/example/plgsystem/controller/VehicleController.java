@@ -9,6 +9,10 @@ import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.enums.VehicleType;
 import com.example.plgsystem.service.ServeRecordService;
 import com.example.plgsystem.service.VehicleService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -51,32 +55,65 @@ public class VehicleController {
     }
 
     /**
-     * Listar todos los vehículos con opciones de filtrado
+     * Listar todos los vehículos con opciones de filtrado y paginación opcional
      */
     @GetMapping
-    public ResponseEntity<List<VehicleDTO>> list(
+    public ResponseEntity<?> list(
             @RequestParam(required = false) VehicleType type,
             @RequestParam(required = false) VehicleStatus status,
             @RequestParam(required = false) Integer minGlp,
-            @RequestParam(required = false) Double minFuel) {
+            @RequestParam(required = false) Double minFuel,
+            @RequestParam(required = false) Boolean paginated,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
         
-        List<Vehicle> vehicles;
-        
-        if (type != null) {
-            vehicles = vehicleService.findByType(type);
-        } else if (status != null) {
-            vehicles = vehicleService.findByStatus(status);
-        } else if (minGlp != null) {
-            vehicles = vehicleService.findByMinimumGlp(minGlp);
-        } else if (minFuel != null) {
-            vehicles = vehicleService.findByMinimumFuel(minFuel);
-        } else {
-            vehicles = vehicleService.findAll();
+        // Si paginated es null o false, devolvemos todos los resultados sin paginar
+        if (paginated == null || !paginated) {
+            List<Vehicle> vehicles;
+            
+            if (type != null) {
+                vehicles = vehicleService.findByType(type);
+            } else if (status != null) {
+                vehicles = vehicleService.findByStatus(status);
+            } else if (minGlp != null) {
+                vehicles = vehicleService.findByMinimumGlp(minGlp);
+            } else if (minFuel != null) {
+                vehicles = vehicleService.findByMinimumFuel(minFuel);
+            } else {
+                vehicles = vehicleService.findAll();
+            }
+            
+            List<VehicleDTO> vehicleDTOs = vehicles.stream()
+                    .map(VehicleDTO::fromEntity)
+                    .collect(Collectors.toList());
+                    
+            return ResponseEntity.ok(vehicleDTOs);
         }
         
-        List<VehicleDTO> vehicleDTOs = vehicles.stream()
-                .map(VehicleDTO::fromEntity)
-                .collect(Collectors.toList());
+        // Si paginated es true, devolvemos resultados paginados
+        Sort sort = direction.equalsIgnoreCase("desc") ? 
+                Sort.by(sortBy).descending() : 
+                Sort.by(sortBy).ascending();
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Vehicle> vehicles;
+        
+        if (type != null) {
+            vehicles = vehicleService.findByTypePaged(type, pageable);
+        } else if (status != null) {
+            vehicles = vehicleService.findByStatusPaged(status, pageable);
+        } else if (minGlp != null) {
+            vehicles = vehicleService.findByMinimumGlpPaged(minGlp, pageable);
+        } else if (minFuel != null) {
+            vehicles = vehicleService.findByMinimumFuelPaged(minFuel, pageable);
+        } else {
+            vehicles = vehicleService.findAllPaged(pageable);
+        }
+        
+        Page<VehicleDTO> vehicleDTOs = vehicles.map(VehicleDTO::fromEntity);
                 
         return ResponseEntity.ok(vehicleDTOs);
     }

@@ -2,6 +2,10 @@ package com.example.plgsystem.controller;
 
 import com.example.plgsystem.model.Blockage;
 import com.example.plgsystem.service.BlockageService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -54,25 +58,55 @@ public class BlockageController {
     }
 
     /**
-     * Listar todos los bloqueos con opciones de filtrado
+     * Listar todos los bloqueos con opciones de filtrado y paginación opcional
      */
     @GetMapping
-    public ResponseEntity<List<Blockage>> list(
+    public ResponseEntity<?> list(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime activeAt,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
+            @RequestParam(required = false) Boolean paginated,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
         
-        List<Blockage> blockages;
+        // Si paginated es null o false, devolvemos todos los resultados sin paginar
+        if (paginated == null || !paginated) {
+            List<Blockage> blockages;
+            
+            if (activeAt != null) {
+                // Filtrar por bloqueos activos en un momento específico
+                blockages = blockageService.findByActiveAtDateTime(activeAt);
+            } else if (startTime != null && endTime != null) {
+                // Filtrar por rango de tiempo
+                blockages = blockageService.findByTimeRange(startTime, endTime);
+            } else {
+                // Sin filtros, retornar todos
+                blockages = blockageService.findAll();
+            }
+            
+            return ResponseEntity.ok(blockages);
+        }
+        
+        // Si paginated es true, devolvemos resultados paginados
+        Sort sort = direction.equalsIgnoreCase("desc") ? 
+                Sort.by(sortBy).descending() : 
+                Sort.by(sortBy).ascending();
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Blockage> blockages;
         
         if (activeAt != null) {
             // Filtrar por bloqueos activos en un momento específico
-            blockages = blockageService.findByActiveAtDateTime(activeAt);
+            blockages = blockageService.findByActiveAtDateTimePaged(activeAt, pageable);
         } else if (startTime != null && endTime != null) {
             // Filtrar por rango de tiempo
-            blockages = blockageService.findByTimeRange(startTime, endTime);
+            blockages = blockageService.findByTimeRangePaged(startTime, endTime, pageable);
         } else {
             // Sin filtros, retornar todos
-            blockages = blockageService.findAll();
+            blockages = blockageService.findAllPaged(pageable);
         }
         
         return ResponseEntity.ok(blockages);

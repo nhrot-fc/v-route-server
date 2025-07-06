@@ -2,6 +2,8 @@ package com.example.plgsystem.service;
 
 import com.example.plgsystem.model.Blockage;
 import com.example.plgsystem.repository.BlockageRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +47,13 @@ public class BlockageService {
     public List<Blockage> findAll() {
         return blockageRepository.findAll();
     }
+    
+    /**
+     * Obtiene todos los bloqueos (paginado)
+     */
+    public Page<Blockage> findAllPaged(Pageable pageable) {
+        return blockageRepository.findAll(pageable);
+    }
 
     /**
      * Elimina un bloqueo por su ID
@@ -60,12 +69,26 @@ public class BlockageService {
     public List<Blockage> findByActiveAtDateTime(LocalDateTime dateTime) {
         return blockageRepository.findByActiveAtDateTime(dateTime);
     }
+    
+    /**
+     * Obtiene bloqueos activos en un momento específico (paginado)
+     */
+    public Page<Blockage> findByActiveAtDateTimePaged(LocalDateTime dateTime, Pageable pageable) {
+        return blockageRepository.findByActiveAtDateTime(dateTime, pageable);
+    }
 
     /**
      * Obtiene bloqueos en un rango de tiempo
      */
     public List<Blockage> findByTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
         return blockageRepository.findByStartTimeGreaterThanEqualAndEndTimeLessThanEqual(startTime, endTime);
+    }
+    
+    /**
+     * Obtiene bloqueos en un rango de tiempo (paginado)
+     */
+    public Page<Blockage> findByTimeRangePaged(LocalDateTime startTime, LocalDateTime endTime, Pageable pageable) {
+        return blockageRepository.findByStartTimeGreaterThanEqualAndEndTimeLessThanEqual(startTime, endTime, pageable);
     }
 
     /**

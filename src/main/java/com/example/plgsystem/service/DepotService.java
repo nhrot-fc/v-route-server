@@ -3,6 +3,8 @@ package com.example.plgsystem.service;
 import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.model.Position;
 import com.example.plgsystem.repository.DepotRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +42,13 @@ public class DepotService {
     public List<Depot> findAll() {
         return depotRepository.findAll();
     }
+    
+    /**
+     * Obtiene todos los depósitos (paginado)
+     */
+    public Page<Depot> findAllPaged(Pageable pageable) {
+        return depotRepository.findAll(pageable);
+    }
 
     /**
      * Elimina un depósito por ID
@@ -57,6 +66,13 @@ public class DepotService {
     }
     
     /**
+     * Filtra depósitos por capacidad de recarga (paginado)
+     */
+    public Page<Depot> findByCanRefuelPaged(Boolean canRefuel, Pageable pageable) {
+        return depotRepository.findByCanRefuel(canRefuel, pageable);
+    }
+    
+    /**
      * Filtra depósitos por capacidad mínima
      */
     public List<Depot> findByMinCapacity(Integer minCapacity) {
@@ -64,10 +80,24 @@ public class DepotService {
     }
     
     /**
+     * Filtra depósitos por capacidad mínima (paginado)
+     */
+    public Page<Depot> findByMinCapacityPaged(Integer minCapacity, Pageable pageable) {
+        return depotRepository.findByGlpCapacityM3GreaterThanEqual(minCapacity, pageable);
+    }
+    
+    /**
      * Filtra depósitos por GLP disponible mínimo
      */
     public List<Depot> findByMinCurrentGlp(Integer minCurrentGlp) {
         return depotRepository.findByCurrentGlpM3GreaterThanEqual(minCurrentGlp);
+    }
+    
+    /**
+     * Filtra depósitos por GLP disponible mínimo (paginado)
+     */
+    public Page<Depot> findByMinCurrentGlpPaged(Integer minCurrentGlp, Pageable pageable) {
+        return depotRepository.findByCurrentGlpM3GreaterThanEqual(minCurrentGlp, pageable);
     }
     
     /**

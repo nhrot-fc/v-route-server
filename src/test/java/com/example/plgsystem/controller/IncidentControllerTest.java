@@ -11,6 +11,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -62,10 +66,38 @@ public class IncidentControllerTest {
         when(incidentService.findAll()).thenReturn(Arrays.asList(incident1, incident2));
 
         // When & Then
-        mockMvc.perform(get("/api/incidents"))
+        mockMvc.perform(get("/api/incidents")
+                .param("paginated", "false"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].vehicleId").value("V001"))
                 .andExpect(jsonPath("$[1].vehicleId").value("V002"));
+    }
+    
+    @Test
+    public void testGetAllIncidents_WithPagination() throws Exception {
+        // Given
+        Incident incident1 = new Incident("V001", IncidentType.TI1, Shift.T1);
+        setId(incident1, 1L);
+        incident1.setOccurrenceTime(LocalDateTime.now().minusHours(2));
+        
+        Incident incident2 = new Incident("V002", IncidentType.TI2, Shift.T2);
+        setId(incident2, 2L);
+        incident2.setOccurrenceTime(LocalDateTime.now().minusHours(1));
+        
+        Page<Incident> incidentPage = new PageImpl<>(Arrays.asList(incident1, incident2), 
+                PageRequest.of(0, 10), 2);
+        
+        when(incidentService.findAllPaged(any(Pageable.class))).thenReturn(incidentPage);
+
+        // When & Then
+        mockMvc.perform(get("/api/incidents")
+                .param("paginated", "true")
+                .param("page", "0")
+                .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$.content[1].vehicleId").value("V002"))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
@@ -108,7 +140,9 @@ public class IncidentControllerTest {
         when(incidentService.findByVehicleId("V001")).thenReturn(Arrays.asList(incident1, incident2));
 
         // When & Then
-        mockMvc.perform(get("/api/incidents").param("vehicleId", "V001"))
+        mockMvc.perform(get("/api/incidents")
+                .param("paginated", "false")
+                .param("vehicleId", "V001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].vehicleId").value("V001"))
                 .andExpect(jsonPath("$[1].vehicleId").value("V001"));
@@ -132,6 +166,7 @@ public class IncidentControllerTest {
 
         // When & Then
         mockMvc.perform(get("/api/incidents")
+                .param("paginated", "false")
                 .param("startDate", "2025-05-01T00:00:00")
                 .param("endDate", "2025-05-31T23:59:00"))
                 .andExpect(status().isOk())
@@ -155,6 +190,7 @@ public class IncidentControllerTest {
 
         // When & Then
         mockMvc.perform(get("/api/incidents")
+                .param("paginated", "false")
                 .param("vehicleId", vehicleId)
                 .param("startDate", "2025-05-01T00:00:00")
                 .param("endDate", "2025-05-31T23:59:00"))

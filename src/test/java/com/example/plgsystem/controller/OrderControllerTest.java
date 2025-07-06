@@ -12,6 +12,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,11 +25,11 @@ import java.util.Collections;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static org.mockito.ArgumentMatchers.argThat;
 
 @WebMvcTest(OrderController.class)
 public class OrderControllerTest {
@@ -64,10 +68,49 @@ public class OrderControllerTest {
         when(orderService.findAll()).thenReturn(Arrays.asList(order1, order2));
 
         // When & Then
-        mockMvc.perform(get("/api/orders"))
+        mockMvc.perform(get("/api/orders")
+                .param("paginated", "false"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("O001"))
                 .andExpect(jsonPath("$[1].id").value("O002"));
+    }
+    
+    @Test
+    public void testGetAllOrders_WithPagination() throws Exception {
+        // Given
+        Order order1 = Order.builder()
+                .id("O001")
+                .arriveTime(LocalDateTime.now().minusDays(1))
+                .dueTime(LocalDateTime.now().plusDays(1))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+
+        Order order2 = Order.builder()
+                .id("O002")
+                .arriveTime(LocalDateTime.now().minusDays(2))
+                .dueTime(LocalDateTime.now().plusDays(2))
+                .glpRequestM3(200)
+                .position(new Position(30, 40))
+                .build();
+        
+        Page<Order> orderPage = new PageImpl<>(
+                Arrays.asList(order1, order2),
+                PageRequest.of(0, 10),
+                2
+        );
+
+        when(orderService.findAllPaged(any(Pageable.class))).thenReturn(orderPage);
+
+        // When & Then
+        mockMvc.perform(get("/api/orders")
+                .param("paginated", "true")
+                .param("page", "0")
+                .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value("O001"))
+                .andExpect(jsonPath("$.content[1].id").value("O002"))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
@@ -114,9 +157,41 @@ public class OrderControllerTest {
         when(orderService.findPendingDeliveries()).thenReturn(Collections.singletonList(order));
 
         // When & Then
-        mockMvc.perform(get("/api/orders").param("pending", "true"))
+        mockMvc.perform(get("/api/orders")
+                .param("paginated", "false")
+                .param("pending", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("O001"));
+    }
+    
+    @Test
+    public void testGetPendingOrders_WithPagination() throws Exception {
+        // Given
+        Order order = Order.builder()
+                .id("O001")
+                .arriveTime(LocalDateTime.now().minusDays(1))
+                .dueTime(LocalDateTime.now().plusDays(1))
+                .glpRequestM3(100)
+                .position(new Position(10, 20))
+                .build();
+        
+        Page<Order> orderPage = new PageImpl<>(
+                Collections.singletonList(order),
+                PageRequest.of(0, 10),
+                1
+        );
+
+        when(orderService.findPendingDeliveriesPaged(any(Pageable.class))).thenReturn(orderPage);
+
+        // When & Then
+        mockMvc.perform(get("/api/orders")
+                .param("paginated", "true")
+                .param("pending", "true")
+                .param("page", "0")
+                .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value("O001"))
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test
@@ -134,7 +209,9 @@ public class OrderControllerTest {
         when(orderService.findOverdueOrders(overdueAt)).thenReturn(Collections.singletonList(order));
 
         // When & Then
-        mockMvc.perform(get("/api/orders").param("overdueAt", "2025-05-15T00:00:00"))
+        mockMvc.perform(get("/api/orders")
+                .param("paginated", "false")
+                .param("overdueAt", "2025-05-15T00:00:00"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("O001"));
     }
@@ -154,7 +231,9 @@ public class OrderControllerTest {
         when(orderService.findAvailableOrders(availableAt)).thenReturn(Collections.singletonList(order));
 
         // When & Then
-        mockMvc.perform(get("/api/orders").param("availableAt", "2025-05-15T00:00:00"))
+        mockMvc.perform(get("/api/orders")
+                .param("paginated", "false")
+                .param("availableAt", "2025-05-15T00:00:00"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("O001"));
     }
@@ -296,52 +375,55 @@ public class OrderControllerTest {
         mockMvc.perform(delete("/api/orders/nonexistent"))
                 .andExpect(status().isNotFound());
 
-        verify(orderService, never()).deleteById(anyString());
+        verify(orderService, never()).deleteById("nonexistent");
     }
 
     @Test
     public void testRecordDelivery() throws Exception {
         // Given
         String orderId = "O001";
-        int deliveredVolumeM3 = 50;
         String vehicleId = "V001";
+        int volumeM3 = 50;
         LocalDateTime serveDate = LocalDateTime.now();
 
         DeliveryRecordDTO deliveryRecordDTO = new DeliveryRecordDTO();
-        deliveryRecordDTO.setVolumeM3(deliveredVolumeM3);
         deliveryRecordDTO.setVehicleId(vehicleId);
+        deliveryRecordDTO.setVolumeM3(volumeM3);
         deliveryRecordDTO.setServeDate(serveDate);
 
-        ServeRecord serveRecord = new ServeRecord(vehicleId, orderId, deliveredVolumeM3, serveDate);
-
-        when(orderService.recordDelivery(eq(orderId), eq(deliveredVolumeM3), eq(vehicleId), any(LocalDateTime.class)))
+        ServeRecord serveRecord = new ServeRecord(vehicleId, orderId, volumeM3, serveDate);
+        
+        when(orderService.recordDelivery(eq(orderId), eq(volumeM3), eq(vehicleId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(serveRecord));
         when(serveRecordService.save(any(ServeRecord.class))).thenReturn(serveRecord);
 
         // When & Then
-        mockMvc.perform(post("/api/orders/O001/deliver")
+        mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(deliveryRecordDTO)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.orderId").value(orderId))
                 .andExpect(jsonPath("$.vehicleId").value(vehicleId))
-                .andExpect(jsonPath("$.volumeM3").value(deliveredVolumeM3));
+                .andExpect(jsonPath("$.orderId").value(orderId))
+                .andExpect(jsonPath("$.volumeM3").value(volumeM3));
     }
 
     @Test
     public void testRecordDeliveryOrderNotFound() throws Exception {
         // Given
         String orderId = "nonexistent";
+        String vehicleId = "V001";
+        int volumeM3 = 50;
+
         DeliveryRecordDTO deliveryRecordDTO = new DeliveryRecordDTO();
-        deliveryRecordDTO.setVolumeM3(50);
-        deliveryRecordDTO.setVehicleId("V001");
+        deliveryRecordDTO.setVehicleId(vehicleId);
+        deliveryRecordDTO.setVolumeM3(volumeM3);
         deliveryRecordDTO.setServeDate(LocalDateTime.now());
 
-        when(orderService.recordDelivery(eq(orderId), eq(50), eq("V001"), any(LocalDateTime.class)))
+        when(orderService.recordDelivery(eq(orderId), eq(volumeM3), eq(vehicleId), any(LocalDateTime.class)))
                 .thenReturn(Optional.empty());
 
         // When & Then
-        mockMvc.perform(post("/api/orders/nonexistent/deliver")
+        mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(deliveryRecordDTO)))
                 .andExpect(status().isNotFound());

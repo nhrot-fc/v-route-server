@@ -3,6 +3,10 @@ package com.example.plgsystem.controller;
 import com.example.plgsystem.dto.ServeRecordDTO;
 import com.example.plgsystem.model.ServeRecord;
 import com.example.plgsystem.service.ServeRecordService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -44,32 +48,61 @@ public class ServeRecordController {
     }
 
     /**
-     * Listar todos los registros de entrega con opciones de filtrado
+     * Listar todos los registros de entrega con opciones de filtrado y paginación opcional
      */
     @GetMapping
-    public ResponseEntity<List<ServeRecordDTO>> list(
+    public ResponseEntity<?> list(
             @RequestParam(required = false) String orderId,
             @RequestParam(required = false) String vehicleId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) Boolean paginated,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "serveDate") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction) {
         
-        List<ServeRecord> records;
-        
-        if (orderId != null) {
-            records = serveRecordService.findByOrderId(orderId);
-        } else if (vehicleId != null) {
-            records = serveRecordService.findByVehicleId(vehicleId);
-        } else if (startDate != null && endDate != null) {
-            records = serveRecordService.findByServeDateBetween(startDate, endDate);
-        } else {
-            records = serveRecordService.findAll();
+        // Si paginated es null o false, devolvemos todos los resultados sin paginar
+        if (paginated == null || !paginated) {
+            List<ServeRecord> records;
+            
+            if (orderId != null) {
+                records = serveRecordService.findByOrderId(orderId);
+            } else if (vehicleId != null) {
+                records = serveRecordService.findByVehicleId(vehicleId);
+            } else if (startDate != null && endDate != null) {
+                records = serveRecordService.findByServeDateBetween(startDate, endDate);
+            } else {
+                records = serveRecordService.findAll();
+            }
+            
+            List<ServeRecordDTO> recordDTOs = records.stream()
+                    .map(ServeRecordDTO::fromEntity)
+                    .collect(Collectors.toList());
+                    
+            return ResponseEntity.ok(recordDTOs);
         }
         
-        List<ServeRecordDTO> recordDTOs = records.stream()
-                .map(ServeRecordDTO::fromEntity)
-                .collect(Collectors.toList());
-                
-        return ResponseEntity.ok(recordDTOs);
+        // Si paginated es true, devolvemos resultados paginados
+        Sort sort = direction.equalsIgnoreCase("desc") ? 
+                Sort.by(sortBy).descending() : 
+                Sort.by(sortBy).ascending();
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<ServeRecord> recordsPage;
+        
+        if (orderId != null) {
+            recordsPage = serveRecordService.findByOrderIdPaged(orderId, pageable);
+        } else if (vehicleId != null) {
+            recordsPage = serveRecordService.findByVehicleIdPaged(vehicleId, pageable);
+        } else if (startDate != null && endDate != null) {
+            recordsPage = serveRecordService.findByServeDateBetweenPaged(startDate, endDate, pageable);
+        } else {
+            recordsPage = serveRecordService.findAllPaged(pageable);
+        }
+        
+        return ResponseEntity.ok(recordsPage.map(ServeRecordDTO::fromEntity));
     }
 
     /**

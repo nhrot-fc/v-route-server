@@ -7,6 +7,10 @@ import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.ServeRecord;
 import com.example.plgsystem.service.OrderService;
 import com.example.plgsystem.service.ServeRecordService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -77,35 +81,68 @@ public class OrderController {
     }
 
     /**
-     * Listar todos los pedidos con opciones de filtrado
+     * Listar todos los pedidos con opciones de filtrado y paginación opcional
      */
     @GetMapping
-    public ResponseEntity<List<OrderDTO>> list(
+    public ResponseEntity<?> list(
             @RequestParam(required = false) Boolean pending,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime overdueAt,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime availableAt) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime availableAt,
+            @RequestParam(required = false) Boolean paginated,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
         
-        List<Order> orders;
+        // Si paginated es null o false, devolvemos todos los resultados sin paginar
+        if (paginated == null || !paginated) {
+            List<Order> orders;
+            
+            if (Boolean.TRUE.equals(pending)) {
+                // Filtrar por pedidos pendientes
+                orders = orderService.findPendingDeliveries();
+            } else if (overdueAt != null) {
+                // Filtrar por pedidos vencidos
+                orders = orderService.findOverdueOrders(overdueAt);
+            } else if (availableAt != null) {
+                // Filtrar por pedidos disponibles
+                orders = orderService.findAvailableOrders(availableAt);
+            } else {
+                // Sin filtros, retornar todos
+                orders = orderService.findAll();
+            }
+            
+            List<OrderDTO> orderDTOs = orders.stream()
+                    .map(OrderDTO::fromEntity)
+                    .collect(Collectors.toList());
+                    
+            return ResponseEntity.ok(orderDTOs);
+        }
+        
+        // Si paginated es true, devolvemos resultados paginados
+        Sort sort = direction.equalsIgnoreCase("desc") ? 
+                Sort.by(sortBy).descending() : 
+                Sort.by(sortBy).ascending();
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Order> orderPage;
         
         if (Boolean.TRUE.equals(pending)) {
             // Filtrar por pedidos pendientes
-            orders = orderService.findPendingDeliveries();
+            orderPage = orderService.findPendingDeliveriesPaged(pageable);
         } else if (overdueAt != null) {
             // Filtrar por pedidos vencidos
-            orders = orderService.findOverdueOrders(overdueAt);
+            orderPage = orderService.findOverdueOrdersPaged(overdueAt, pageable);
         } else if (availableAt != null) {
             // Filtrar por pedidos disponibles
-            orders = orderService.findAvailableOrders(availableAt);
+            orderPage = orderService.findAvailableOrdersPaged(availableAt, pageable);
         } else {
             // Sin filtros, retornar todos
-            orders = orderService.findAll();
+            orderPage = orderService.findAllPaged(pageable);
         }
         
-        List<OrderDTO> orderDTOs = orders.stream()
-                .map(OrderDTO::fromEntity)
-                .collect(Collectors.toList());
-                
-        return ResponseEntity.ok(orderDTOs);
+        return ResponseEntity.ok(orderPage.map(OrderDTO::fromEntity));
     }
 
     /**

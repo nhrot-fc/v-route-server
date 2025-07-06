@@ -8,6 +8,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -15,6 +19,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -43,10 +48,36 @@ public class MaintenanceControllerTest {
         when(maintenanceService.findAll()).thenReturn(Arrays.asList(maintenance1, maintenance2));
 
         // When & Then
-        mockMvc.perform(get("/api/maintenances"))
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].vehicleId").value("V001"))
                 .andExpect(jsonPath("$[1].vehicleId").value("V002"));
+    }
+    
+    @Test
+    public void testGetAllMaintenances_WithPagination() throws Exception {
+        // Given
+        Maintenance maintenance1 = new Maintenance("V001", LocalDate.now());
+        Maintenance maintenance2 = new Maintenance("V002", LocalDate.now().plusDays(1));
+        
+        Page<Maintenance> maintenancePage = new PageImpl<>(
+                Arrays.asList(maintenance1, maintenance2),
+                PageRequest.of(0, 10),
+                2
+        );
+        
+        when(maintenanceService.findAllPaged(any(Pageable.class))).thenReturn(maintenancePage);
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "true")
+                .param("page", "0")
+                .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$.content[1].vehicleId").value("V002"))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
@@ -58,7 +89,9 @@ public class MaintenanceControllerTest {
         when(maintenanceService.findByVehicleId("V001")).thenReturn(Arrays.asList(maintenance1, maintenance2));
 
         // When & Then
-        mockMvc.perform(get("/api/maintenances").param("vehicleId", "V001"))
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false")
+                .param("vehicleId", "V001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].vehicleId").value("V001"))
                 .andExpect(jsonPath("$[1].vehicleId").value("V001"));
@@ -74,7 +107,9 @@ public class MaintenanceControllerTest {
         when(maintenanceService.findByDate(date)).thenReturn(Arrays.asList(maintenance1, maintenance2));
 
         // When & Then
-        mockMvc.perform(get("/api/maintenances").param("date", "2025-05-15"))
+        mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false")
+                .param("date", "2025-05-15"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].vehicleId").value("V001"))
                 .andExpect(jsonPath("$[1].vehicleId").value("V002"));
@@ -90,6 +125,7 @@ public class MaintenanceControllerTest {
 
         // When & Then
         mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false")
                 .param("vehicleId", "V001")
                 .param("date", "2025-05-15"))
                 .andExpect(status().isOk())
@@ -108,6 +144,7 @@ public class MaintenanceControllerTest {
 
         // When & Then
         mockMvc.perform(get("/api/maintenances")
+                .param("paginated", "false")
                 .param("startDate", "2025-05-01")
                 .param("endDate", "2025-05-31"))
                 .andExpect(status().isOk())
@@ -127,10 +164,39 @@ public class MaintenanceControllerTest {
         when(maintenanceService.findActiveMaintenances()).thenReturn(Arrays.asList(maintenance1, maintenance2));
 
         // When & Then
-        mockMvc.perform(get("/api/maintenances/active"))
+        mockMvc.perform(get("/api/maintenances/active")
+                .param("paginated", "false"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].vehicleId").value("V001"))
                 .andExpect(jsonPath("$[1].vehicleId").value("V002"));
+    }
+    
+    @Test
+    public void testGetActiveMaintenances_WithPagination() throws Exception {
+        // Given
+        Maintenance maintenance1 = new Maintenance("V001", LocalDate.now());
+        maintenance1.setRealStart(LocalDateTime.now().minusHours(2));
+        
+        Maintenance maintenance2 = new Maintenance("V002", LocalDate.now());
+        maintenance2.setRealStart(LocalDateTime.now().minusHours(1));
+        
+        Page<Maintenance> maintenancePage = new PageImpl<>(
+                Arrays.asList(maintenance1, maintenance2),
+                PageRequest.of(0, 10),
+                2
+        );
+        
+        when(maintenanceService.findActiveMaintenancesPaged(any(Pageable.class))).thenReturn(maintenancePage);
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances/active")
+                .param("paginated", "true")
+                .param("page", "0")
+                .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].vehicleId").value("V001"))
+                .andExpect(jsonPath("$.content[1].vehicleId").value("V002"))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
@@ -149,6 +215,19 @@ public class MaintenanceControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(createDTO)))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.vehicleId").value("V001"));
+    }
+    
+    @Test
+    public void testGetMaintenanceById() throws Exception {
+        // Given
+        Maintenance maintenance = new Maintenance("V001", LocalDate.of(2025, 5, 15));
+        
+        when(maintenanceService.findById(1L)).thenReturn(Optional.of(maintenance));
+
+        // When & Then
+        mockMvc.perform(get("/api/maintenances/1"))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.vehicleId").value("V001"));
     }
 } 

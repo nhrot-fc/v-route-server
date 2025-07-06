@@ -2,6 +2,8 @@ package com.example.plgsystem.service;
 
 import com.example.plgsystem.model.Incident;
 import com.example.plgsystem.repository.IncidentRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,10 +43,24 @@ public class IncidentService {
     }
     
     /**
+     * Obtiene todos los incidentes (paginado)
+     */
+    public Page<Incident> findAllPaged(Pageable pageable) {
+        return incidentRepository.findAll(pageable);
+    }
+    
+    /**
      * Busca incidentes por ID del vehículo
      */
     public List<Incident> findByVehicleId(String vehicleId) {
         return incidentRepository.findByVehicleId(vehicleId);
+    }
+    
+    /**
+     * Busca incidentes por ID del vehículo (paginado)
+     */
+    public Page<Incident> findByVehicleIdPaged(String vehicleId, Pageable pageable) {
+        return incidentRepository.findByVehicleId(vehicleId, pageable);
     }
     
     /**
@@ -55,6 +71,13 @@ public class IncidentService {
     }
     
     /**
+     * Busca incidentes por estado de resolución (paginado)
+     */
+    public Page<Incident> findByResolvedPaged(boolean resolved, Pageable pageable) {
+        return incidentRepository.findByResolved(resolved, pageable);
+    }
+    
+    /**
      * Busca incidentes ocurridos dentro de un rango de fechas
      */
     public List<Incident> findByDateRange(LocalDateTime start, LocalDateTime end) {
@@ -62,10 +85,24 @@ public class IncidentService {
     }
     
     /**
+     * Busca incidentes ocurridos dentro de un rango de fechas (paginado)
+     */
+    public Page<Incident> findByDateRangePaged(LocalDateTime start, LocalDateTime end, Pageable pageable) {
+        return incidentRepository.findByOccurrenceTimeBetween(start, end, pageable);
+    }
+    
+    /**
      * Busca incidentes para un vehículo específico dentro de un rango de fechas
      */
     public List<Incident> findByVehicleAndDateRange(String vehicleId, LocalDateTime start, LocalDateTime end) {
         return incidentRepository.findByVehicleIdAndOccurrenceTimeBetween(vehicleId, start, end);
+    }
+    
+    /**
+     * Busca incidentes para un vehículo específico dentro de un rango de fechas (paginado)
+     */
+    public Page<Incident> findByVehicleAndDateRangePaged(String vehicleId, LocalDateTime start, LocalDateTime end, Pageable pageable) {
+        return incidentRepository.findByVehicleIdAndOccurrenceTimeBetween(vehicleId, start, end, pageable);
     }
     
     /**

@@ -13,13 +13,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -40,7 +46,7 @@ public class VehicleControllerTest {
     private ObjectMapper objectMapper;
 
     @Test
-    public void testGetAllVehicles() throws Exception {
+    public void testGetAllVehicles_WithPagination() throws Exception {
         // Given
         Position position1 = new Position(10, 20);
         Vehicle vehicle1 = Vehicle.builder()
@@ -56,14 +62,62 @@ public class VehicleControllerTest {
                 .currentPosition(position2)
                 .build();
 
+        List<Vehicle> vehicles = Arrays.asList(vehicle1, vehicle2);
+        Page<Vehicle> vehiclePage = new PageImpl<>(vehicles, PageRequest.of(0, 10), 2);
+        
         // Mock the service
-        when(vehicleService.findAll()).thenReturn(Arrays.asList(vehicle1, vehicle2));
+        when(vehicleService.findAllPaged(any(Pageable.class))).thenReturn(vehiclePage);
 
         // When & Then
-        mockMvc.perform(get("/api/vehicles"))
+        mockMvc.perform(get("/api/vehicles")
+                .param("paginated", "true")
+                .param("page", "0")
+                .param("size", "10")
+                .param("sortBy", "id")
+                .param("direction", "asc"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value("V001"))
-                .andExpect(jsonPath("$[1].id").value("V002"));
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].id").value("V001"))
+                .andExpect(jsonPath("$.content[1].id").value("V002"))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    public void testGetVehiclesByType_WithPagination() throws Exception {
+        // Given
+        Position position1 = new Position(10, 20);
+        Vehicle vehicle1 = Vehicle.builder()
+                .id("V001")
+                .type(VehicleType.TA)
+                .currentPosition(position1)
+                .build();
+
+        Position position2 = new Position(30, 40);
+        Vehicle vehicle2 = Vehicle.builder()
+                .id("V002")
+                .type(VehicleType.TA)
+                .currentPosition(position2)
+                .build();
+
+        List<Vehicle> vehicles = Arrays.asList(vehicle1, vehicle2);
+        Page<Vehicle> vehiclePage = new PageImpl<>(vehicles, PageRequest.of(0, 10), 2);
+        
+        // Mock the service
+        when(vehicleService.findByTypePaged(eq(VehicleType.TA), any(Pageable.class))).thenReturn(vehiclePage);
+
+        // When & Then
+        mockMvc.perform(get("/api/vehicles")
+                .param("paginated", "true")
+                .param("type", "TA")
+                .param("page", "0")
+                .param("size", "10")
+                .param("sortBy", "id")
+                .param("direction", "asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].id").value("V001"))
+                .andExpect(jsonPath("$.content[1].id").value("V002"))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
@@ -168,5 +222,69 @@ public class VehicleControllerTest {
         // When & Then
         mockMvc.perform(delete("/api/vehicles/" + vehicleId))
                 .andExpect(status().isNoContent());
+    }
+    
+    @Test
+    public void testPaginationAndSorting() throws Exception {
+        // Given
+        Position position = new Position(10, 20);
+        Vehicle vehicle = Vehicle.builder()
+                .id("V001")
+                .type(VehicleType.TA)
+                .currentPosition(position)
+                .build();
+
+        List<Vehicle> vehicles = Arrays.asList(vehicle);
+        Page<Vehicle> vehiclePage = new PageImpl<>(vehicles, PageRequest.of(2, 5), 15);
+        
+        // Mock the service
+        when(vehicleService.findByMinimumGlpPaged(eq(100), any(Pageable.class))).thenReturn(vehiclePage);
+
+        // When & Then
+        mockMvc.perform(get("/api/vehicles")
+                .param("paginated", "true")
+                .param("minGlp", "100")
+                .param("page", "2")
+                .param("size", "5")
+                .param("sortBy", "currentGlpM3")
+                .param("direction", "desc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].id").value("V001"))
+                .andExpect(jsonPath("$.totalElements").value(15))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.number").value(2))
+                .andExpect(jsonPath("$.size").value(5));
+    }
+
+    @Test
+    public void testGetAllVehicles_WithoutPagination() throws Exception {
+        // Given
+        Position position1 = new Position(10, 20);
+        Vehicle vehicle1 = Vehicle.builder()
+                .id("V001")
+                .type(VehicleType.TA)
+                .currentPosition(position1)
+                .build();
+
+        Position position2 = new Position(30, 40);
+        Vehicle vehicle2 = Vehicle.builder()
+                .id("V002")
+                .type(VehicleType.TB)
+                .currentPosition(position2)
+                .build();
+
+        List<Vehicle> vehicles = Arrays.asList(vehicle1, vehicle2);
+        
+        // Mock the service
+        when(vehicleService.findAll()).thenReturn(vehicles);
+
+        // When & Then
+        mockMvc.perform(get("/api/vehicles")
+                .param("paginated", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].id").value("V001"))
+                .andExpect(jsonPath("$[1].id").value("V002"));
     }
 }

@@ -2,6 +2,10 @@ package com.example.plgsystem.controller;
 
 import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.service.DepotService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -52,28 +56,61 @@ public class DepotController {
     }
 
     /**
-     * Listar todos los depósitos con opciones de filtrado
+     * Listar todos los depósitos con opciones de filtrado y paginación opcional
      */
     @GetMapping
-    public ResponseEntity<List<Depot>> list(
+    public ResponseEntity<?> list(
             @RequestParam(required = false) Boolean canRefuel,
             @RequestParam(required = false) Integer minGlpCapacity,
-            @RequestParam(required = false) Integer minCurrentGlp) {
+            @RequestParam(required = false) Integer minCurrentGlp,
+            @RequestParam(required = false) Boolean paginated,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
         
-        List<Depot> depots;
+        // Si paginated es null o false, devolvemos todos los resultados sin paginar
+        if (paginated == null || !paginated) {
+            List<Depot> depots;
+            
+            if (canRefuel != null) {
+                // Filtrar por capacidad de recarga
+                depots = depotService.findByCanRefuel(canRefuel);
+            } else if (minGlpCapacity != null) {
+                // Filtrar por capacidad mínima
+                depots = depotService.findByMinCapacity(minGlpCapacity);
+            } else if (minCurrentGlp != null) {
+                // Filtrar por GLP disponible mínimo
+                depots = depotService.findByMinCurrentGlp(minCurrentGlp);
+            } else {
+                // Sin filtros, retornar todos
+                depots = depotService.findAll();
+            }
+            
+            return ResponseEntity.ok(depots);
+        }
+        
+        // Si paginated es true, devolvemos resultados paginados
+        Sort sort = direction.equalsIgnoreCase("desc") ? 
+                Sort.by(sortBy).descending() : 
+                Sort.by(sortBy).ascending();
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Depot> depots;
         
         if (canRefuel != null) {
             // Filtrar por capacidad de recarga
-            depots = depotService.findByCanRefuel(canRefuel);
+            depots = depotService.findByCanRefuelPaged(canRefuel, pageable);
         } else if (minGlpCapacity != null) {
             // Filtrar por capacidad mínima
-            depots = depotService.findByMinCapacity(minGlpCapacity);
+            depots = depotService.findByMinCapacityPaged(minGlpCapacity, pageable);
         } else if (minCurrentGlp != null) {
             // Filtrar por GLP disponible mínimo
-            depots = depotService.findByMinCurrentGlp(minCurrentGlp);
+            depots = depotService.findByMinCurrentGlpPaged(minCurrentGlp, pageable);
         } else {
             // Sin filtros, retornar todos
-            depots = depotService.findAll();
+            depots = depotService.findAllPaged(pageable);
         }
         
         return ResponseEntity.ok(depots);

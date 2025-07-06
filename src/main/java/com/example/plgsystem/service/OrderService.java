@@ -3,6 +3,8 @@ package com.example.plgsystem.service;
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.ServeRecord;
 import com.example.plgsystem.repository.OrderRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,13 @@ public class OrderService {
     }
 
     /**
+     * Obtiene todos los pedidos con paginación
+     */
+    public Page<Order> findAllPaged(Pageable pageable) {
+        return orderRepository.findAll(pageable);
+    }
+
+    /**
      * Elimina un pedido por ID
      */
     @Transactional
@@ -57,6 +66,13 @@ public class OrderService {
     }
     
     /**
+     * Obtiene pedidos pendientes de entrega con paginación
+     */
+    public Page<Order> findPendingDeliveriesPaged(Pageable pageable) {
+        return orderRepository.findPendingDeliveriesPaged(pageable);
+    }
+    
+    /**
      * Obtiene pedidos vencidos a una fecha dada
      */
     public List<Order> findOverdueOrders(LocalDateTime dateTime) {
@@ -64,10 +80,24 @@ public class OrderService {
     }
     
     /**
+     * Obtiene pedidos vencidos a una fecha dada con paginación
+     */
+    public Page<Order> findOverdueOrdersPaged(LocalDateTime dateTime, Pageable pageable) {
+        return orderRepository.findByDueTimeBefore(dateTime, pageable);
+    }
+    
+    /**
      * Obtiene pedidos disponibles para entrega
      */
     public List<Order> findAvailableOrders(LocalDateTime dateTime) {
         return orderRepository.findByArriveTimeLessThanEqual(dateTime);
+    }
+    
+    /**
+     * Obtiene pedidos disponibles para entrega con paginación
+     */
+    public Page<Order> findAvailableOrdersPaged(LocalDateTime dateTime, Pageable pageable) {
+        return orderRepository.findByArriveTimeLessThanEqual(dateTime, pageable);
     }
     
     /**

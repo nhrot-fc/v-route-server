@@ -6,6 +6,8 @@ import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.enums.VehicleType;
 import com.example.plgsystem.repository.VehicleRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +47,13 @@ public class VehicleService {
     public List<Vehicle> findAll() {
         return vehicleRepository.findAll();
     }
+    
+    /**
+     * Obtiene todos los vehículos (paginado)
+     */
+    public Page<Vehicle> findAllPaged(Pageable pageable) {
+        return vehicleRepository.findAll(pageable);
+    }
 
     /**
      * Elimina un vehículo por ID
@@ -62,10 +71,24 @@ public class VehicleService {
     }
     
     /**
+     * Busca vehículos por tipo (paginado)
+     */
+    public Page<Vehicle> findByTypePaged(VehicleType type, Pageable pageable) {
+        return vehicleRepository.findByType(type, pageable);
+    }
+    
+    /**
      * Busca vehículos por estado
      */
     public List<Vehicle> findByStatus(VehicleStatus status) {
         return vehicleRepository.findByStatus(status);
+    }
+    
+    /**
+     * Busca vehículos por estado (paginado)
+     */
+    public Page<Vehicle> findByStatusPaged(VehicleStatus status, Pageable pageable) {
+        return vehicleRepository.findByStatus(status, pageable);
     }
     
     /**
@@ -76,6 +99,13 @@ public class VehicleService {
     }
     
     /**
+     * Busca vehículos disponibles ordenados por capacidad de GLP descendente (paginado)
+     */
+    public Page<Vehicle> findAvailableVehiclesOrderByGlpPaged(Pageable pageable) {
+        return vehicleRepository.findByStatusOrderByCurrentGlpM3Desc(VehicleStatus.AVAILABLE, pageable);
+    }
+    
+    /**
      * Busca vehículos con capacidad mínima de GLP
      */
     public List<Vehicle> findByMinimumGlp(int minGlp) {
@@ -83,10 +113,24 @@ public class VehicleService {
     }
     
     /**
+     * Busca vehículos con capacidad mínima de GLP (paginado)
+     */
+    public Page<Vehicle> findByMinimumGlpPaged(int minGlp, Pageable pageable) {
+        return vehicleRepository.findByCurrentGlpM3GreaterThanEqual(minGlp, pageable);
+    }
+    
+    /**
      * Busca vehículos con capacidad mínima de combustible
      */
     public List<Vehicle> findByMinimumFuel(double minFuel) {
         return vehicleRepository.findByCurrentFuelGalGreaterThanEqual(minFuel);
+    }
+    
+    /**
+     * Busca vehículos con capacidad mínima de combustible (paginado)
+     */
+    public Page<Vehicle> findByMinimumFuelPaged(double minFuel, Pageable pageable) {
+        return vehicleRepository.findByCurrentFuelGalGreaterThanEqual(minFuel, pageable);
     }
     
     /**
