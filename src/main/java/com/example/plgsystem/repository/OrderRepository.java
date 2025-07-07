@@ -33,20 +33,20 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     /**
      * Filtro para listar pedidos con fecha límite anterior a una fecha dada
      */
-    List<Order> findByDueTimeBefore(LocalDateTime dateTime);
+    List<Order> findByDeadlineTimeBefore(LocalDateTime dateTime);
     
     /**
      * Filtro para listar pedidos con fecha límite anterior a una fecha dada (paginado)
      */
-    Page<Order> findByDueTimeBefore(LocalDateTime dateTime, Pageable pageable);
+    Page<Order> findByDeadlineTimeBefore(LocalDateTime dateTime, Pageable pageable);
     
     /**
      * Filtro para listar pedidos disponibles para entrega (llegada antes de fecha actual)
      */
-    List<Order> findByArriveTimeLessThanEqual(LocalDateTime dateTime);
+    List<Order> findByArrivalTimeLessThanEqual(LocalDateTime dateTime);
     
     /**
      * Filtro para listar pedidos disponibles para entrega (llegada antes de fecha actual) (paginado)
      */
-    Page<Order> findByArriveTimeLessThanEqual(LocalDateTime dateTime, Pageable pageable);
+    Page<Order> findByArrivalTimeLessThanEqual(LocalDateTime dateTime, Pageable pageable);
 }

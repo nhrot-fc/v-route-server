@@ -2,6 +2,7 @@ package com.example.plgsystem.service;
 
 import com.example.plgsystem.model.Maintenance;
 import com.example.plgsystem.repository.MaintenanceRepository;
+import com.example.plgsystem.repository.VehicleRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Servicio para la gestión de mantenimientos
@@ -19,46 +21,53 @@ import java.util.Optional;
 public class MaintenanceService {
 
     private final MaintenanceRepository maintenanceRepository;
+    private final VehicleRepository vehicleRepository;
 
-    public MaintenanceService(MaintenanceRepository maintenanceRepository) {
+    public MaintenanceService(MaintenanceRepository maintenanceRepository, VehicleRepository vehicleRepository) {
         this.maintenanceRepository = maintenanceRepository;
+        this.vehicleRepository = vehicleRepository;
     }
     
     /**
      * Crea un nuevo mantenimiento
      */
     @Transactional
-    public Maintenance createMaintenance(String vehicleId, LocalDate assignedDate) {
-        Maintenance maintenance = new Maintenance(vehicleId, assignedDate);
-        return maintenanceRepository.save(maintenance);
+    public Optional<Maintenance> createMaintenance(String vehicleId, LocalDate assignedDate) {
+        return vehicleRepository.findById(vehicleId)
+                .map(vehicle -> {
+                    Maintenance maintenance = new Maintenance(vehicle, assignedDate);
+                    return maintenanceRepository.save(maintenance);
+                });
     }
     
     /**
      * Actualiza el tiempo de inicio real del mantenimiento
      */
     @Transactional
-    public Maintenance startMaintenance(Long id, LocalDateTime startTime) {
-        Maintenance maintenance = maintenanceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Maintenance not found"));
-        maintenance.setRealStart(startTime);
-        return maintenanceRepository.save(maintenance);
+    public Optional<Maintenance> startMaintenance(UUID id, LocalDateTime startTime) {
+        return maintenanceRepository.findById(id)
+                .map(maintenance -> {
+                    maintenance.setRealStart(startTime);
+                    return maintenanceRepository.save(maintenance);
+                });
     }
     
     /**
      * Actualiza el tiempo de finalización real del mantenimiento
      */
     @Transactional
-    public Maintenance completeMaintenance(Long id, LocalDateTime endTime) {
-        Maintenance maintenance = maintenanceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Maintenance not found"));
-        maintenance.setRealEnd(endTime);
-        return maintenanceRepository.save(maintenance);
+    public Optional<Maintenance> completeMaintenance(UUID id, LocalDateTime endTime) {
+        return maintenanceRepository.findById(id)
+                .map(maintenance -> {
+                    maintenance.setRealEnd(endTime);
+                    return maintenanceRepository.save(maintenance);
+                });
     }
     
     /**
      * Encuentra un mantenimiento por ID
      */
-    public Optional<Maintenance> findById(Long id) {
+    public Optional<Maintenance> findById(UUID id) {
         return maintenanceRepository.findById(id);
     }
     

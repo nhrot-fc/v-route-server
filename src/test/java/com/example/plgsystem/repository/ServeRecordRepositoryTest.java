@@ -13,6 +13,7 @@ import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,8 +40,8 @@ public class ServeRecordRepositoryTest {
     private Order createTestOrder(String id, LocalDateTime time) {
         Order order = Order.builder()
                 .id(id)
-                .arriveTime(time)
-                .dueTime(time.plusHours(4))
+                .arrivalTime(time)
+                .deadlineTime(time.plusHours(4))
                 .glpRequestM3(100)
                 .position(new Position(30, 40))
                 .build();
@@ -61,9 +62,9 @@ public class ServeRecordRepositoryTest {
         // Then
         assertNotNull(savedRecord);
         assertNotNull(savedRecord.getId()); // ID should be generated
-        assertEquals("V001", savedRecord.getVehicleId());
-        assertEquals("O001", savedRecord.getOrderId());
-        assertEquals(50, savedRecord.getVolumeM3());
+        assertEquals("V001", savedRecord.getVehicle().getId());
+        assertEquals("O001", savedRecord.getOrder().getId());
+        assertEquals(50, savedRecord.getGlpVolumeM3());
         assertEquals(now, savedRecord.getServeDate());
     }
 
@@ -77,7 +78,7 @@ public class ServeRecordRepositoryTest {
         entityManager.persist(record);
         entityManager.flush();
 
-        Long recordId = record.getId();
+        UUID recordId = record.getId();
 
         // When
         Optional<ServeRecord> found = serveRecordRepository.findById(recordId);
@@ -85,9 +86,9 @@ public class ServeRecordRepositoryTest {
         // Then
         assertTrue(found.isPresent());
         assertEquals(recordId, found.get().getId());
-        assertEquals("V001", found.get().getVehicleId());
-        assertEquals("O001", found.get().getOrderId());
-        assertEquals(50, found.get().getVolumeM3());
+        assertEquals("V001", found.get().getVehicle().getId());
+        assertEquals("O001", found.get().getOrder().getId());
+        assertEquals(50, found.get().getGlpVolumeM3());
     }
 
     @Test
@@ -126,7 +127,7 @@ public class ServeRecordRepositoryTest {
         entityManager.persist(record);
         entityManager.flush();
 
-        Long recordId = record.getId();
+        UUID recordId = record.getId();
         
         // Since ServeRecord doesn't have setters, we need to create a new record and update it
         ServeRecord updatedRecord = new ServeRecord(vehicle2, order2, 75, now.plusHours(1));
@@ -136,9 +137,9 @@ public class ServeRecordRepositoryTest {
 
         // Then
         assertNotNull(newRecord.getId());
-        assertEquals(75, newRecord.getVolumeM3());
-        assertEquals("V002", newRecord.getVehicleId());
-        assertEquals("O002", newRecord.getOrderId());
+        assertEquals(75, newRecord.getGlpVolumeM3());
+        assertEquals("V002", newRecord.getVehicle().getId());
+        assertEquals("O002", newRecord.getOrder().getId());
     }
 
     @Test
@@ -151,7 +152,7 @@ public class ServeRecordRepositoryTest {
         entityManager.persist(record);
         entityManager.flush();
 
-        Long recordId = record.getId();
+        UUID recordId = record.getId();
 
         // When
         serveRecordRepository.deleteById(recordId);
@@ -185,7 +186,7 @@ public class ServeRecordRepositoryTest {
 
         // Then
         assertEquals(2, orderRecords.size());
-        assertTrue(orderRecords.stream().allMatch(r -> r.getOrderId().equals("O001")));
+        assertTrue(orderRecords.stream().allMatch(r -> r.getOrder().getId().equals("O001")));
     }
 
     @Test
@@ -212,7 +213,7 @@ public class ServeRecordRepositoryTest {
 
         // Then
         assertEquals(2, vehicleRecords.size());
-        assertTrue(vehicleRecords.stream().allMatch(r -> r.getVehicleId().equals("V001")));
+        assertTrue(vehicleRecords.stream().allMatch(r -> r.getVehicle().getId().equals("V001")));
     }
 
     @Test
@@ -252,6 +253,6 @@ public class ServeRecordRepositoryTest {
 
         // Then
         assertEquals(3, recentRecords.size()); // Should include yesterday, today, and tomorrow
-        assertFalse(recentRecords.stream().anyMatch(r -> r.getVehicleId().equals("V004"))); // Should not include next week
+        assertFalse(recentRecords.stream().anyMatch(r -> r.getVehicle().getId().equals("V004"))); // Should not include next week
     }
 } 

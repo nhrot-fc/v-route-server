@@ -2,6 +2,7 @@ package com.example.plgsystem.service;
 
 import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.model.Position;
+import com.example.plgsystem.enums.DepotType;
 import com.example.plgsystem.repository.DepotRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -59,17 +60,31 @@ public class DepotService {
     }
     
     /**
-     * Filtra depósitos por capacidad de recarga
+     * Busca depósitos por tipo
      */
-    public List<Depot> findByCanRefuel(Boolean canRefuel) {
-        return depotRepository.findByCanRefuel(canRefuel);
+    public List<Depot> findByType(DepotType type) {
+        return depotRepository.findByType(type);
     }
     
     /**
-     * Filtra depósitos por capacidad de recarga (paginado)
+     * Busca depósitos por tipo (paginado)
      */
-    public Page<Depot> findByCanRefuelPaged(Boolean canRefuel, Pageable pageable) {
-        return depotRepository.findByCanRefuel(canRefuel, pageable);
+    public Page<Depot> findByTypePaged(DepotType type, Pageable pageable) {
+        return depotRepository.findByType(type, pageable);
+    }
+    
+    /**
+     * Busca depósitos principales
+     */
+    public List<Depot> findMainDepots() {
+        return depotRepository.findMainDepots();
+    }
+    
+    /**
+     * Busca depósitos auxiliares
+     */
+    public List<Depot> findAuxiliaryDepots() {
+        return depotRepository.findAuxiliaryDepots();
     }
     
     /**
@@ -124,7 +139,7 @@ public class DepotService {
     public Optional<Depot> refillDepotGLP(String depotId) {
         return depotRepository.findById(depotId)
                 .map(depot -> {
-                    depot.refillGLP();
+                    depot.refill();
                     return depotRepository.save(depot);
                 });
     }
@@ -139,18 +154,10 @@ public class DepotService {
     @Transactional
     public Optional<Depot> serveGLPFromDepot(String depotId, int amountM3) {
         return depotRepository.findById(depotId)
-                .filter(depot -> depot.canServeGLP(amountM3))
+                .filter(depot -> depot.canServe(amountM3))
                 .map(depot -> {
-                    depot.serveGLP(amountM3);
+                    depot.serve(amountM3);
                     return depotRepository.save(depot);
                 });
-    }
-    
-    /**
-     * Elimina un depósito por su ID
-     */
-    @Transactional
-    public void deleteDepot(String id) {
-        depotRepository.deleteById(id);
     }
 }

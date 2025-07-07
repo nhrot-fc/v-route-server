@@ -1,7 +1,9 @@
 package com.example.plgsystem.dto;
 
+import com.example.plgsystem.model.Blockage;
 import com.example.plgsystem.model.Position;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -14,8 +16,16 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class BlockageCreateDTO {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private List<Position> blockageLines;
+    
+    /**
+     * Convierte un BlockageCreateDTO a entidad Blockage
+     */
+    public Blockage toEntity() {
+        return new Blockage(startTime, endTime, blockageLines);
+    }
 }

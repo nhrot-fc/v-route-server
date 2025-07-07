@@ -16,7 +16,7 @@ public class PathFinder {
         if (inicio.equals(fin)) {
             return Collections.singletonList(inicio);
         }
-        if (esBloqueado(inicio, horaSalida, entorno)) {
+        if (entorno.isPositionBlockedAt(inicio, horaSalida)) {
             return Collections.emptyList();
         }
 
@@ -56,7 +56,7 @@ public class PathFinder {
 
                 LocalDateTime tiempoLlegada = calcularTiempoLlegada(current.horaDeLlegada, 1);
 
-                if (esBloqueado(vecino, tiempoLlegada, entorno)) {
+                if (entorno.isPositionBlockedAt(vecino, tiempoLlegada)) {
                     continue;
                 }
 
@@ -78,11 +78,6 @@ public class PathFinder {
         }
 
         return Collections.emptyList();
-    }
-
-    private static boolean esBloqueado(Position posicion, LocalDateTime momento, SimulationState entorno) {
-        return entorno.getActiveBlockagesAt(momento).stream()
-                .anyMatch(b -> b.posicionEstaBloqueada(posicion));
     }
 
     private static LocalDateTime calcularTiempoLlegada(LocalDateTime horaSalida, double distanciaKm) {

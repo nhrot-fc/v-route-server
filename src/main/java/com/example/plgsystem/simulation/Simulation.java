@@ -1,154 +1,89 @@
 package com.example.plgsystem.simulation;
 
-import java.util.UUID;
 import java.time.LocalDateTime;
+import java.util.UUID;
+import lombok.Getter;
+import lombok.experimental.Delegate;
+import com.example.plgsystem.enums.SimulationStatus;
+import com.example.plgsystem.enums.SimulationType;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
 /**
- * Represents a simulation instance that contains a unique identifier and the current state
- * of the simulation. This class is used to manage simulations in memory without database
- * interaction, primarily for visualization purposes in the map interface.
+ * Representa una instancia de simulación gestionada como un bean prototipo de
+ * Spring.
+ * <p>
+ * Cada instancia es única, con su propio estado y ciclo de vida, ideal para
+ * manejar múltiples simulaciones en memoria.
  */
+@Getter
+@Component
+@Scope("prototype")
 public class Simulation {
-    private final String id;
-    private SimulationState state;
-    private final LocalDateTime createdAt;
-    private LocalDateTime lastUpdated;
-    private String name;
-    private String description;
 
-    /**
-     * Creates a new simulation with the provided simulation state and a randomly generated ID.
-     * 
-     * @param state The initial simulation state
-     */
+    private final UUID id;
+    private SimulationStatus status;
+    private SimulationType type;
+    @Delegate
+    private final SimulationState state;
+
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
+
     public Simulation(SimulationState state) {
-        this.id = UUID.randomUUID().toString();
+        this(state, SimulationType.CUSTOM);
+    }
+
+    public Simulation(SimulationState state, SimulationType type) {
+        this.id = UUID.randomUUID();
         this.state = state;
-        this.createdAt = LocalDateTime.now();
-        this.lastUpdated = this.createdAt;
-        this.name = "Simulation " + this.createdAt.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-        this.description = "Simulation created at " + this.createdAt;
+        this.status = SimulationStatus.PAUSED;
+        this.startTime = LocalDateTime.now();
+        this.type = type;
     }
 
-    /**
-     * Creates a new simulation with the provided simulation state, name, description, and a randomly generated ID.
-     * 
-     * @param state The initial simulation state
-     * @param name The name of the simulation
-     * @param description A brief description of the simulation
-     */
-    public Simulation(SimulationState state, String name, String description) {
-        this.id = UUID.randomUUID().toString();
-        this.state = state;
-        this.createdAt = LocalDateTime.now();
-        this.lastUpdated = this.createdAt;
-        this.name = name;
-        this.description = description;
+    public void start() {
+        this.status = SimulationStatus.RUNNING;
     }
 
-    /**
-     * Gets the unique identifier of the simulation.
-     * 
-     * @return The simulation ID
-     */
-    public String getId() {
-        return id;
+    public void pause() {
+        if (!type.isDailyOperation()) { // Daily operations can't be paused
+            this.status = SimulationStatus.PAUSED;
+        }
     }
 
-    /**
-     * Gets the current state of the simulation.
-     * 
-     * @return The simulation state
-     */
-    public SimulationState getState() {
-        return state;
+    public void finish() {
+        if (!type.isDailyOperation()) { // Daily operations can't be finished
+            this.status = SimulationStatus.FINISHED;
+            this.endTime = LocalDateTime.now();
+        }
     }
 
-    /**
-     * Updates the simulation state.
-     * 
-     * @param state The new simulation state
-     */
-    public void setState(SimulationState state) {
-        this.state = state;
-        this.lastUpdated = LocalDateTime.now();
+    public void error() {
+        this.status = SimulationStatus.ERROR;
     }
 
-    /**
-     * Gets the creation timestamp of the simulation.
-     * 
-     * @return The creation timestamp
-     */
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
+    public boolean isDailyOperation() {
+        return type.isDailyOperation();
     }
 
-    /**
-     * Gets the last update timestamp of the simulation.
-     * 
-     * @return The last update timestamp
-     */
-    public LocalDateTime getLastUpdated() {
-        return lastUpdated;
+    public boolean isTimeBasedSimulation() {
+        return type.isTimeBasedSimulation();
     }
 
-    /**
-     * Gets the name of the simulation.
-     * 
-     * @return The simulation name
-     */
-    public String getName() {
-        return name;
+    public boolean isRunning() {
+        return status.equals(SimulationStatus.RUNNING);
     }
 
-    /**
-     * Sets the name of the simulation.
-     * 
-     * @param name The new simulation name
-     */
-    public void setName(String name) {
-        this.name = name;
-        this.lastUpdated = LocalDateTime.now();
+    public boolean isPaused() {
+        return status.equals(SimulationStatus.PAUSED);
     }
 
-    /**
-     * Gets the description of the simulation.
-     * 
-     * @return The simulation description
-     */
-    public String getDescription() {
-        return description;
+    public boolean isFinished() {
+        return status.equals(SimulationStatus.FINISHED);
     }
 
-    /**
-     * Sets the description of the simulation.
-     * 
-     * @param description The new simulation description
-     */
-    public void setDescription(String description) {
-        this.description = description;
-        this.lastUpdated = LocalDateTime.now();
-    }
-
-    /**
-     * Advances the simulation time by the specified number of minutes.
-     * 
-     * @param minutes The number of minutes to advance the simulation
-     */
-    public void advanceTime(int minutes) {
-        this.state.advanceTime(minutes);
-        this.lastUpdated = LocalDateTime.now();
-    }
-
-    @Override
-    public String toString() {
-        return "Simulation{" +
-                "id='" + id + '\'' +
-                ", name='" + name + '\'' +
-                ", description='" + description + '\'' +
-                ", createdAt=" + createdAt +
-                ", lastUpdated=" + lastUpdated +
-                ", state=" + state +
-                '}';
+    public boolean isError() {
+        return status.equals(SimulationStatus.ERROR);
     }
 }

@@ -15,13 +15,13 @@ import java.util.Objects;
 public class Position implements Serializable {
     private int x;
     private int y;
-    
+
     @Override
     public String toString() {
         return String.format("📍(%03d,%03d)", this.x, this.y);
     }
 
-    public Position clone() { 
+    public Position clone() {
         return new Position(x, y);
     }
 
@@ -31,8 +31,10 @@ public class Position implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Position position = (Position) o;
         return x == position.x && y == position.y;
     }

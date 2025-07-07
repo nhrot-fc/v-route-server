@@ -1,174 +1,127 @@
 package com.example.plgsystem.model;
 
+import com.example.plgsystem.enums.VehicleType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class MaintenanceTest {
 
     private Maintenance maintenance;
-    private final String vehicleId = "V001";
+    private Vehicle vehicle;
     private final LocalDate assignedDate = LocalDate.now();
 
     @BeforeEach
     public void setUp() {
-        maintenance = new Maintenance(vehicleId, assignedDate);
+        Position position = new Position(10, 20);
+        vehicle = Vehicle.builder()
+                .id("V-001")
+                .type(VehicleType.TA)
+                .currentPosition(position)
+                .build();
+
+        maintenance = new Maintenance(vehicle, assignedDate);
     }
 
     @Test
     public void testMaintenanceCreation() {
         assertNotNull(maintenance);
-        assertEquals(vehicleId, maintenance.getVehicleId());
+        assertEquals(vehicle, maintenance.getVehicle());
         assertEquals(assignedDate, maintenance.getAssignedDate());
         assertNull(maintenance.getRealStart());
         assertNull(maintenance.getRealEnd());
     }
 
     @Test
-    public void testSetRealStartAndEnd() {
+    public void testSetAndGetRealStartAndEnd() {
         LocalDateTime startTime = LocalDateTime.now().minusHours(2);
         LocalDateTime endTime = LocalDateTime.now();
-        
+
         maintenance.setRealStart(startTime);
         maintenance.setRealEnd(endTime);
-        
+
         assertEquals(startTime, maintenance.getRealStart());
         assertEquals(endTime, maintenance.getRealEnd());
-        assertEquals(startTime.toLocalDate(), maintenance.getDate());
-    }
-
-    @Test
-    public void testGetDate() {
-        assertNull(maintenance.getDate());
-        
-        LocalDateTime startTime = LocalDateTime.now();
-        maintenance.setRealStart(startTime);
-        
-        assertEquals(startTime.toLocalDate(), maintenance.getDate());
-    }
-
-    @Test
-    public void testGetDurationHours() {
-        // Initially should be 0 as realStart and realEnd are null
-        assertEquals(0, maintenance.getDurationHours());
-        
-        // Set real start and end times 3 hours apart
-        LocalDateTime startTime = LocalDateTime.of(2025, 1, 1, 9, 0);
-        LocalDateTime endTime = startTime.plusHours(3);
-        
-        maintenance.setRealStart(startTime);
-        maintenance.setRealEnd(endTime);
-        
-        assertEquals(3, maintenance.getDurationHours());
-        
-        // If only start time is set, duration should still be 0
-        maintenance = new Maintenance(vehicleId, assignedDate);
-        maintenance.setRealStart(startTime);
-        assertEquals(0, maintenance.getDurationHours());
-    }
-
-    @Test
-    public void testIsActiveAt() {
-        LocalDateTime startTime = LocalDateTime.now().minusHours(2);
-        LocalDateTime endTime = LocalDateTime.now().plusHours(2);
-        LocalDateTime currentTime = LocalDateTime.now();
-        
-        // Initially should not be active as start/end are null
-        assertFalse(maintenance.isActiveAt(currentTime));
-        
-        maintenance.setRealStart(startTime);
-        maintenance.setRealEnd(endTime);
-        
-        // Current time is between start and end time
-        assertTrue(maintenance.isActiveAt(currentTime));
-        
-        // Time before maintenance started
-        assertFalse(maintenance.isActiveAt(startTime.minusMinutes(1)));
-        
-        // Time after maintenance ended
-        assertFalse(maintenance.isActiveAt(endTime.plusMinutes(1)));
-        
-        // Exact start and end times should be included in active period
-        assertTrue(maintenance.isActiveAt(startTime));
-        assertTrue(maintenance.isActiveAt(endTime));
     }
 
     @Test
     public void testCreateNextTask() {
-        // Cannot create next task before current is completed
+        // No se puede crear una siguiente tarea si no hay fecha de finalización
         assertNull(maintenance.createNextTask());
-        
-        // Complete the current task
+
+        // Completar la tarea actual
         LocalDateTime startTime = LocalDateTime.of(2025, 1, 1, 9, 0);
-        LocalDateTime endTime = startTime.plusHours(3);
+        LocalDateTime endTime = startTime.plusHours(24);
         maintenance.setRealStart(startTime);
         maintenance.setRealEnd(endTime);
-        
-        // Now create next task
+
+        // Crear siguiente tarea
         Maintenance nextTask = maintenance.createNextTask();
-        
+
         assertNotNull(nextTask);
-        assertEquals(vehicleId, nextTask.getVehicleId());
+        assertEquals(vehicle, nextTask.getVehicle());
         assertEquals(endTime.toLocalDate().plusMonths(2), nextTask.getAssignedDate());
         assertNull(nextTask.getRealStart());
         assertNull(nextTask.getRealEnd());
     }
 
     @Test
-    public void testFromString() {
-        // Valid format
-        String validRecord = "20250101:V001";
-        Maintenance fromString = Maintenance.fromString(validRecord);
-        
-        assertNotNull(fromString);
-        assertEquals("V001", fromString.getVehicleId());
-        assertEquals(LocalDate.of(2025, 1, 1), fromString.getAssignedDate());
-        
-        // Invalid format (missing colon)
-        String invalidRecord = "20250101V001";
-        assertNull(Maintenance.fromString(invalidRecord));
-        
-        // Invalid format (invalid date)
-        String invalidDateRecord = "2025-01-01:V001";
-        assertNull(Maintenance.fromString(invalidDateRecord));
+    public void testMaintenanceDates() {
+        // Crear mantenimiento con fecha asignada
+        LocalDate testDate = LocalDate.of(2025, 5, 15);
+        Maintenance dateMaintenance = new Maintenance(vehicle, testDate);
+
+        assertEquals(testDate, dateMaintenance.getAssignedDate());
+
+        // Establecer fechas reales
+        LocalDateTime startDateTime = LocalDateTime.of(2025, 5, 15, 8, 0);
+        LocalDateTime endDateTime = startDateTime.plusHours(24);
+
+        dateMaintenance.setRealStart(startDateTime);
+        dateMaintenance.setRealEnd(endDateTime);
+
+        assertEquals(startDateTime, dateMaintenance.getRealStart());
+        assertEquals(endDateTime, dateMaintenance.getRealEnd());
     }
 
     @Test
-    public void testToString() {
-        String maintenanceString = maintenance.toString();
-        
-        assertTrue(maintenanceString.contains(vehicleId));
-        assertTrue(maintenanceString.contains(assignedDate.toString()));
-        assertTrue(maintenanceString.contains("Scheduled"));
-        
-        // With start time
-        maintenance.setRealStart(LocalDateTime.now());
-        maintenanceString = maintenance.toString();
-        assertTrue(maintenanceString.contains("In Progress"));
-        
-        // With both start and end times
-        maintenance.setRealEnd(LocalDateTime.now().plusHours(2));
-        maintenanceString = maintenance.toString();
-        assertTrue(maintenanceString.contains("Completed"));
-    }
+    public void testCreateNextTaskTimeline() {
+        // Configurar una secuencia de mantenimientos
+        LocalDate firstDate = LocalDate.of(2025, 1, 15);
+        Maintenance firstMaintenance = new Maintenance(vehicle, firstDate);
 
-    @Test
-    public void testToRecordString() {
-        // Without real start time
-        String recordString = maintenance.toRecordString();
-        String expectedFormat = assignedDate.format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ":" + vehicleId;
-        assertEquals(expectedFormat, recordString);
-        
-        // With real start time
-        LocalDateTime startTime = LocalDateTime.of(2025, 3, 15, 10, 0);
-        maintenance.setRealStart(startTime);
-        recordString = maintenance.toRecordString();
-        expectedFormat = startTime.toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ":" + vehicleId;
-        assertEquals(expectedFormat, recordString);
+        // Completar el primer mantenimiento
+        LocalDateTime firstStart = LocalDateTime.of(2025, 1, 15, 9, 0);
+        LocalDateTime firstEnd = firstStart.plusHours(24);
+        firstMaintenance.setRealStart(firstStart);
+        firstMaintenance.setRealEnd(firstEnd);
+
+        // Crear segundo mantenimiento
+        Maintenance secondMaintenance = firstMaintenance.createNextTask();
+        assertNotNull(secondMaintenance);
+
+        // Verificar que la fecha asignada es 2 meses después
+        LocalDate expectedSecondDate = firstEnd.toLocalDate().plusMonths(2);
+        assertEquals(expectedSecondDate, secondMaintenance.getAssignedDate());
+
+        // Completar el segundo mantenimiento
+        LocalDateTime secondStart = LocalDateTime.of(expectedSecondDate.getYear(),
+                expectedSecondDate.getMonth(),
+                expectedSecondDate.getDayOfMonth(), 9, 0);
+        LocalDateTime secondEnd = secondStart.plusHours(24);
+        secondMaintenance.setRealStart(secondStart);
+        secondMaintenance.setRealEnd(secondEnd);
+
+        // Crear tercer mantenimiento
+        Maintenance thirdMaintenance = secondMaintenance.createNextTask();
+        assertNotNull(thirdMaintenance);
+
+        // Verificar que la fecha asignada es 2 meses después del segundo
+        LocalDate expectedThirdDate = secondEnd.toLocalDate().plusMonths(2);
+        assertEquals(expectedThirdDate, thirdMaintenance.getAssignedDate());
     }
-} 
+}

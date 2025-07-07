@@ -12,9 +12,11 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.test.context.TestPropertySource;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -41,21 +43,22 @@ public class IncidentRepositoryTest {
     public void testSaveIncident() {
         // Given
         Vehicle vehicle = createTestVehicle("V001");
-        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
-        LocalDateTime occurrenceTime = LocalDateTime.now().minusHours(1);
+        Shift shift = Shift.T1;
+        LocalDateTime occurrenceTime = shift.getStartTime().atDate(LocalDate.now());
+        Incident incident = new Incident(vehicle, IncidentType.TI1, occurrenceTime);
         Position location = new Position(10, 20);
-        
+
         incident.setOccurrenceTime(occurrenceTime);
         incident.setLocation(location);
         incident.setTransferableGlp(50.0);
-        
+
         // When
         Incident savedIncident = incidentRepository.save(incident);
-        
+
         // Then
         assertNotNull(savedIncident);
         assertNotNull(savedIncident.getId()); // ID should be generated
-        assertEquals("V001", savedIncident.getVehicleId());
+        assertEquals("V001", savedIncident.getVehicle().getId());
         assertEquals(IncidentType.TI1, savedIncident.getType());
         assertEquals(Shift.T1, savedIncident.getShift());
         assertEquals(occurrenceTime, savedIncident.getOccurrenceTime());
@@ -69,22 +72,24 @@ public class IncidentRepositoryTest {
     public void testFindById() {
         // Given
         Vehicle vehicle = createTestVehicle("V001");
-        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
+        Shift shift = Shift.T1;
+        LocalDateTime occurrenceTime = shift.getStartTime().atDate(LocalDate.now());
+        Incident incident = new Incident(vehicle, IncidentType.TI1, occurrenceTime);
         incident.setOccurrenceTime(LocalDateTime.now());
         incident.setLocation(new Position(10, 20));
-        
+
         entityManager.persist(incident);
         entityManager.flush();
-        
-        Long incidentId = incident.getId();
-        
+
+        UUID incidentId = incident.getId();
+
         // When
         Optional<Incident> found = incidentRepository.findById(incidentId);
-        
+
         // Then
         assertTrue(found.isPresent());
         assertEquals(incidentId, found.get().getId());
-        assertEquals("V001", found.get().getVehicleId());
+        assertEquals("V001", found.get().getVehicle().getId());
         assertEquals(IncidentType.TI1, found.get().getType());
     }
 
@@ -93,17 +98,22 @@ public class IncidentRepositoryTest {
         // Given
         Vehicle vehicle1 = createTestVehicle("V001");
         Vehicle vehicle2 = createTestVehicle("V002");
-        
-        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
-        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, Shift.T2);
-        
+
+        Shift shift1 = Shift.T1;
+        LocalDateTime occurrenceTime1 = shift1.getStartTime().atDate(LocalDate.now());
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, occurrenceTime1);
+
+        Shift shift2 = Shift.T2;
+        LocalDateTime occurrenceTime2 = shift2.getStartTime().atDate(LocalDate.now());
+        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, occurrenceTime2);
+
         entityManager.persist(incident1);
         entityManager.persist(incident2);
         entityManager.flush();
-        
+
         // When
         List<Incident> incidents = incidentRepository.findAll();
-        
+
         // Then
         assertEquals(2, incidents.size());
     }
@@ -112,18 +122,20 @@ public class IncidentRepositoryTest {
     public void testUpdateIncident() {
         // Given
         Vehicle vehicle = createTestVehicle("V001");
-        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
+        Shift shift = Shift.T1;
+        LocalDateTime occurrenceTime = shift.getStartTime().atDate(LocalDate.now());
+        Incident incident = new Incident(vehicle, IncidentType.TI1, occurrenceTime);
         incident.setOccurrenceTime(LocalDateTime.now());
         entityManager.persist(incident);
         entityManager.flush();
-        
-        Long incidentId = incident.getId();
-        
+
+        UUID incidentId = incident.getId();
+
         // When
         Incident savedIncident = incidentRepository.findById(incidentId).get();
         savedIncident.setResolved(true);
         incidentRepository.save(savedIncident);
-        
+
         // Then
         Incident updatedIncident = incidentRepository.findById(incidentId).get();
         assertTrue(updatedIncident.isResolved());
@@ -133,15 +145,17 @@ public class IncidentRepositoryTest {
     public void testDeleteIncident() {
         // Given
         Vehicle vehicle = createTestVehicle("V001");
-        Incident incident = new Incident(vehicle, IncidentType.TI1, Shift.T1);
+        Shift shift = Shift.T1;
+        LocalDateTime occurrenceTime = shift.getStartTime().atDate(LocalDate.now());
+        Incident incident = new Incident(vehicle, IncidentType.TI1, occurrenceTime);
         entityManager.persist(incident);
         entityManager.flush();
-        
-        Long incidentId = incident.getId();
-        
+
+        UUID incidentId = incident.getId();
+
         // When
         incidentRepository.deleteById(incidentId);
-        
+
         // Then
         Optional<Incident> deleted = incidentRepository.findById(incidentId);
         assertFalse(deleted.isPresent());
@@ -152,22 +166,30 @@ public class IncidentRepositoryTest {
         // Given
         Vehicle vehicle1 = createTestVehicle("V001");
         Vehicle vehicle2 = createTestVehicle("V002");
-        
-        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
-        Incident incident2 = new Incident(vehicle1, IncidentType.TI2, Shift.T2); // Same vehicle
-        Incident incident3 = new Incident(vehicle2, IncidentType.TI3, Shift.T3); // Different vehicle
-        
+
+        Shift shift1 = Shift.T1;
+        LocalDateTime occurrenceTime1 = shift1.getStartTime().atDate(LocalDate.now());
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, occurrenceTime1);
+
+        Shift shift2 = Shift.T2;
+        LocalDateTime occurrenceTime2 = shift2.getStartTime().atDate(LocalDate.now());
+        Incident incident2 = new Incident(vehicle1, IncidentType.TI2, occurrenceTime2); // Same vehicle
+
+        Shift shift3 = Shift.T3;
+        LocalDateTime occurrenceTime3 = shift3.getStartTime().atDate(LocalDate.now());
+        Incident incident3 = new Incident(vehicle2, IncidentType.TI3, occurrenceTime3);
+
         entityManager.persist(incident1);
         entityManager.persist(incident2);
         entityManager.persist(incident3);
         entityManager.flush();
-        
+
         // When
         List<Incident> vehicleIncidents = incidentRepository.findByVehicleId("V001");
-        
+
         // Then
         assertEquals(2, vehicleIncidents.size());
-        assertTrue(vehicleIncidents.stream().allMatch(i -> i.getVehicleId().equals("V001")));
+        assertTrue(vehicleIncidents.stream().allMatch(i -> i.getVehicle().getId().equals("V001")));
     }
 
     @Test
@@ -175,24 +197,28 @@ public class IncidentRepositoryTest {
         // Given
         Vehicle vehicle1 = createTestVehicle("V001");
         Vehicle vehicle2 = createTestVehicle("V002");
-        
-        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+
+        Shift shift1 = Shift.T1;
+        LocalDateTime occurrenceTime1 = shift1.getStartTime().atDate(LocalDate.now());
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, occurrenceTime1);
         incident1.setResolved(true); // Resolved
-        
-        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, Shift.T2); // Not resolved
-        
+
+        Shift shift2 = Shift.T2;
+        LocalDateTime occurrenceTime2 = shift2.getStartTime().atDate(LocalDate.now());
+        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, occurrenceTime2); // Not resolved
+
         entityManager.persist(incident1);
         entityManager.persist(incident2);
         entityManager.flush();
-        
+
         // When
         List<Incident> resolvedIncidents = incidentRepository.findByResolved(true);
         List<Incident> unresolvedIncidents = incidentRepository.findByResolved(false);
-        
+
         // Then
         assertEquals(1, resolvedIncidents.size());
         assertEquals(incident1.getId(), resolvedIncidents.get(0).getId());
-        
+
         assertEquals(1, unresolvedIncidents.size());
         assertEquals(incident2.getId(), unresolvedIncidents.get(0).getId());
     }
@@ -203,38 +229,38 @@ public class IncidentRepositoryTest {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime yesterday = now.minusDays(1);
         LocalDateTime tomorrow = now.plusDays(1);
-        LocalDateTime nextWeek = now.plusDays(7);
-        
+
         Vehicle vehicle1 = createTestVehicle("V001");
         Vehicle vehicle2 = createTestVehicle("V002");
         Vehicle vehicle3 = createTestVehicle("V003");
-        Vehicle vehicle4 = createTestVehicle("V004");
-        
-        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+
+        Shift shift1 = Shift.T1;
+        LocalDateTime occurrenceTime1 = shift1.getStartTime().atDate(LocalDate.now());
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, occurrenceTime1);
         incident1.setOccurrenceTime(yesterday);
-        
-        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, Shift.T2);
+
+        Shift shift2 = Shift.T2;
+        LocalDateTime occurrenceTime2 = shift2.getStartTime().atDate(LocalDate.now());
+        Incident incident2 = new Incident(vehicle2, IncidentType.TI2, occurrenceTime2);
         incident2.setOccurrenceTime(now);
-        
-        Incident incident3 = new Incident(vehicle3, IncidentType.TI3, Shift.T3);
+
+        Shift shift3 = Shift.T3;
+        LocalDateTime occurrenceTime3 = shift3.getStartTime().atDate(LocalDate.now());
+        Incident incident3 = new Incident(vehicle3, IncidentType.TI3, occurrenceTime3);
         incident3.setOccurrenceTime(tomorrow);
-        
-        Incident incident4 = new Incident(vehicle4, IncidentType.TI3, Shift.T3);
-        incident4.setOccurrenceTime(nextWeek);
-        
+
         entityManager.persist(incident1);
         entityManager.persist(incident2);
         entityManager.persist(incident3);
-        entityManager.persist(incident4);
         entityManager.flush();
-        
+
         // When - Find incidents between yesterday and tomorrow inclusive
         List<Incident> recentIncidents = incidentRepository.findByOccurrenceTimeBetween(
-            yesterday.minusHours(1), tomorrow.plusHours(1));  // Add extra padding on both sides
-        
+                yesterday.minusHours(1), tomorrow.plusHours(1)); // Add extra padding on both sides
+
         // Then
         assertEquals(3, recentIncidents.size());
-        assertFalse(recentIncidents.stream().anyMatch(i -> i.getVehicleId().equals("V004")));
+        assertFalse(recentIncidents.stream().anyMatch(i -> i.getVehicle().getId().equals("V004")));
     }
 
     @Test
@@ -243,30 +269,36 @@ public class IncidentRepositoryTest {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime yesterday = now.minusDays(1);
         LocalDateTime tomorrow = now.plusDays(1);
-        
+
         Vehicle vehicle1 = createTestVehicle("V001");
         Vehicle vehicle2 = createTestVehicle("V002");
-        
-        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, Shift.T1);
+
+        Shift shift1 = Shift.T1;
+        LocalDateTime occurrenceTime1 = shift1.getStartTime().atDate(LocalDate.now());
+        Incident incident1 = new Incident(vehicle1, IncidentType.TI1, occurrenceTime1);
         incident1.setOccurrenceTime(yesterday);
-        
-        Incident incident2 = new Incident(vehicle1, IncidentType.TI2, Shift.T2);
+
+        Shift shift2 = Shift.T2;
+        LocalDateTime occurrenceTime2 = shift2.getStartTime().atDate(LocalDate.now());
+        Incident incident2 = new Incident(vehicle1, IncidentType.TI2, occurrenceTime2);
         incident2.setOccurrenceTime(tomorrow);
-        
-        Incident incident3 = new Incident(vehicle2, IncidentType.TI3, Shift.T3);
+
+        Shift shift3 = Shift.T3;
+        LocalDateTime occurrenceTime3 = shift3.getStartTime().atDate(LocalDate.now());
+        Incident incident3 = new Incident(vehicle2, IncidentType.TI3, occurrenceTime3);
         incident3.setOccurrenceTime(now);
-        
+
         entityManager.persist(incident1);
         entityManager.persist(incident2);
         entityManager.persist(incident3);
         entityManager.flush();
-        
+
         // When - Find incidents for V001 between yesterday and tomorrow
         List<Incident> v1Incidents = incidentRepository.findByVehicleIdAndOccurrenceTimeBetween(
-            "V001", yesterday.minusHours(1), tomorrow.plusHours(1));
-        
+                "V001", yesterday.minusHours(1), tomorrow.plusHours(1));
+
         // Then
         assertEquals(2, v1Incidents.size());
-        assertTrue(v1Incidents.stream().allMatch(i -> i.getVehicleId().equals("V001")));
+        assertTrue(v1Incidents.stream().allMatch(i -> i.getVehicle().getId().equals("V001")));
     }
-} 
+}

@@ -7,9 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
-/**
- * DTO para la creación de un mantenimiento
- */
 @Data
 @Builder
 @NoArgsConstructor

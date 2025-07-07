@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -37,12 +38,12 @@ public class MaintenanceController {
      */
     @PostMapping
     public ResponseEntity<MaintenanceDTO> createMaintenance(@RequestBody MaintenanceCreateDTO createDTO) {
-        Maintenance maintenance = maintenanceService.createMaintenance(
+        return maintenanceService.createMaintenance(
                 createDTO.getVehicleId(), 
                 createDTO.getAssignedDate()
-        );
-        
-        return new ResponseEntity<>(MaintenanceDTO.fromEntity(maintenance), HttpStatus.CREATED);
+        )
+        .map(maintenance -> new ResponseEntity<>(MaintenanceDTO.fromEntity(maintenance), HttpStatus.CREATED))
+        .orElse(ResponseEntity.badRequest().build());
     }
     
     /**
@@ -173,7 +174,7 @@ public class MaintenanceController {
      * Obtiene un mantenimiento por su ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<MaintenanceDTO> getMaintenanceById(@PathVariable Long id) {
+    public ResponseEntity<MaintenanceDTO> getMaintenanceById(@PathVariable UUID id) {
         return maintenanceService.findById(id)
                 .map(maintenance -> ResponseEntity.ok(MaintenanceDTO.fromEntity(maintenance)))
                 .orElseGet(() -> ResponseEntity.notFound().build());

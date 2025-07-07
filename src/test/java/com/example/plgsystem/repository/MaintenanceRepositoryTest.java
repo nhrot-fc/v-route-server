@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -49,7 +50,7 @@ public class MaintenanceRepositoryTest {
         // Then
         assertNotNull(savedMaintenance);
         assertNotNull(savedMaintenance.getId()); // ID should be generated
-        assertEquals("V001", savedMaintenance.getVehicleId());
+        assertEquals("V001", savedMaintenance.getVehicle().getId());
         assertEquals(assignedDate, savedMaintenance.getAssignedDate());
         assertNull(savedMaintenance.getRealStart());
         assertNull(savedMaintenance.getRealEnd());
@@ -64,7 +65,7 @@ public class MaintenanceRepositoryTest {
         entityManager.persist(maintenance);
         entityManager.flush();
 
-        Long maintenanceId = maintenance.getId();
+        UUID maintenanceId = maintenance.getId();
 
         // When
         Optional<Maintenance> found = maintenanceRepository.findById(maintenanceId);
@@ -72,7 +73,7 @@ public class MaintenanceRepositoryTest {
         // Then
         assertTrue(found.isPresent());
         assertEquals(maintenanceId, found.get().getId());
-        assertEquals("V001", found.get().getVehicleId());
+        assertEquals("V001", found.get().getVehicle().getId());
         assertEquals(assignedDate, found.get().getAssignedDate());
     }
 
@@ -108,7 +109,7 @@ public class MaintenanceRepositoryTest {
         entityManager.persist(maintenance);
         entityManager.flush();
 
-        Long maintenanceId = maintenance.getId();
+        UUID maintenanceId = maintenance.getId();
 
         // When
         Maintenance savedMaintenance = maintenanceRepository.findById(maintenanceId).get();
@@ -130,7 +131,7 @@ public class MaintenanceRepositoryTest {
         entityManager.persist(maintenance);
         entityManager.flush();
 
-        Long maintenanceId = maintenance.getId();
+        UUID maintenanceId = maintenance.getId();
 
         // When
         maintenanceRepository.deleteById(maintenanceId);
@@ -164,7 +165,7 @@ public class MaintenanceRepositoryTest {
 
         // Then
         assertEquals(2, vehicleMaintenances.size());
-        assertTrue(vehicleMaintenances.stream().allMatch(m -> m.getVehicleId().equals("V001")));
+        assertTrue(vehicleMaintenances.stream().allMatch(m -> m.getVehicle().getId().equals("V001")));
     }
 
     @Test
@@ -216,7 +217,7 @@ public class MaintenanceRepositoryTest {
 
         // Then
         assertEquals(1, specificMaintenances.size());
-        assertEquals("V001", specificMaintenances.get(0).getVehicleId());
+        assertEquals("V001", specificMaintenances.get(0).getVehicle().getId());
         assertEquals(date1, specificMaintenances.get(0).getAssignedDate());
     }
 
@@ -250,7 +251,7 @@ public class MaintenanceRepositoryTest {
 
         // Then
         assertEquals(3, q1Maintenances.size());
-        assertFalse(q1Maintenances.stream().anyMatch(m -> m.getVehicleId().equals("V004")));
+        assertFalse(q1Maintenances.stream().anyMatch(m -> m.getVehicle().getId().equals("V004")));
     }
 
     @Test
@@ -290,6 +291,6 @@ public class MaintenanceRepositoryTest {
 
         // Then
         assertEquals(1, activeMaintenances.size());
-        assertEquals("V001", activeMaintenances.get(0).getVehicleId());
+        assertEquals("V001", activeMaintenances.get(0).getVehicle().getId());
     }
 } 

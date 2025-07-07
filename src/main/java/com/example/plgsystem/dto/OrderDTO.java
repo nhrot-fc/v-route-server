@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -15,34 +16,31 @@ import java.time.LocalDateTime;
 @Builder
 public class OrderDTO {
     private String id;
-    private LocalDateTime arriveTime;
-    private LocalDateTime dueTime;
+    private LocalDateTime arrivalTime;
+    private LocalDateTime deadlineTime;
     private int glpRequestM3;
     private int remainingGlpM3;
     private Position position;
     private boolean delivered;
-    
-    // Conversión desde entidad a DTO
+
     public static OrderDTO fromEntity(Order order) {
         return OrderDTO.builder()
                 .id(order.getId())
-                .arriveTime(order.getArriveTime())
-                .dueTime(order.getDueTime())
+                .arrivalTime(order.getArrivalTime())
+                .deadlineTime(order.getDeadlineTime())
                 .glpRequestM3(order.getGlpRequestM3())
                 .remainingGlpM3(order.getRemainingGlpM3())
                 .position(order.getPosition())
                 .delivered(order.isDelivered())
                 .build();
     }
-    
-    // Conversión desde DTO a entidad
+
     public Order toEntity() {
-        return Order.builder()
-                .id(id != null && !id.isEmpty() ? id : java.util.UUID.randomUUID().toString())
-                .arriveTime(arriveTime)
-                .dueTime(dueTime)
-                .glpRequestM3(glpRequestM3)
-                .position(position)
-                .build();
+        return new Order(
+                id != null && !id.isEmpty() ? id : UUID.randomUUID().toString(),
+                arrivalTime,
+                deadlineTime,
+                glpRequestM3,
+                position);
     }
 }

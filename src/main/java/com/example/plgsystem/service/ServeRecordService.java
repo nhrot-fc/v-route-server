@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class ServeRecordService {
@@ -31,7 +32,7 @@ public class ServeRecordService {
     /**
      * Busca un registro de entrega por su ID
      */
-    public Optional<ServeRecord> findById(Long id) {
+    public Optional<ServeRecord> findById(UUID id) {
         return serveRecordRepository.findById(id);
     }
 
@@ -53,7 +54,7 @@ public class ServeRecordService {
      * Elimina un registro de entrega por ID
      */
     @Transactional
-    public void deleteById(Long id) {
+    public void deleteById(UUID id) {
         serveRecordRepository.deleteById(id);
     }
     

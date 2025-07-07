@@ -10,9 +10,10 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
-public interface BlockageRepository extends JpaRepository<Blockage, Long> {
+public interface BlockageRepository extends JpaRepository<Blockage, UUID> {
     
     /**
      * Filtro para listar bloqueos activos en un momento específico

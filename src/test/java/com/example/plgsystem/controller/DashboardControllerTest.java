@@ -4,6 +4,7 @@ import com.example.plgsystem.model.*;
 import com.example.plgsystem.repository.*;
 import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.enums.VehicleType;
+import com.example.plgsystem.enums.DepotType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -79,26 +80,26 @@ class DashboardControllerTest {
         // Mock orders
         Order pendingOrder = Order.builder()
                 .id("ORD-1")
-                .arriveTime(LocalDateTime.now().minusHours(2))
-                .dueTime(LocalDateTime.now().plusHours(2))
+                .arrivalTime(LocalDateTime.now().minusHours(2))
+                .deadlineTime(LocalDateTime.now().plusHours(2))
                 .glpRequestM3(20)
                 .position(new Position(20, 20))
                 .build();
                 
         Order completedOrder = Order.builder()
                 .id("ORD-2")
-                .arriveTime(LocalDateTime.now().minusHours(4))
-                .dueTime(LocalDateTime.now().minusHours(1))
+                .arrivalTime(LocalDateTime.now().minusHours(4))
+                .deadlineTime(LocalDateTime.now().minusHours(1))
                 .glpRequestM3(15)
                 .position(new Position(30, 30))
                 .build();
         completedOrder.setRemainingGlpM3(0);
         
         // Mock depots
-        Depot centralDepot = new Depot("CENTRAL", new Position(0, 0), 1000, true);
+        Depot centralDepot = new Depot("CENTRAL", new Position(0, 0), 1000, DepotType.MAIN);
         centralDepot.setCurrentGlpM3(800);
         
-        Depot northDepot = new Depot("NORTH", new Position(50, 50), 160, false);
+        Depot northDepot = new Depot("NORTH", new Position(50, 50), 160, DepotType.AUXILIARY);
         northDepot.setCurrentGlpM3(120);
         
         // Set up repository mocks
@@ -116,7 +117,7 @@ class DashboardControllerTest {
                 .thenReturn(Collections.singletonList(pendingOrder));
         when(orderRepository.findByRemainingGlpM3(0))
                 .thenReturn(Collections.singletonList(completedOrder));
-        when(orderRepository.findByDueTimeBefore(any()))
+        when(orderRepository.findByDeadlineTimeBefore(any()))
                 .thenReturn(Collections.singletonList(completedOrder));
         
         when(depotRepository.findAll())
@@ -199,24 +200,24 @@ class DashboardControllerTest {
         
         Order urgentOrder1 = Order.builder()
                 .id("ORD-1")
-                .arriveTime(now.minusHours(1))
-                .dueTime(threehoursfromnow)
+                .arrivalTime(now.minusHours(1))
+                .deadlineTime(threehoursfromnow)
                 .glpRequestM3(20)
                 .position(new Position(20, 20))
                 .build();
                 
         Order urgentOrder2 = Order.builder()
                 .id("ORD-2")
-                .arriveTime(now)
-                .dueTime(now.plusHours(2))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(2))
                 .glpRequestM3(15)
                 .position(new Position(30, 30))
                 .build();
                 
         Order nonUrgentOrder = Order.builder()
                 .id("ORD-3")
-                .arriveTime(now)
-                .dueTime(sixhoursfromnow)
+                .arrivalTime(now)
+                .deadlineTime(sixhoursfromnow)
                 .glpRequestM3(25)
                 .position(new Position(40, 40))
                 .build();
@@ -254,8 +255,8 @@ class DashboardControllerTest {
         // One overdue order that is still pending delivery
         Order overdueOrder = Order.builder()
                 .id("ORD-1")
-                .arriveTime(LocalDateTime.now().minusDays(1))
-                .dueTime(LocalDateTime.now().minusHours(2))
+                .arrivalTime(LocalDateTime.now().minusDays(1))
+                .deadlineTime(LocalDateTime.now().minusHours(2))
                 .glpRequestM3(20)
                 .position(new Position(20, 20))
                 .build();
@@ -263,7 +264,7 @@ class DashboardControllerTest {
         // Make sure the order is still pending (has not been fully delivered)
         // By default, remainingGlpM3 is set to glpRequestM3 in the Order builder
         
-        when(orderRepository.findByDueTimeBefore(any())).thenReturn(Collections.singletonList(overdueOrder));
+        when(orderRepository.findByDeadlineTimeBefore(any())).thenReturn(Collections.singletonList(overdueOrder));
         
         // Act
         Map<String, Object> health = dashboardController.getSystemHealth();

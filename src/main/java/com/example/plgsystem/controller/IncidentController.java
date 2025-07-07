@@ -3,7 +3,11 @@ package com.example.plgsystem.controller;
 import com.example.plgsystem.dto.IncidentCreateDTO;
 import com.example.plgsystem.dto.IncidentDTO;
 import com.example.plgsystem.model.Incident;
+import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.enums.IncidentType;
+import com.example.plgsystem.enums.Shift;
 import com.example.plgsystem.service.IncidentService;
+import com.example.plgsystem.service.VehicleService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +19,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
@@ -22,9 +28,11 @@ import java.util.stream.Collectors;
 public class IncidentController {
 
     private final IncidentService incidentService;
+    private final VehicleService vehicleService;
 
-    public IncidentController(IncidentService incidentService) {
+    public IncidentController(IncidentService incidentService, VehicleService vehicleService) {
         this.incidentService = incidentService;
+        this.vehicleService = vehicleService;
     }
 
     /**
@@ -32,14 +40,18 @@ public class IncidentController {
      */
     @PostMapping
     public ResponseEntity<IncidentDTO> create(@RequestBody IncidentCreateDTO createDTO) {
-        Incident incident = new Incident(
-                createDTO.getVehicleId(),
-                createDTO.getType(),
-                createDTO.getShift()
-        );
+        Optional<Vehicle> vehicleOpt = vehicleService.findById(createDTO.getVehicleId());
         
-        incident.setOccurrenceTime(createDTO.getOccurrenceTime() != null ? 
-                createDTO.getOccurrenceTime() : LocalDateTime.now());
+        if (vehicleOpt.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        
+        Vehicle vehicle = vehicleOpt.get();
+        LocalDateTime occurrenceTime = createDTO.getOccurrenceTime() != null ? 
+                createDTO.getOccurrenceTime() : LocalDateTime.now();
+                
+        Incident incident = new Incident(vehicle, createDTO.getType(), occurrenceTime);
+        
         incident.setLocation(createDTO.getLocation());
         incident.setTransferableGlp(createDTO.getTransferableGlp());
         
@@ -53,6 +65,8 @@ public class IncidentController {
     @GetMapping
     public ResponseEntity<?> list(
             @RequestParam(required = false) String vehicleId,
+            @RequestParam(required = false) IncidentType type,
+            @RequestParam(required = false) Shift shift,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam(required = false) Boolean resolved,
@@ -70,6 +84,10 @@ public class IncidentController {
                 incidents = incidentService.findByVehicleAndDateRange(vehicleId, startDate, endDate);
             } else if (vehicleId != null) {
                 incidents = incidentService.findByVehicleId(vehicleId);
+            } else if (type != null) {
+                incidents = incidentService.findByType(type);
+            } else if (shift != null) {
+                incidents = incidentService.findByShift(shift);
             } else if (startDate != null && endDate != null) {
                 incidents = incidentService.findByDateRange(startDate, endDate);
             } else if (resolved != null) {
@@ -98,6 +116,10 @@ public class IncidentController {
             incidentPage = incidentService.findByVehicleAndDateRangePaged(vehicleId, startDate, endDate, pageable);
         } else if (vehicleId != null) {
             incidentPage = incidentService.findByVehicleIdPaged(vehicleId, pageable);
+        } else if (type != null) {
+            incidentPage = incidentService.findByTypePaged(type, pageable);
+        } else if (shift != null) {
+            incidentPage = incidentService.findByShiftPaged(shift, pageable);
         } else if (startDate != null && endDate != null) {
             incidentPage = incidentService.findByDateRangePaged(startDate, endDate, pageable);
         } else if (resolved != null) {
@@ -113,7 +135,7 @@ public class IncidentController {
      * Obtener un incidente por ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<IncidentDTO> getById(@PathVariable Long id) {
+    public ResponseEntity<IncidentDTO> getById(@PathVariable UUID id) {
         return incidentService.findById(id)
                 .map(incident -> ResponseEntity.ok(IncidentDTO.fromEntity(incident)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -123,7 +145,7 @@ public class IncidentController {
      * Marcar un incidente como resuelto
      */
     @PatchMapping("/{id}/resolve")
-    public ResponseEntity<IncidentDTO> resolveIncident(@PathVariable Long id) {
+    public ResponseEntity<IncidentDTO> resolveIncident(@PathVariable UUID id) {
         return incidentService.resolveIncident(id)
                 .map(incident -> ResponseEntity.ok(IncidentDTO.fromEntity(incident)))
                 .orElseGet(() -> ResponseEntity.notFound().build());

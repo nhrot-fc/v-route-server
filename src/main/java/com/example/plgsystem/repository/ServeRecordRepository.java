@@ -8,9 +8,10 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
-public interface ServeRecordRepository extends JpaRepository<ServeRecord, Long> {
+public interface ServeRecordRepository extends JpaRepository<ServeRecord, UUID> {
     
     /**
      * Busca registros de entrega por ID de pedido

@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -62,7 +63,7 @@ public class BlockageRepositoryTest {
         entityManager.persist(blockage);
         entityManager.flush();
 
-        Long blockageId = blockage.getId();
+        UUID blockageId = blockage.getId();
 
         // When
         Optional<Blockage> found = blockageRepository.findById(blockageId);
@@ -119,7 +120,7 @@ public class BlockageRepositoryTest {
         entityManager.persist(blockage);
         entityManager.flush();
 
-        Long blockageId = blockage.getId();
+        UUID blockageId = blockage.getId();
         
         // When - Create a new blockage with updated times
         LocalDateTime newEnd = LocalDateTime.of(2025, 1, 1, 20, 0); // Extended end time
@@ -146,7 +147,7 @@ public class BlockageRepositoryTest {
         entityManager.persist(blockage);
         entityManager.flush();
 
-        Long blockageId = blockage.getId();
+        UUID blockageId = blockage.getId();
 
         // When
         blockageRepository.deleteById(blockageId);

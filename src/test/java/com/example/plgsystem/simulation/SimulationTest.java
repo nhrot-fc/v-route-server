@@ -1,6 +1,9 @@
 package com.example.plgsystem.simulation;
 
 import com.example.plgsystem.model.*;
+import com.example.plgsystem.enums.DepotType;
+import com.example.plgsystem.enums.SimulationStatus;
+import com.example.plgsystem.enums.SimulationType;
 import com.example.plgsystem.enums.VehicleType;
 import org.junit.jupiter.api.Test;
 
@@ -16,103 +19,100 @@ public class SimulationTest {
     public void testSimulationCreation() {
         // Given
         SimulationState state = createSampleSimulationState();
-        
+
         // When
         Simulation simulation = new Simulation(state);
-        
+
         // Then
         assertNotNull(simulation.getId());
         assertEquals(state, simulation.getState());
-        assertNotNull(simulation.getCreatedAt());
-        assertEquals(simulation.getCreatedAt(), simulation.getLastUpdated());
+        assertEquals(SimulationStatus.PAUSED, simulation.getStatus());
+        assertEquals(SimulationType.CUSTOM, simulation.getType());
     }
 
     @Test
-    public void testSimulationWithCustomFields() {
+    public void testSimulationWithSpecifiedType() {
         // Given
         SimulationState state = createSampleSimulationState();
-        String name = "Test Simulation";
-        String description = "A test simulation for unit testing";
-        
+
         // When
-        Simulation simulation = new Simulation(state, name, description);
-        
+        Simulation simulation = new Simulation(state, SimulationType.DAILY_OPERATIONS);
+
         // Then
-        assertEquals(name, simulation.getName());
-        assertEquals(description, simulation.getDescription());
+        assertEquals(SimulationType.DAILY_OPERATIONS, simulation.getType());
     }
 
     @Test
-    public void testUpdateSimulationState() {
+    public void testSimulationStatusManagement() {
         // Given
-        SimulationState originalState = createSampleSimulationState();
-        Simulation simulation = new Simulation(originalState);
-        LocalDateTime originalLastUpdated = simulation.getLastUpdated();
-        
-        // Pause to ensure timestamp will be different
-        try {
-            Thread.sleep(10);
-        } catch (InterruptedException e) {
-            // Ignore
-        }
-        
-        // When
-        SimulationState newState = createAnotherSimulationState();
-        simulation.setState(newState);
-        
-        // Then
-        assertEquals(newState, simulation.getState());
-        assertTrue(simulation.getLastUpdated().isAfter(originalLastUpdated));
+        SimulationState state = createSampleSimulationState();
+        Simulation simulation = new Simulation(state, SimulationType.CUSTOM);
+
+        // When & Then - Test start
+        simulation.start();
+        assertEquals(SimulationStatus.RUNNING, simulation.getStatus());
+        assertTrue(simulation.isRunning());
+
+        // When & Then - Test pause
+        simulation.pause();
+        assertEquals(SimulationStatus.PAUSED, simulation.getStatus());
+        assertTrue(simulation.isPaused());
+
+        // When & Then - Test finish
+        simulation.finish();
+        assertEquals(SimulationStatus.FINISHED, simulation.getStatus());
+        assertTrue(simulation.isFinished());
+        assertNotNull(simulation.getEndTime());
+
+        // When & Then - Test error
+        simulation.error();
+        assertEquals(SimulationStatus.ERROR, simulation.getStatus());
+        assertTrue(simulation.isError());
     }
 
     @Test
-    public void testUpdateNameAndDescription() {
+    public void testDailyOperationSimulation() {
         // Given
-        Simulation simulation = new Simulation(createSampleSimulationState());
-        String originalName = simulation.getName();
-        String originalDescription = simulation.getDescription();
-        LocalDateTime originalLastUpdated = simulation.getLastUpdated();
-        
-        // Pause to ensure timestamp will be different
-        try {
-            Thread.sleep(10);
-        } catch (InterruptedException e) {
-            // Ignore
-        }
-        
-        // When
-        String newName = "Updated Name";
-        String newDescription = "Updated Description";
-        simulation.setName(newName);
-        simulation.setDescription(newDescription);
-        
-        // Then
-        assertNotEquals(originalName, simulation.getName());
-        assertNotEquals(originalDescription, simulation.getDescription());
-        assertEquals(newName, simulation.getName());
-        assertEquals(newDescription, simulation.getDescription());
-        assertTrue(simulation.getLastUpdated().isAfter(originalLastUpdated));
+        SimulationState state = createSampleSimulationState();
+        Simulation simulation = new Simulation(state, SimulationType.DAILY_OPERATIONS);
+
+        // Start and check that it's running
+        simulation.start();
+        assertTrue(simulation.isRunning());
+
+        // Daily operations can't be paused
+        simulation.pause();
+        assertTrue(simulation.isRunning()); // Should still be running
+        assertFalse(simulation.isPaused()); // Should not be paused
+
+        // Daily operations can't be finished
+        simulation.finish();
+        assertTrue(simulation.isRunning()); // Should still be running
+        assertFalse(simulation.isFinished()); // Should not be finished
+
+        // But can be set to error
+        simulation.error();
+        assertTrue(simulation.isError());
     }
 
     @Test
-    public void testAdvanceTime() {
+    public void testDelegatedStateAccess() {
         // Given
         LocalDateTime initialTime = LocalDateTime.of(2025, 7, 5, 10, 0);
         SimulationState state = createSampleSimulationState(initialTime);
         Simulation simulation = new Simulation(state);
-        
-        // When
-        simulation.advanceTime(30); // advance 30 minutes
-        
-        // Then
-        LocalDateTime expectedTime = initialTime.plusMinutes(30);
-        assertEquals(expectedTime, state.getCurrentTime());
+
+        // Then - Check delegation works for state properties
+        assertEquals(initialTime, simulation.getCurrentTime());
+        assertEquals(state.getVehicles(), simulation.getVehicles());
+        assertEquals(state.getMainDepot(), simulation.getMainDepot());
+        assertEquals(state.getAuxDepots(), simulation.getAuxDepots());
     }
 
     private SimulationState createSampleSimulationState() {
         return createSampleSimulationState(LocalDateTime.now());
     }
-    
+
     private SimulationState createSampleSimulationState(LocalDateTime time) {
         List<Vehicle> vehicles = new ArrayList<>();
         Vehicle vehicle = Vehicle.builder()
@@ -121,36 +121,12 @@ public class SimulationTest {
                 .currentPosition(new Position(10, 20))
                 .build();
         vehicles.add(vehicle);
-        
-        Depot mainDepot = new Depot("MD001", new Position(0, 0), 10000, true);
-        
+
+        Depot mainDepot = new Depot("MD001", new Position(0, 0), 10000, DepotType.MAIN);
+
         List<Depot> auxDepots = new ArrayList<>();
-        auxDepots.add(new Depot("AD001", new Position(50, 50), 2000, false));
-        
+        auxDepots.add(new Depot("AD001", new Position(50, 50), 2000, DepotType.AUXILIARY));
+
         return new SimulationState(vehicles, mainDepot, auxDepots, time);
-    }
-    
-    private SimulationState createAnotherSimulationState() {
-        List<Vehicle> vehicles = new ArrayList<>();
-        Vehicle vehicle1 = Vehicle.builder()
-                .id("V001")
-                .type(VehicleType.TA)
-                .currentPosition(new Position(15, 25))
-                .build();
-        Vehicle vehicle2 = Vehicle.builder()
-                .id("V002")
-                .type(VehicleType.TB)
-                .currentPosition(new Position(30, 40))
-                .build();
-        vehicles.add(vehicle1);
-        vehicles.add(vehicle2);
-        
-        Depot mainDepot = new Depot("MD001", new Position(0, 0), 10000, true);
-        
-        List<Depot> auxDepots = new ArrayList<>();
-        auxDepots.add(new Depot("AD001", new Position(50, 50), 2000, false));
-        auxDepots.add(new Depot("AD002", new Position(70, 70), 1500, true));
-        
-        return new SimulationState(vehicles, mainDepot, auxDepots, LocalDateTime.now());
     }
 }

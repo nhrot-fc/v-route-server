@@ -105,14 +105,14 @@ public class VehicleTest {
         assertEquals(10, vehicle.getCurrentGlpM3());
         
         // When
-        vehicle.dispenseGlp(3);
+        vehicle.dispense(3);
         
         // Then
         assertEquals(7, vehicle.getCurrentGlpM3());
         
         // Test canDispenseGLP
-        assertTrue(vehicle.canDispenseGLP(5));
-        assertFalse(vehicle.canDispenseGLP(10));
+        assertTrue(vehicle.canDispense(5));
+        assertFalse(vehicle.canDispense(10));
     }
     
     @Test

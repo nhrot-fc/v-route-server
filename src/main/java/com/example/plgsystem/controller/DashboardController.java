@@ -72,7 +72,7 @@ public class DashboardController {
         // Order statistics
         List<Order> pendingOrders = orderRepository.findPendingDeliveries();
         List<Order> completedOrders = orderRepository.findByRemainingGlpM3(0);
-        List<Order> overdueOrders = orderRepository.findByDueTimeBefore(now)
+        List<Order> overdueOrders = orderRepository.findByDeadlineTimeBefore(now)
             .stream()
             .filter(order -> order.getRemainingGlpM3() > 0)
             .collect(Collectors.toList());
@@ -172,8 +172,8 @@ public class DashboardController {
         LocalDateTime deadline = now.plusHours(hoursAhead);
         
         return orderRepository.findPendingDeliveries().stream()
-                .filter(order -> order.getDueTime().isBefore(deadline) && order.getDueTime().isAfter(now))
-                .sorted((o1, o2) -> o1.getDueTime().compareTo(o2.getDueTime()))
+                .filter(order -> order.getDeadlineTime().isBefore(deadline) && order.getDeadlineTime().isAfter(now))
+                .sorted((o1, o2) -> o1.getDeadlineTime().compareTo(o2.getDeadlineTime()))
                 .collect(Collectors.toList());
     }
 
@@ -201,7 +201,7 @@ public class DashboardController {
             .filter(incident -> !incident.isResolved())
             .collect(Collectors.toList()).size();
             
-        int overdueOrders = orderRepository.findByDueTimeBefore(now).stream()
+        int overdueOrders = orderRepository.findByDeadlineTimeBefore(now).stream()
             .filter(order -> order.getRemainingGlpM3() > 0)
             .collect(Collectors.toList()).size();
         

@@ -9,7 +9,7 @@ import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.enums.VehicleStatus;
-import com.example.plgsystem.assignation.DeliveryInstruction;
+import com.example.plgsystem.assignation.DeliveryPart;
 
 /**
  * Represents a plan of actions for a vehicle to execute during the simulation.
@@ -18,14 +18,14 @@ public class VehiclePlan {
     private final Vehicle vehicle;
     private final List<Action> actions;
     private final LocalDateTime planCreationTime;
-    private final List<DeliveryInstruction> instructions;
+    private final List<DeliveryPart> instructions;
     private final LocalDateTime startTime;
     private final List<Order> servedOrders;
     private final double totalDistanceKm;
     private final double totalGlpDeliveredM3;
     private final double totalFuelConsumedGal;
 
-    public VehiclePlan(Vehicle vehicle, List<Action> actions, List<DeliveryInstruction> instructions) {
+    public VehiclePlan(Vehicle vehicle, List<Action> actions, List<DeliveryPart> instructions) {
         this.vehicle = vehicle;
         this.actions = new ArrayList<>(actions);
         this.planCreationTime = LocalDateTime.now();
@@ -89,7 +89,7 @@ public class VehiclePlan {
      * 
      * @return An unmodifiable list of delivery instructions
      */
-    public List<DeliveryInstruction> getInstructions() {
+    public List<DeliveryPart> getInstructions() {
         return Collections.unmodifiableList(instructions);
     }
 

@@ -1,261 +1,192 @@
 package com.example.plgsystem.assignation;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import com.example.plgsystem.model.Order;
-import com.example.plgsystem.model.Position;
-import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.model.*;
+import com.example.plgsystem.pathfinding.PathFinder;
 import com.example.plgsystem.simulation.SimulationState;
 
-/**
- * Esta clase se encarga de evaluar la calidad de una solución asignación
- * basándose en criterios como entrega completa de órdenes, cumplimiento de plazos
- * y minimización de distancias.
- */
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.*;
+
 public class SolutionEvaluator {
-    
-    // Recompensas y penalizaciones para el score
-    private static final double ORDER_DELIVERED_REWARD = 1000.0;      // Recompensa base por cada orden entregada
-    private static final double ON_TIME_DELIVERY_BONUS = 500.0;       // Bonus adicional por entrega a tiempo
-    private static final double EARLY_DELIVERY_BONUS_PER_MINUTE = 1.0; // Bonus adicional por cada minuto de anticipación (hasta un máximo)
-    private static final int MAX_EARLY_BONUS_MINUTES = 30;            // Límite de minutos para bonus por anticipación
-    
     // Penalizaciones
-    private static final double INCOMPLETE_ORDER_PENALTY = 2000.0;    // Penalización por orden incompleta
-    private static final double LATE_DELIVERY_PENALTY_PER_MINUTE = 10.0; // Penalización por minuto de retraso
-    private static final double LATE_PENALTY_EXPONENT = 1.5;          // Exponente para penalización por retraso
-    private static final double DISTANCE_PENALTY_PER_KM = 0.5;        // Pequeña penalización por km recorrido
-    
-    // Constructor privado para evitar instanciación
-    private SolutionEvaluator() {}
-    
-    /**
-     * Evalúa una solución asignando un score (mayor es mejor)
-     * @param solution La solución a evaluar
-     * @param environment El entorno con información de órdenes y vehículos
-     * @return Un score donde mayor valor indica mejor solución
-     */
-    public static double evaluateSolution(Solution solution, SimulationState environment) {
-        // Obtener información de órdenes pendientes y asignaciones una sola vez
-        Map<String, Order> pendingOrdersMap = getPendingOrdersMap(environment);
-        Map<String, Integer> assignedGlpByOrderId = getAssignedGlpByOrderId(solution);
-        
-        double reward = calculateCompletedOrdersReward(pendingOrdersMap, assignedGlpByOrderId);
-        double timeBonus = calculateTimeBonus(solution, environment);
-        double incompletePenalty = calculateIncompletePenalty(pendingOrdersMap, assignedGlpByOrderId);
-        double distancePenalty = calculateDistancePenalty(solution);
-        
-        double totalScore = reward + timeBonus - incompletePenalty - distancePenalty;
-        
-        // Verificar si hay órdenes pendientes no atendidas
-        Set<String> pendingOrdersNotCovered = checkForMissingOrders(pendingOrdersMap.keySet(), assignedGlpByOrderId.keySet());
-        if (!pendingOrdersNotCovered.isEmpty()) {
-            System.err.printf("Warning: %d pending orders not covered in solution: %s%n", 
-                    pendingOrdersNotCovered.size(), pendingOrdersNotCovered);
-            totalScore -= pendingOrdersNotCovered.size() * INCOMPLETE_ORDER_PENALTY * 2; // Doble penalización
+    private static final double INCOMPLETE_ORDER_PENALTY = 5000.0;
+    private static final double LATE_DELIVERY_PENALTY = 5000.0;
+    private static final double DISTANCE_PENALTY_PER_KM = 0.01;
+
+    private static final int DELIVER_SERVICE_TIME_MIN = Constants.GLP_SERVE_DURATION_MINUTES;
+    private static final int LOAD_SERVICE_TIME_MIN = Constants.VEHICLE_GLP_TRANSFER_DURATION_MINUTES;
+
+    public static Solution evaluate(Solution solution, SimulationState state) {
+        Map<String, Integer> ordersState = new HashMap<>(solution.getOrdersState());
+        Map<String, Integer> depotsState = new HashMap<>(solution.getDepotsState());
+        Map<String, Route> routes = solution.getRoutes();
+
+        double totalCost = 0;
+        boolean isFeasible = true;
+
+        for (String vehicleId : routes.keySet()) {
+            Vehicle vehicle = state.getVehicleById(vehicleId);
+            if (vehicle == null) {
+                return createInfeasibleSolution(solution);
+            }
+
+            Route route = routes.get(vehicleId);
+            double routeCost = evaluateRoute(route, vehicle, state, ordersState, depotsState);
+
+            if (routeCost == Double.POSITIVE_INFINITY) {
+                isFeasible = false;
+                break;
+            }
+
+            totalCost += routeCost;
         }
-        
-        return totalScore;
-    }
-    
-    /**
-     * Obtiene un mapa de todas las órdenes pendientes por ID
-     */
-    private static Map<String, Order> getPendingOrdersMap(SimulationState environment) {
-        Map<String, Order> pendingOrdersMap = new HashMap<>();
-        for (Order order : environment.getPendingOrders()) {
-            pendingOrdersMap.put(order.getId(), order);
-        }
-        return pendingOrdersMap;
-    }
-    
-    /**
-     * Obtiene un mapa con la cantidad de GLP asignada por ID de orden
-     */
-    private static Map<String, Integer> getAssignedGlpByOrderId(Solution solution) {
-        Map<String, Integer> assignedGlpByOrderId = new HashMap<>();
-        Map<Vehicle, List<DeliveryInstruction>> assignments = solution.getVehicleOrderAssignments();
-        
-        for (List<DeliveryInstruction> instructions : assignments.values()) {
-            for (DeliveryInstruction instruction : instructions) {
-                String orderId = instruction.getOrderId();
-                assignedGlpByOrderId.put(orderId, 
-                    assignedGlpByOrderId.getOrDefault(orderId, 0) + instruction.getGlpAmountToDeliver());
+
+        for (Map.Entry<String, Integer> entry : ordersState.entrySet()) {
+            int remaining = entry.getValue();
+            if (remaining > 0) {
+                totalCost += remaining * INCOMPLETE_ORDER_PENALTY;
             }
         }
-        
-        return assignedGlpByOrderId;
-    }
-    
-    /**
-     * Verifica si hay órdenes pendientes que no estén incluidas en la solución
-     */
-    private static Set<String> checkForMissingOrders(Set<String> pendingOrderIds, Set<String> assignedOrderIds) {
-        Set<String> missingOrderIds = new HashSet<>(pendingOrderIds);
-        missingOrderIds.removeAll(assignedOrderIds);
-        return missingOrderIds;
-    }
-    
-    /**
-     * Calcula la recompensa base por órdenes completadas
-     */
-    private static double calculateCompletedOrdersReward(Map<String, Order> pendingOrdersMap, Map<String, Integer> assignedGlpByOrderId) {
-        double reward = 0.0;
-        
-        for (Map.Entry<String, Order> entry : pendingOrdersMap.entrySet()) {
-            String orderId = entry.getKey();
-            Order order = entry.getValue();
-            int required = order.getRemainingGlpM3();
-            int assigned = assignedGlpByOrderId.getOrDefault(orderId, 0);
-            
-            if (assigned >= required) {
-                reward += ORDER_DELIVERED_REWARD;
-            } else if (assigned > 0) {
-                // Recompensa parcial proporcional a la cantidad asignada
-                double completionRatio = (double) assigned / required;
-                reward += ORDER_DELIVERED_REWARD * completionRatio * 0.5; // Solo 50% de la recompensa si es parcial
-            }
+
+        if (!isFeasible) {
+            return createInfeasibleSolution(solution);
         }
-        
-        return reward;
+
+        return new Solution(ordersState, depotsState, routes, totalCost);
     }
-    
-    /**
-     * Calcula bonus por entrega a tiempo o anticipada
-     */
-    private static double calculateTimeBonus(Solution solution, SimulationState environment) {
-        double totalBonus = 0.0;
-        LocalDateTime now = environment.getCurrentTime();
-        Map<Vehicle, List<DeliveryInstruction>> assignments = solution.getVehicleOrderAssignments();
 
-        for (Map.Entry<Vehicle, List<DeliveryInstruction>> entry : assignments.entrySet()) {
-            Vehicle vehicle = entry.getKey();
-            List<DeliveryInstruction> instructions = entry.getValue();
+    private static double evaluateRoute(Route route, Vehicle vehicle, SimulationState state,
+            Map<String, Integer> ordersState, Map<String, Integer> depotsState) {
+        List<RouteStop> stops = route.getStops();
+        if (stops.isEmpty()) {
+            return 0.0;
+        }
 
-            Position currentPosition = vehicle.getCurrentPosition();
-            double travelTimeMinutes = 0.0;
+        double routeCost = 0.0;
+        int currentGlp = vehicle.getCurrentGlpM3();
+        double currentFuel = vehicle.getCurrentFuelGal();
+        Position currentPosition = vehicle.getCurrentPosition();
+        LocalDateTime currentTime = route.getStartTime();
 
-            for (DeliveryInstruction instruction : instructions) {
-                double distance = currentPosition.distanceTo(instruction.getCustomerPosition());
-                double travelTimeForThisLeg = (distance / 60.0) * 60.0; // Convertir a minutos
-                travelTimeMinutes += travelTimeForThisLeg;
+        for (RouteStop stop : stops) {
+            Position targetPosition;
 
-                LocalDateTime estimatedArrival = now.plusMinutes((long) travelTimeMinutes);
-                LocalDateTime dueDate = instruction.getDueDate();
+            if (stop.isOrderStop()) {
+                Order order = state.getOrderById(stop.getOrderId());
+                if (order == null) {
+                    return Double.POSITIVE_INFINITY;
+                }
+                targetPosition = order.getPosition();
+            } else {
+                Depot depot = state.getDepotById(stop.getDepotId());
+                if (depot == null) {
+                    return Double.POSITIVE_INFINITY;
+                }
+                targetPosition = depot.getPosition();
+            }
 
-                if (estimatedArrival.isBefore(dueDate) || estimatedArrival.isEqual(dueDate)) {
-                    // Entrega a tiempo - otorgar bonus base
-                    totalBonus += ON_TIME_DELIVERY_BONUS;
-                    
-                    // Bonus adicional por entrega anticipada
-                    long minutesEarly = java.time.Duration.between(estimatedArrival, dueDate).toMinutes();
-                    totalBonus += Math.min(minutesEarly, MAX_EARLY_BONUS_MINUTES) * EARLY_DELIVERY_BONUS_PER_MINUTE;
+            List<Position> path = PathFinder.findPath(state, currentPosition, targetPosition, currentTime);
+            if (path == null || path.isEmpty()) {
+                return Double.POSITIVE_INFINITY; // No hay camino posible (error crítico)
+            }
+
+            double distance = path.size() - 1;
+
+            routeCost += distance * DISTANCE_PENALTY_PER_KM;
+
+            double fuelNeeded = vehicle.calculateFuelNeeded(distance);
+            if (fuelNeeded > currentFuel) {
+                return Double.POSITIVE_INFINITY; // No hay suficiente combustible (error crítico)
+            }
+
+            currentFuel -= fuelNeeded;
+
+            Duration travelTime = Duration.ofSeconds(
+                    (long) (distance / Constants.VEHICLE_AVG_SPEED * 3600));
+            currentTime = currentTime.plus(travelTime);
+
+            if (stop.isOrderStop() && stop.getOrderDeadlineTime() != null &&
+                    currentTime.isAfter(stop.getOrderDeadlineTime())) {
+                routeCost += LATE_DELIVERY_PENALTY;
+            }
+
+            if (stop.isOrderStop()) {
+                int glpToDeliver = stop.getGlpDeliverM3();
+
+                if (glpToDeliver > currentGlp) {
+                    int glpDelivered = currentGlp;
+                    currentGlp = 0;
+                    String orderId = stop.getOrderId();
+                    int remaining = ordersState.getOrDefault(orderId, 0) - glpDelivered;
+                    ordersState.put(orderId, remaining);
                 } else {
-                    // Entrega tardía - penalización
-                    long minutesLate = java.time.Duration.between(dueDate, estimatedArrival).toMinutes();
-                    double penalty = Math.pow(minutesLate, LATE_PENALTY_EXPONENT) * LATE_DELIVERY_PENALTY_PER_MINUTE;
-                    totalBonus -= penalty; // Resta de la bonificación total
+                    currentGlp -= glpToDeliver;
+
+                    String orderId = stop.getOrderId();
+                    int remaining = ordersState.getOrDefault(orderId, 0) - glpToDeliver;
+                    ordersState.put(orderId, Math.max(0, remaining));
                 }
 
-                currentPosition = instruction.getCustomerPosition();
+                currentTime = currentTime.plusMinutes(DELIVER_SERVICE_TIME_MIN);
+            } else {
+                String depotId = stop.getDepotId();
+                int glpToLoad = stop.getGlpLoadM3();
+
+                Depot depot = state.getDepotById(depotId);
+                if (!depot.isMain()) {
+                    int depotGlp = depotsState.getOrDefault(depotId, 0);
+
+                    if (depotGlp < glpToLoad) {
+                        int glpAvailable = depotGlp;
+
+                        depotsState.put(depotId, 0);
+
+                        int capacityRemaining = vehicle.getGlpCapacityM3() - currentGlp;
+                        int actualLoad = Math.min(glpAvailable, capacityRemaining);
+                        currentGlp += actualLoad;
+
+                        // Penalizamos la cantidad de GLP que no se pudo cargar
+                        routeCost += (glpToLoad - glpAvailable) * 5.0;
+                    } else {
+                        depotsState.put(depotId, depotGlp - glpToLoad);
+
+                        int capacityRemaining = vehicle.getGlpCapacityM3() - currentGlp;
+                        int actualLoad = Math.min(glpToLoad, capacityRemaining);
+                        currentGlp += actualLoad;
+
+                        if (actualLoad < glpToLoad) {
+                            // Penalizamos la cantidad de GLP que no se pudo cargar
+                            routeCost += (glpToLoad - actualLoad) * 2.0;
+                        }
+                    }
+                } else {
+                    int capacityRemaining = vehicle.getGlpCapacityM3() - currentGlp;
+                    int actualLoad = Math.min(glpToLoad, capacityRemaining);
+                    currentGlp += actualLoad;
+
+                    if (actualLoad < glpToLoad) {
+                        // Penalizamos la cantidad de GLP que no se pudo cargar
+                        routeCost += (glpToLoad - actualLoad) * 2.0;
+                    }
+                }
+                currentFuel = vehicle.getFuelCapacityGal();
+                currentTime = currentTime.plusMinutes(LOAD_SERVICE_TIME_MIN);
             }
+            currentPosition = targetPosition;
         }
 
-        return totalBonus;
+        return routeCost;
     }
-    
+
     /**
-     * Calcula penalización por órdenes incompletas
+     * Crea una solución infactible con costo infinito
      */
-    private static double calculateIncompletePenalty(Map<String, Order> pendingOrdersMap, Map<String, Integer> assignedGlpByOrderId) {
-        double penalty = 0.0;
-        
-        for (Map.Entry<String, Order> entry : pendingOrdersMap.entrySet()) {
-            String orderId = entry.getKey();
-            Order order = entry.getValue();
-            int required = order.getRemainingGlpM3();
-            int assigned = assignedGlpByOrderId.getOrDefault(orderId, 0);
-            
-            if (assigned < required) {
-                // Penalización proporcional a la cantidad no asignada
-                double missingRatio = (double)(required - assigned) / required;
-                penalty += INCOMPLETE_ORDER_PENALTY * missingRatio * missingRatio; // Penalización cuadrática
-            }
-        }
-        
-        return penalty;
+    private static Solution createInfeasibleSolution(Solution originalSolution) {
+        return new Solution(
+                originalSolution.getOrdersState(),
+                originalSolution.getDepotsState(),
+                originalSolution.getRoutes(),
+                Double.POSITIVE_INFINITY);
     }
-    
-    /**
-     * Calcula penalización por distancia recorrida
-     */
-    private static double calculateDistancePenalty(Solution solution) {
-        return solution.getTotalDistance() * DISTANCE_PENALTY_PER_KM;
-    }
-    
-    /**
-     * Obtiene un resumen detallado de la evaluación
-     */
-    public static String getDetailedEvaluation(Solution solution, SimulationState environment) {
-        // Obtener información de órdenes pendientes y asignaciones una sola vez
-        Map<String, Order> pendingOrdersMap = getPendingOrdersMap(environment);
-        Map<String, Integer> assignedGlpByOrderId = getAssignedGlpByOrderId(solution);
-        
-        double reward = calculateCompletedOrdersReward(pendingOrdersMap, assignedGlpByOrderId);
-        double timeBonus = calculateTimeBonus(solution, environment);
-        double incompletePenalty = calculateIncompletePenalty(pendingOrdersMap, assignedGlpByOrderId);
-        double distancePenalty = calculateDistancePenalty(solution);
-        
-        double totalScore = reward + timeBonus - incompletePenalty - distancePenalty;
-        
-        // Verificar órdenes perdidas
-        Set<String> missingOrders = checkForMissingOrders(pendingOrdersMap.keySet(), assignedGlpByOrderId.keySet());
-        double missingOrdersPenalty = !missingOrders.isEmpty() ? 
-            missingOrders.size() * INCOMPLETE_ORDER_PENALTY * 2 : 0;
-            
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("Solution Evaluation (higher is better):\n"));
-        sb.append(String.format("- Total pending orders: %d\n", pendingOrdersMap.size()));
-        sb.append(String.format("- Total orders in solution: %d\n", assignedGlpByOrderId.size()));
-        sb.append(String.format("- Delivery Coverage: %.1f%%\n", 
-                calculateOrderCoveragePercentage(pendingOrdersMap, assignedGlpByOrderId)));
-        sb.append(String.format("- Completed Orders Reward: +%.2f\n", reward));
-        sb.append(String.format("- Time Delivery Bonus: +%.2f\n", timeBonus));
-        sb.append(String.format("- Incomplete Orders Penalty: -%.2f\n", incompletePenalty));
-        sb.append(String.format("- Distance Penalty (%.2f km): -%.2f\n", 
-                solution.getTotalDistance(), distancePenalty));
-                
-        if (!missingOrders.isEmpty()) {
-            sb.append(String.format("- Missing Orders Penalty (%d orders): -%.2f\n", 
-                    missingOrders.size(), missingOrdersPenalty));
-            sb.append(String.format("- Missing Order IDs: %s\n", missingOrders));
-        }
-        
-        sb.append(String.format("- Total Score: %.2f\n", totalScore - missingOrdersPenalty));
-        
-        return sb.toString();
-    }
-    
-    /**
-     * Calcula el porcentaje de cobertura de órdenes
-     */
-    private static double calculateOrderCoveragePercentage(Map<String, Order> pendingOrdersMap, Map<String, Integer> assignedGlpByOrderId) {
-        if (pendingOrdersMap.isEmpty()) {
-            return 100.0; // No hay órdenes pendientes
-        }
-        
-        int covered = 0;
-        for (String orderId : assignedGlpByOrderId.keySet()) {
-            if (pendingOrdersMap.containsKey(orderId)) {
-                covered++;
-            }
-        }
-        
-        return (covered * 100.0) / pendingOrdersMap.size();
-    }
-} 
+}

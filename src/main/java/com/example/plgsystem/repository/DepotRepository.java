@@ -1,6 +1,7 @@
 package com.example.plgsystem.repository;
 
 import com.example.plgsystem.model.Depot;
+import com.example.plgsystem.enums.DepotType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,14 +13,28 @@ import java.util.List;
 public interface DepotRepository extends JpaRepository<Depot, String> {
 
     /**
-     * Filtro para listar depósitos por capacidad de recarga
+     * Filtro para listar depósitos por tipo
      */
-    List<Depot> findByCanRefuel(boolean canRefuel);
+    List<Depot> findByType(DepotType type);
     
     /**
-     * Filtro para listar depósitos por capacidad de recarga (paginado)
+     * Filtro para listar depósitos por tipo (paginado)
      */
-    Page<Depot> findByCanRefuel(boolean canRefuel, Pageable pageable);
+    Page<Depot> findByType(DepotType type, Pageable pageable);
+    
+    /**
+     * Filtro para listar depósitos principales
+     */
+    default List<Depot> findMainDepots() {
+        return findByType(DepotType.MAIN);
+    }
+    
+    /**
+     * Filtro para listar depósitos auxiliares
+     */
+    default List<Depot> findAuxiliaryDepots() {
+        return findByType(DepotType.AUXILIARY);
+    }
     
     /**
      * Filtro para listar depósitos por capacidad de GLP

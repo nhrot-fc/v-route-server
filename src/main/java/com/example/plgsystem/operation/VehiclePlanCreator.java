@@ -1,6 +1,6 @@
 package com.example.plgsystem.operation;
 
-import com.example.plgsystem.assignation.DeliveryInstruction;
+import com.example.plgsystem.assignation.DeliveryPart;
 import com.example.plgsystem.exceptions.InsufficientFuelException;
 import com.example.plgsystem.exceptions.NoPathFoundException;
 import com.example.plgsystem.model.*;
@@ -238,7 +238,7 @@ public class VehiclePlanCreator {
      * @param instructions The delivery instructions to include in the plan
      * @return A vehicle plan, or null if the plan could not be created
      */
-    public static VehiclePlan createPlan(SimulationState environment, Vehicle vehicle, List<DeliveryInstruction> instructions) {
+    public static VehiclePlan createPlan(SimulationState environment, Vehicle vehicle, List<DeliveryPart> instructions) {
         if (vehicle == null || instructions == null || instructions.isEmpty()) {
             return null;
         }
@@ -295,6 +295,6 @@ public class VehiclePlanCreator {
                 .filter(depot -> depot.getCurrentGlpM3() >= glpNeeded)
                 .min((d1, d2) -> Double.compare(currentPosition.distanceTo(d1.getPosition()),
                         currentPosition.distanceTo(d2.getPosition())))
-                .orElse(mainDepot).clone();
+                .orElse(mainDepot);
     }
 }

@@ -1,5 +1,6 @@
 package com.example.plgsystem.repository;
 
+import com.example.plgsystem.enums.DepotType;
 import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.model.Position;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,7 @@ public class DepotRepositoryTest {
     public void testSaveAndFindById() {
         // Given
         Position position = new Position(10, 20);
-        Depot depot = new Depot("D001", position, 1000, true);
+        Depot depot = new Depot("D001", position, 1000, DepotType.MAIN);
 
         // When
         depotRepository.save(depot);
@@ -35,15 +36,15 @@ public class DepotRepositoryTest {
         assertEquals(position.getX(), foundDepot.get().getPosition().getX());
         assertEquals(position.getY(), foundDepot.get().getPosition().getY());
         assertEquals(1000, foundDepot.get().getGlpCapacityM3());
-        assertTrue(foundDepot.get().isCanRefuel());
+        assertTrue(foundDepot.get().isMain());
     }
 
     @Test
     public void testFindAll() {
         // Given
-        Depot depot1 = new Depot("D001", new Position(10, 20), 1000, true);
-        Depot depot2 = new Depot("D002", new Position(30, 40), 2000, false);
-        
+        Depot depot1 = new Depot("D001", new Position(10, 20), 1000, DepotType.MAIN);
+        Depot depot2 = new Depot("D002", new Position(30, 40), 2000, DepotType.AUXILIARY);
+
         depotRepository.save(depot1);
         depotRepository.save(depot2);
 
@@ -57,7 +58,7 @@ public class DepotRepositoryTest {
     @Test
     public void testDeleteById() {
         // Given
-        Depot depot = new Depot("D001", new Position(10, 20), 1000, true);
+        Depot depot = new Depot("D001", new Position(10, 20), 1000, DepotType.MAIN);
         depotRepository.save(depot);
 
         // When
@@ -69,18 +70,18 @@ public class DepotRepositoryTest {
     }
 
     @Test
-    public void testFindByCanRefuel() {
+    public void testFindByType() {
         // Given
-        Depot depot1 = new Depot("D001", new Position(10, 20), 1000, true);
-        Depot depot2 = new Depot("D002", new Position(30, 40), 2000, false);
-        Depot depot3 = new Depot("D003", new Position(50, 60), 1500, true);
-        
+        Depot depot1 = new Depot("D001", new Position(10, 20), 1000, DepotType.MAIN);
+        Depot depot2 = new Depot("D002", new Position(30, 40), 2000, DepotType.AUXILIARY);
+        Depot depot3 = new Depot("D003", new Position(50, 60), 1500, DepotType.MAIN);
+
         depotRepository.saveAll(List.of(depot1, depot2, depot3));
 
-        // When - assuming there's a finder method for this property
-        List<Depot> refuelingDepots = depotRepository.findByCanRefuel(true);
+        // When
+        List<Depot> mainDepots = depotRepository.findByType(DepotType.MAIN);
 
         // Then
-        assertEquals(2, refuelingDepots.size());
+        assertEquals(2, mainDepots.size());
     }
 }

@@ -4,9 +4,7 @@ import com.example.plgsystem.dto.DeliveryRecordDTO;
 import com.example.plgsystem.dto.OrderDTO;
 import com.example.plgsystem.dto.ServeRecordDTO;
 import com.example.plgsystem.model.Order;
-import com.example.plgsystem.model.ServeRecord;
 import com.example.plgsystem.service.OrderService;
-import com.example.plgsystem.service.ServeRecordService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,11 +24,9 @@ import java.util.stream.Collectors;
 public class OrderController {
 
     private final OrderService orderService;
-    private final ServeRecordService serveRecordService;
 
-    public OrderController(OrderService orderService, ServeRecordService serveRecordService) {
+    public OrderController(OrderService orderService) {
         this.orderService = orderService;
-        this.serveRecordService = serveRecordService;
     }
 
     /**
@@ -56,13 +52,11 @@ public class OrderController {
                 .map(existingOrder -> {
                     Order order = orderDTO.toEntity();
                     // En lugar de usar setId, construimos un nuevo objeto con el ID correcto
-                    Order orderWithCorrectId = Order.builder()
-                            .id(id)
-                            .arriveTime(order.getArriveTime())
-                            .dueTime(order.getDueTime())
-                            .glpRequestM3(order.getGlpRequestM3())
-                            .position(order.getPosition())
-                            .build();
+                    Order orderWithCorrectId = new Order(id,
+                            order.getArrivalTime(),
+                            order.getDeadlineTime(),
+                            order.getGlpRequestM3(),
+                            order.getPosition());
                     orderWithCorrectId.setRemainingGlpM3(order.getRemainingGlpM3());
                     Order updatedOrder = orderService.save(orderWithCorrectId);
                     return ResponseEntity.ok(OrderDTO.fromEntity(updatedOrder));
@@ -93,11 +87,11 @@ public class OrderController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "asc") String direction) {
-        
+
         // Si paginated es null o false, devolvemos todos los resultados sin paginar
         if (paginated == null || !paginated) {
             List<Order> orders;
-            
+
             if (Boolean.TRUE.equals(pending)) {
                 // Filtrar por pedidos pendientes
                 orders = orderService.findPendingDeliveries();
@@ -111,23 +105,21 @@ public class OrderController {
                 // Sin filtros, retornar todos
                 orders = orderService.findAll();
             }
-            
+
             List<OrderDTO> orderDTOs = orders.stream()
                     .map(OrderDTO::fromEntity)
                     .collect(Collectors.toList());
-                    
+
             return ResponseEntity.ok(orderDTOs);
         }
-        
+
         // Si paginated es true, devolvemos resultados paginados
-        Sort sort = direction.equalsIgnoreCase("desc") ? 
-                Sort.by(sortBy).descending() : 
-                Sort.by(sortBy).ascending();
-        
+        Sort sort = direction.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+
         Pageable pageable = PageRequest.of(page, size, sort);
-        
+
         Page<Order> orderPage;
-        
+
         if (Boolean.TRUE.equals(pending)) {
             // Filtrar por pedidos pendientes
             orderPage = orderService.findPendingDeliveriesPaged(pageable);
@@ -141,7 +133,7 @@ public class OrderController {
             // Sin filtros, retornar todos
             orderPage = orderService.findAllPaged(pageable);
         }
-        
+
         return ResponseEntity.ok(orderPage.map(OrderDTO::fromEntity));
     }
 
@@ -157,7 +149,7 @@ public class OrderController {
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
-    
+
     /**
      * Registrar entrega de un pedido
      */
@@ -165,18 +157,23 @@ public class OrderController {
     public ResponseEntity<ServeRecordDTO> recordDelivery(
             @PathVariable String id,
             @RequestBody DeliveryRecordDTO deliveryRecord) {
-        
-        LocalDateTime deliveryTime = deliveryRecord.getServeDate() != null ? 
-                deliveryRecord.getServeDate() : LocalDateTime.now();
-        
+
+        LocalDateTime deliveryTime = deliveryRecord.getServeDate() != null ? deliveryRecord.getServeDate()
+                : LocalDateTime.now();
+
         return orderService.recordDelivery(
-                id, 
-                deliveryRecord.getVolumeM3(), 
-                deliveryRecord.getVehicleId(), 
+                id,
+                deliveryRecord.getVolumeM3(),
+                deliveryRecord.getVehicleId(),
                 deliveryTime)
                 .map(serveRecord -> {
-                    ServeRecord savedRecord = serveRecordService.save(serveRecord);
-                    return ResponseEntity.ok(ServeRecordDTO.fromEntity(savedRecord));
+                    ServeRecordDTO dto = new ServeRecordDTO();
+                    dto.setId(serveRecord.getId());
+                    dto.setVehicleId(serveRecord.getVehicle().getId());
+                    dto.setOrderId(serveRecord.getOrder().getId());
+                    dto.setGlpVolumeM3(serveRecord.getGlpVolumeM3());
+                    dto.setServeDate(serveRecord.getServeDate());
+                    return ResponseEntity.ok(dto);
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

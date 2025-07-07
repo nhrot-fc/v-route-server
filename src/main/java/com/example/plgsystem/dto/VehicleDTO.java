@@ -23,7 +23,6 @@ public class VehicleDTO {
     private double currentFuelGal;
     private VehicleStatus status;
     
-    // Conversión desde entidad a DTO
     public static VehicleDTO fromEntity(Vehicle vehicle) {
         return VehicleDTO.builder()
                 .id(vehicle.getId())
@@ -36,16 +35,12 @@ public class VehicleDTO {
                 .status(vehicle.getStatus())
                 .build();
     }
-    
-    // Conversión desde DTO a entidad
+
     public Vehicle toEntity() {
-        Vehicle vehicle = Vehicle.builder()
+        return Vehicle.builder()
                 .id(id)
                 .type(type)
                 .currentPosition(currentPosition)
                 .build();
-                
-        // La entidad maneja automáticamente estos valores al inicializar
-        return vehicle;
     }
 }

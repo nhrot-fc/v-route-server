@@ -1,7 +1,7 @@
 package com.example.plgsystem.orchest;
 
-import com.example.plgsystem.assignation.DeliveryInstruction;
-import com.example.plgsystem.assignation.MetaheuristicAssignator;
+import com.example.plgsystem.assignation.DeliveryPart;
+import com.example.plgsystem.assignation.MetaheuristicSolver;
 import com.example.plgsystem.assignation.Solution;
 import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.model.Order;
@@ -14,6 +14,7 @@ import com.example.plgsystem.operation.VehiclePlan;
 import com.example.plgsystem.operation.VehiclePlanCreator;
 import com.example.plgsystem.simulation.SimulationState;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.logging.Logger;
@@ -28,9 +29,6 @@ public class Orchestrator {
 
     private List<Event> eventQueue;
 
-    private AlgorithmConfig config;
-    private SimulationStats stats;
-
     private boolean needsReplanning;
 
     // Tick counter for replanning
@@ -43,8 +41,6 @@ public class Orchestrator {
         this.simulationTime = environment.getCurrentTime();
         this.simulationRunning = false;
         this.eventQueue = new ArrayList<>();
-        this.config = AlgorithmConfig.createDefault();
-        this.stats = new SimulationStats();
         this.needsReplanning = false;
         this.tickCounter = 0;
         this.ticksPerReplan = 60;
@@ -95,18 +91,16 @@ public class Orchestrator {
         boolean tickBasedReplanning = tickCounter >= ticksPerReplan;
 
         // Perform replanning if needed and there are vehicles available
-        if ((needsReplanning || tickBasedReplanning) && !environment.getAvailableVehicles().isEmpty()) {
+        if ((needsReplanning || tickBasedReplanning)) {
             replanVehicles();
             needsReplanning = false;
             tickCounter = 0; // Reset tick counter after replanning
-            stats.incrementTotalReplans(); // Update stats
         }
 
         // Advance simulation time
         advanceSimulation();
 
-        return simulationRunning
-                && simulationTime.isBefore(environment.getCurrentTime().plusDays(config.getSimulationMaxDays()));
+        return simulationRunning;
     }
 
     /**
@@ -136,7 +130,6 @@ public class Orchestrator {
                     Order order = event.getData();
                     environment.addOrder(order);
                     logger.info("Added new order to environment: " + order.getId());
-                    stats.recordNewOrder();
                     needsReplanning = false;
                 }
                 break;
@@ -146,7 +139,6 @@ public class Orchestrator {
                     Blockage blockage = event.getData();
                     environment.addBlockage(blockage);
                     logger.info("Blockage started: " + blockage);
-                    stats.recordBlockage(java.time.Duration.between(blockage.getStartTime(), blockage.getEndTime()));
                     needsReplanning = false;
                 }
                 break;
@@ -170,7 +162,6 @@ public class Orchestrator {
                             vehiclePlans.remove(vehicle);
 
                             needsReplanning = true;
-                            stats.recordVehicleBreakdown(vehicleId);
                             break;
                         }
                     }
@@ -180,7 +171,7 @@ public class Orchestrator {
             case MAINTENANCE_START:
                 if (event.getEntityId() != null && event.getData() != null) {
                     Maintenance task = event.getData();
-                    environment.addMaintenanceTask(task);
+                    environment.addMaintenance(task);
 
                     // Update vehicle status to MAINTENANCE
                     for (Vehicle vehicle : environment.getVehicles()) {
@@ -194,7 +185,6 @@ public class Orchestrator {
                     }
 
                     logger.info("Maintenance started for vehicle: " + event.getEntityId());
-                    stats.recordMaintenanceEvent();
                     needsReplanning = true;
                 }
                 break;
@@ -216,7 +206,7 @@ public class Orchestrator {
 
             case GLP_DEPOT_REFILL:
                 for (Depot depot : environment.getAuxDepots()) {
-                    depot.refillGLP();
+                    depot.refill();
                     logger.info("GLP depot refilled: " + depot.getId());
                 }
 
@@ -263,8 +253,8 @@ public class Orchestrator {
                 simulationTime, tickCounter, ticksPerReplan, needsReplanning));
 
         // Check if there are any pending orders and available vehicles
-        List<Order> pendingOrders = environment.getPendingOrders();
-        List<Vehicle> availableVehicles = environment.getAvailableVehicles();
+        List<Order> pendingOrders = environment.getOrders();
+        List<Vehicle> availableVehicles = environment.getVehicles();
 
         if (pendingOrders.isEmpty()) {
             logger.info("No pending orders to deliver. Skipping replanning.");
@@ -293,14 +283,14 @@ public class Orchestrator {
      */
     private void runAssignation() {
         // Check if there are any available vehicles
-        List<Vehicle> availableVehicles = environment.getAvailableVehicles();
+        List<Vehicle> availableVehicles = environment.getVehicles();
         if (availableVehicles.isEmpty()) {
             logger.info("No available vehicles for assignation. Skipping assignation.");
             return;
         }
 
         // Check if there are any pending orders
-        List<Order> pendingOrders = environment.getPendingOrders();
+        List<Order> pendingOrders = environment.getOrders();
 
         if (pendingOrders.isEmpty()) {
             logger.info("No pending orders to assign. Creating default plans to return to main depot.");
@@ -320,16 +310,16 @@ public class Orchestrator {
         }
 
         // Proceed with assignation when we have both orders and vehicles
-        MetaheuristicAssignator assignator = new MetaheuristicAssignator(environment);
-        Solution solution = assignator.solve(environment);
+        Solution solution = MetaheuristicSolver.solve(environment);
 
         // Set of vehicles with assigned plans
         Set<Vehicle> assignedVehicles = new HashSet<>();
 
         // Create plans for vehicles with delivery instructions
-        for (Map.Entry<Vehicle, List<DeliveryInstruction>> entry : solution.getVehicleOrderAssignments().entrySet()) {
-            Vehicle vehicle = entry.getKey();
-            List<DeliveryInstruction> instructions = entry.getValue();
+        for (Map.Entry<String, List<DeliveryPart>> entry : solution.getVehicleOrderAssignments().entrySet()) {
+            String vehicleId = entry.getKey();
+            Vehicle vehicle = environment.getVehicleById(vehicleId);
+            List<DeliveryPart> instructions = entry.getValue();
 
             // Only create plans for vehicles with actual instructions
             if (!instructions.isEmpty()) {
@@ -371,9 +361,8 @@ public class Orchestrator {
      * Advances the simulation time by the configured step amount
      */
     private void advanceSimulation() {
-        int simulationStep = config.getSimulationStepMinutes();
-        simulationTime = simulationTime.plusMinutes(simulationStep);
-        environment.advanceTime(simulationStep);
+        simulationTime = simulationTime.plusMinutes(1);
+        environment.advanceTime(Duration.ofMinutes(1));
         logger.fine("Advanced simulation to " + simulationTime);
     }
 
@@ -383,7 +372,7 @@ public class Orchestrator {
 
     public void initialize() {
         // Add a simulation end event based on config.getSimulationMaxDays()
-        LocalDateTime endTime = this.simulationTime.plusDays(config.getSimulationMaxDays());
+        LocalDateTime endTime = this.simulationTime.plusDays(1);
         Event endEvent = new Event(EventType.SIMULATION_END, endTime);
         this.eventQueue.add(endEvent);
         this.eventQueue.sort(Comparator.comparing(Event::getTime));
@@ -431,24 +420,5 @@ public class Orchestrator {
      */
     public int getTicksPerReplan() {
         return this.ticksPerReplan;
-    }
-
-    /**
-     * Gets the current simulation statistics
-     * 
-     * @return The simulation statistics object
-     */
-    public SimulationStats getStats() {
-        return this.stats;
-    }
-
-    /**
-     * Sets the algorithm configuration for this orchestrator.
-     * 
-     * @param config The algorithm configuration to use
-     */
-    public void setAlgorithmConfig(AlgorithmConfig config) {
-        this.config = config;
-        logger.info("Updated algorithm configuration: maxDays=" + config.getSimulationMaxDays());
     }
 }

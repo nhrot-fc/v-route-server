@@ -126,7 +126,7 @@ public class Action {
                 // Update depot inventory - find depot by position
                 Depot depot = findDepotByPosition(environment, destination);
                 if (depot != null) {
-                    depot.serveGLP(Math.abs(glpChangeM3));
+                    depot.serve(Math.abs(glpChangeM3));
                 }
                 break;
 
@@ -134,7 +134,7 @@ public class Action {
                 vehicle.setStatus(VehicleStatus.SERVING);
                 // Find the actual order in the environment using its ID
                 if (orderId != null) {
-                    Order environmentOrder = environment.findOrderById(orderId);
+                    Order environmentOrder = environment.getOrderById(orderId);
                     if (environmentOrder != null) {
                         vehicle.serveOrder(environmentOrder, Math.abs(glpChangeM3), currentTime);
                     } else {
@@ -315,7 +315,7 @@ public class Action {
                 if (order != null) {
                     orderDetails = String.format("| Client: %s | Due: %s",
                             order.getId(),
-                            order.getDueTime()
+                            order.getDeadlineTime()
                                     .format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")));
                 }
 

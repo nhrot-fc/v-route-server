@@ -8,16 +8,15 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 
-/**
- * DTO para la entidad Maintenance
- */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class MaintenanceDTO {
-    private Long id;
+    private UUID id;
     private String vehicleId;
     private LocalDate assignedDate;
     private LocalDateTime realStart;
@@ -25,20 +24,25 @@ public class MaintenanceDTO {
     private boolean active;
     private long durationHours;
 
-    /**
-     * Convierte una entidad Maintenance a MaintenanceDTO
-     */
     public static MaintenanceDTO fromEntity(Maintenance maintenance) {
-        if (maintenance == null) return null;
-        
+        if (maintenance == null)
+            return null;
+
+        boolean isActive = maintenance.getRealStart() != null && maintenance.getRealEnd() == null;
+        long hours = 0;
+
+        if (maintenance.getRealStart() != null && maintenance.getRealEnd() != null) {
+            hours = ChronoUnit.HOURS.between(maintenance.getRealStart(), maintenance.getRealEnd());
+        }
+
         return MaintenanceDTO.builder()
                 .id(maintenance.getId())
-                .vehicleId(maintenance.getVehicleId())
+                .vehicleId(maintenance.getVehicle().getId())
                 .assignedDate(maintenance.getAssignedDate())
                 .realStart(maintenance.getRealStart())
                 .realEnd(maintenance.getRealEnd())
-                .active(maintenance.getRealStart() != null && maintenance.getRealEnd() == null)
-                .durationHours(maintenance.getDurationHours())
+                .active(isActive)
+                .durationHours(hours)
                 .build();
     }
 }

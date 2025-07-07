@@ -10,13 +10,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class IncidentDTO {
-    private Long id;
+    private UUID id;
     private String vehicleId;
     private IncidentType type;
     private Shift shift;
@@ -24,32 +25,23 @@ public class IncidentDTO {
     private Position location;
     private boolean resolved;
     private double transferableGlp;
+    private LocalDateTime immobilizationEndTime;
     private LocalDateTime availabilityTime;
-    private boolean requiresReturnToDepot;
-    
-    // Conversión desde entidad a DTO
+    private boolean returnToDepotRequired;
+
     public static IncidentDTO fromEntity(Incident incident) {
         return IncidentDTO.builder()
                 .id(incident.getId())
-                .vehicleId(incident.getVehicleId())
+                .vehicleId(incident.getVehicle().getId())
                 .type(incident.getType())
                 .shift(incident.getShift())
                 .occurrenceTime(incident.getOccurrenceTime())
                 .location(incident.getLocation())
                 .resolved(incident.isResolved())
                 .transferableGlp(incident.getTransferableGlp())
-                .availabilityTime(incident.calculateAvailabilityTime())
-                .requiresReturnToDepot(incident.requiresReturnToDepot())
+                .immobilizationEndTime(incident.getImmobilizationEndTime())
+                .availabilityTime(incident.getAvailabilityTime())
+                .returnToDepotRequired(incident.isReturnToDepotRequired())
                 .build();
-    }
-    
-    // Conversión desde DTO a entidad
-    public Incident toEntity() {
-        Incident incident = new Incident(vehicleId, type, shift);
-        incident.setOccurrenceTime(occurrenceTime);
-        incident.setLocation(location);
-        incident.setResolved(resolved);
-        incident.setTransferableGlp(transferableGlp);
-        return incident;
     }
 }

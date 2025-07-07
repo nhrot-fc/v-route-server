@@ -1,62 +1,54 @@
 package com.example.plgsystem.assignation;
 
-import java.util.List;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import com.example.plgsystem.model.Position;
-import com.example.plgsystem.model.Vehicle;
+import lombok.Getter;
 
+@Getter
 public class Solution {
-    private final Map<Vehicle, List<DeliveryInstruction>> vehicleOrderAssignments;
-    private final double totalDistance;
+    private final Map<String, Integer> ordersState;
+    private final Map<String, Integer> depotsState;
+    private final Map<String, Route> routes;
+    private final double cost;
 
-    public Solution(Map<Vehicle, List<DeliveryInstruction>> vehicleOrderAssignments) {
-        this.vehicleOrderAssignments = new HashMap<>(vehicleOrderAssignments);
-        this.totalDistance = calculateDistance();
+    public Solution(Map<String, Integer> ordersState, Map<String, Integer> depotsState, Map<String, Route> routes) {
+        this.ordersState = ordersState;
+        this.depotsState = depotsState;
+        this.routes = routes;
+        this.cost = 0;
     }
 
-    public double getTotalDistance() {
-        return totalDistance;
+    public Solution(Map<String, Integer> ordersState, Map<String, Integer> depotsState, Map<String, Route> routes,
+            double cost) {
+        this.ordersState = ordersState;
+        this.depotsState = depotsState;
+        this.routes = routes;
+        this.cost = cost;
     }
 
-    public Map<Vehicle, List<DeliveryInstruction>> getVehicleOrderAssignments() {
-        return vehicleOrderAssignments;
-    }
+    public Map<String, List<DeliveryPart>> getVehicleOrderAssignments() {
+        Map<String, List<DeliveryPart>> assignments = new HashMap<>();
 
-    private double calculateDistance() {
-        double distance = 0.0;
-        for (Map.Entry<Vehicle, List<DeliveryInstruction>> entry : vehicleOrderAssignments.entrySet()) {
-            Vehicle vehicle = entry.getKey();
-            List<DeliveryInstruction> instructions = entry.getValue();
+        for (Map.Entry<String, Route> entry : this.getRoutes().entrySet()) {
+            String vehicleId = entry.getKey();
+            Route route = entry.getValue();
+            List<DeliveryPart> deliveryParts = new ArrayList<>();
 
-            Position start = vehicle.getCurrentPosition();
-            for (DeliveryInstruction instruction : instructions) {
-                Position end = instruction.getCustomerPosition();
-                distance += start.distanceTo(end);
-                start = end;
+            for (RouteStop stop : route.getStops()) {
+                if (stop.isOrderStop()) {
+                    deliveryParts.add(new DeliveryPart(
+                            stop.getOrderId(),
+                            stop.getGlpDeliverM3(),
+                            stop.getOrderDeadlineTime()));
+                }
             }
-        }
-        return distance;
-    }
 
-    @Override
-    public String toString() {
-        int totalOrdersAssignedCount = 0;
-        for (List<DeliveryInstruction> instructions : vehicleOrderAssignments.values()) {
-            totalOrdersAssignedCount += instructions.size();
+            assignments.put(vehicleId, deliveryParts);
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append(
-                String.format("Solution: %d delivery instructions assigned, total distance: %.2f km\n",
-                        totalOrdersAssignedCount, totalDistance));
-
-        for (Map.Entry<Vehicle, List<DeliveryInstruction>> entry : vehicleOrderAssignments.entrySet()) {
-            sb.append(String.format("  Vehicle %s: %d instructions\n",
-                    entry.getKey().getId(), entry.getValue().size()));
-        }
-
-        return sb.toString();
+        return assignments;
     }
 }

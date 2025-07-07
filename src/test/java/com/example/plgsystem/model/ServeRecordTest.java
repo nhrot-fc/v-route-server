@@ -1,102 +1,116 @@
 package com.example.plgsystem.model;
 
+import com.example.plgsystem.enums.VehicleType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ServeRecordTest {
 
     private ServeRecord serveRecord;
-    private final String vehicleId = "V001";
-    private final String orderId = "O001";
+    private Vehicle vehicle;
+    private Order order;
     private final int volumeM3 = 100;
     private final LocalDateTime serveDate = LocalDateTime.now();
 
     @BeforeEach
     public void setUp() {
-        serveRecord = new ServeRecord(vehicleId, orderId, volumeM3, serveDate);
+        // Crear Vehicle
+        Position vehiclePosition = new Position(10, 20);
+        vehicle = Vehicle.builder()
+                .id("V-001")
+                .type(VehicleType.TA)
+                .currentPosition(vehiclePosition)
+                .build();
+        
+        // Crear Order
+        Position orderPosition = new Position(15, 25);
+        LocalDateTime arrivalTime = LocalDateTime.now().minusHours(2);
+        LocalDateTime deadlineTime = LocalDateTime.now().plusHours(24);
+        order = Order.builder()
+                .id("O-001")
+                .arrivalTime(arrivalTime)
+                .deadlineTime(deadlineTime)
+                .glpRequestM3(500)
+                .position(orderPosition)
+                .build();
+        
+        // Crear ServeRecord
+        serveRecord = new ServeRecord(vehicle, order, volumeM3, serveDate);
     }
 
     @Test
     public void testServeRecordCreation() {
         assertNotNull(serveRecord);
-        assertNull(serveRecord.getId()); // ID should be null until saved to database
-        assertEquals(vehicleId, serveRecord.getVehicleId());
-        assertEquals(orderId, serveRecord.getOrderId());
-        assertEquals(volumeM3, serveRecord.getVolumeM3());
+        assertNotNull(serveRecord.getId()); // ID should be automatically generated UUID
+        assertTrue(serveRecord.getId() instanceof UUID);
+        assertEquals(vehicle, serveRecord.getVehicle());
+        assertEquals(order, serveRecord.getOrder());
+        assertEquals(volumeM3, serveRecord.getGlpVolumeM3());
         assertEquals(serveDate, serveRecord.getServeDate());
     }
 
     @Test
-    public void testNoArgsConstructor() {
-        // Test the no-args constructor required by JPA
-        ServeRecord emptyRecord = new ServeRecord();
+    public void testServeRecordProperties() {
+        // Verificar propiedades básicas
+        assertEquals("V-001", serveRecord.getVehicle().getId());
+        assertEquals("O-001", serveRecord.getOrder().getId());
+        assertEquals(volumeM3, serveRecord.getGlpVolumeM3());
         
-        assertNotNull(emptyRecord);
-        assertNull(emptyRecord.getId());
-        assertNull(emptyRecord.getVehicleId());
-        assertNull(emptyRecord.getOrderId());
-        assertEquals(0, emptyRecord.getVolumeM3());
-        assertNull(emptyRecord.getServeDate());
+        // Verificar objetos relacionados
+        assertSame(vehicle, serveRecord.getVehicle());
+        assertSame(order, serveRecord.getOrder());
     }
 
     @Test
-    public void testToString() {
-        String recordString = serveRecord.toString();
+    public void testCreateMultipleServeRecordsForOrder() {
+        // Setup
+        Position orderPosition = new Position(15, 25);
+        LocalDateTime arrivalTime = LocalDateTime.now().minusHours(2);
+        LocalDateTime deadlineTime = LocalDateTime.now().plusHours(24);
+        Order testOrder = Order.builder()
+                .id("O-002")
+                .arrivalTime(arrivalTime)
+                .deadlineTime(deadlineTime)
+                .glpRequestM3(1000)
+                .position(orderPosition)
+                .build();
         
-        assertTrue(recordString.contains(vehicleId));
-        assertTrue(recordString.contains(String.valueOf(volumeM3)));
-        assertTrue(recordString.contains("m³"));
+        // Verify initial state
+        assertEquals(1000, testOrder.getRemainingGlpM3());
+        assertEquals(0, testOrder.getServeRecords().size());
         
-        // Format date as in the toString method
-        String formattedDate = serveDate.format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm"));
-        assertTrue(recordString.contains(formattedDate));
-    }
-
-    @Test
-    public void testClone() {
-        ServeRecord clonedRecord = serveRecord.clone();
+        // First service - partial delivery
+        LocalDateTime firstServeTime = LocalDateTime.now();
+        ServeRecord firstRecord = testOrder.recordDelivery(400, vehicle, firstServeTime);
         
-        assertNotNull(clonedRecord);
-        assertNotSame(serveRecord, clonedRecord);
+        // Verify first record
+        assertNotNull(firstRecord);
+        assertEquals(400, firstRecord.getGlpVolumeM3());
+        assertEquals(vehicle, firstRecord.getVehicle());
+        assertEquals(testOrder, firstRecord.getOrder());
+        assertEquals(firstServeTime, firstRecord.getServeDate());
         
-        // Fields should match
-        assertEquals(serveRecord.getVehicleId(), clonedRecord.getVehicleId());
-        assertEquals(serveRecord.getOrderId(), clonedRecord.getOrderId());
-        assertEquals(serveRecord.getVolumeM3(), clonedRecord.getVolumeM3());
-        assertEquals(serveRecord.getServeDate(), clonedRecord.getServeDate());
+        // Verify order state after first delivery
+        assertEquals(600, testOrder.getRemainingGlpM3());
+        assertEquals(1, testOrder.getServeRecords().size());
+        assertFalse(testOrder.isDelivered());
         
-        // ID doesn't get cloned (it's generated by the database)
-        assertNull(clonedRecord.getId());
-    }
-    
-    @Test
-    public void testEquality() {
-        // Same fields but different objects
-        ServeRecord sameRecord = new ServeRecord(vehicleId, orderId, volumeM3, serveDate);
+        // Second service - remaining delivery
+        LocalDateTime secondServeTime = LocalDateTime.now().plusHours(1);
+        ServeRecord secondRecord = testOrder.recordDelivery(600, vehicle, secondServeTime);
         
-        // Different records
-        ServeRecord differentVehicle = new ServeRecord("V002", orderId, volumeM3, serveDate);
-        ServeRecord differentOrder = new ServeRecord(vehicleId, "O002", volumeM3, serveDate);
-        ServeRecord differentVolume = new ServeRecord(vehicleId, orderId, volumeM3 + 50, serveDate);
-        ServeRecord differentDate = new ServeRecord(vehicleId, orderId, volumeM3, serveDate.plusDays(1));
+        // Verify second record
+        assertNotNull(secondRecord);
+        assertEquals(600, secondRecord.getGlpVolumeM3());
         
-        // Object equality test
-        assertNotEquals(serveRecord, sameRecord); // Should be different objects
-        
-        // Field equality tests
-        assertEquals(serveRecord.getVehicleId(), sameRecord.getVehicleId());
-        assertEquals(serveRecord.getOrderId(), sameRecord.getOrderId());
-        assertEquals(serveRecord.getVolumeM3(), sameRecord.getVolumeM3());
-        assertEquals(serveRecord.getServeDate(), sameRecord.getServeDate());
-        
-        // Field inequality tests
-        assertNotEquals(serveRecord.getVehicleId(), differentVehicle.getVehicleId());
-        assertNotEquals(serveRecord.getOrderId(), differentOrder.getOrderId());
-        assertNotEquals(serveRecord.getVolumeM3(), differentVolume.getVolumeM3());
-        assertNotEquals(serveRecord.getServeDate(), differentDate.getServeDate());
+        // Verify order state after second delivery
+        assertEquals(0, testOrder.getRemainingGlpM3());
+        assertEquals(2, testOrder.getServeRecords().size());
+        assertTrue(testOrder.isDelivered());
     }
 } 

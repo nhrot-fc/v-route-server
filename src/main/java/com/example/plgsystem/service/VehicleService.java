@@ -161,8 +161,8 @@ public class VehicleService {
     @Transactional
     public Optional<Vehicle> dispenseGlp(String id, int glpVolumeM3) {
         return findById(id).map(vehicle -> {
-            if (vehicle.canDispenseGLP(glpVolumeM3)) {
-                vehicle.dispenseGlp(glpVolumeM3);
+            if (vehicle.canDispense(glpVolumeM3)) {
+                vehicle.dispense(glpVolumeM3);
                 return vehicleRepository.save(vehicle);
             }
             return vehicle;
@@ -181,7 +181,7 @@ public class VehicleService {
             Vehicle vehicle = optionalVehicle.get();
             Order order = optionalOrder.get();
             
-            if (vehicle.canDispenseGLP(glpVolumeM3)) {
+            if (vehicle.canDispense(glpVolumeM3)) {
                 LocalDateTime deliveryTime = serveDate != null ? serveDate : LocalDateTime.now();
                 ServeRecord record = vehicle.serveOrder(order, glpVolumeM3, deliveryTime);
                 vehicleRepository.save(vehicle);
@@ -202,5 +202,10 @@ public class VehicleService {
             vehicle.consumeFuel(distanceKm);
             return vehicleRepository.save(vehicle);
         });
+    }
+
+    public Vehicle findVehicleById(String id) {
+        Optional<Vehicle> vehicle = vehicleRepository.findById(id);
+        return vehicle.orElse(null);
     }
 }

@@ -1,79 +1,41 @@
 package com.example.plgsystem.model;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import jakarta.persistence.*;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
-/**
- * Representa un registro de entrega de GLP
- */
 @Entity
 @Table(name = "serve_records")
 @Getter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ServeRecord implements Serializable {
-
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    
-    @Column(name = "vehicle_id", nullable = false, insertable = false, updatable = false)
-    private String vehicleId;
-    
-    @ManyToOne(fetch = FetchType.LAZY)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "vehicle_id", nullable = false)
     private Vehicle vehicle;
-    
-    @Column(name = "order_id", nullable = false, insertable = false, updatable = false)
-    private String orderId;
-    
-    @ManyToOne(fetch = FetchType.LAZY)
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
-    
-    @Column(name = "volume_m3", nullable = false)
-    private int volumeM3;
-    
+
+    @Column(name = "glp_volume_m3", nullable = false)
+    private int glpVolumeM3;
+
     @Column(name = "serve_date", nullable = false)
     private LocalDateTime serveDate;
-    
-    /**
-     * Constructor para crear un nuevo registro de servicio
-     */
-    public ServeRecord(String vehicleId, String orderId, int volumeM3, LocalDateTime serveDate) {
-        this.vehicleId = vehicleId;
-        this.orderId = orderId;
-        this.volumeM3 = volumeM3;
-        this.serveDate = serveDate;
-    }
-    
-    /**
-     * Constructor con relaciones a entidades
-     */
-    public ServeRecord(Vehicle vehicle, Order order, int volumeM3, LocalDateTime serveDate) {
+
+    public ServeRecord(Vehicle vehicle, Order order, int glpVolumeM3, LocalDateTime serveDate) {
+        this.id = UUID.randomUUID();
         this.vehicle = vehicle;
-        this.vehicleId = vehicle.getId();
         this.order = order;
-        this.orderId = order.getId();
-        this.volumeM3 = volumeM3;
+        this.glpVolumeM3 = glpVolumeM3;
         this.serveDate = serveDate;
-    }
-    
-    @Override
-    public String toString() {
-        return String.format("📝 Vehículo %s entregó %d m³ en %s",
-                vehicleId, 
-                volumeM3, 
-                serveDate.format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")));
-    }
-    
-    /**
-     * Crea una copia del registro de servicio
-     */
-    public ServeRecord clone() {
-        return new ServeRecord(this.vehicleId, this.orderId, this.volumeM3, this.serveDate);
     }
 }

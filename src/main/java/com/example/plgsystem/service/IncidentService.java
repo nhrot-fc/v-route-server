@@ -1,6 +1,8 @@
 package com.example.plgsystem.service;
 
 import com.example.plgsystem.model.Incident;
+import com.example.plgsystem.enums.IncidentType;
+import com.example.plgsystem.enums.Shift;
 import com.example.plgsystem.repository.IncidentRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class IncidentService {
@@ -31,7 +34,7 @@ public class IncidentService {
     /**
      * Busca un incidente por su ID
      */
-    public Optional<Incident> findById(Long id) {
+    public Optional<Incident> findById(UUID id) {
         return incidentRepository.findById(id);
     }
 
@@ -61,6 +64,34 @@ public class IncidentService {
      */
     public Page<Incident> findByVehicleIdPaged(String vehicleId, Pageable pageable) {
         return incidentRepository.findByVehicleId(vehicleId, pageable);
+    }
+
+    /**
+     * Busca incidentes por tipo
+     */
+    public List<Incident> findByType(IncidentType type) {
+        return incidentRepository.findByType(type);
+    }
+    
+    /**
+     * Busca incidentes por tipo (paginado)
+     */
+    public Page<Incident> findByTypePaged(IncidentType type, Pageable pageable) {
+        return incidentRepository.findByType(type, pageable);
+    }
+    
+    /**
+     * Busca incidentes por turno
+     */
+    public List<Incident> findByShift(Shift shift) {
+        return incidentRepository.findByShift(shift);
+    }
+    
+    /**
+     * Busca incidentes por turno (paginado)
+     */
+    public Page<Incident> findByShiftPaged(Shift shift, Pageable pageable) {
+        return incidentRepository.findByShift(shift, pageable);
     }
     
     /**
@@ -109,7 +140,7 @@ public class IncidentService {
      * Marca un incidente como resuelto
      */
     @Transactional
-    public Optional<Incident> resolveIncident(Long id) {
+    public Optional<Incident> resolveIncident(UUID id) {
         return findById(id)
                 .map(incident -> {
                     incident.setResolved(true);

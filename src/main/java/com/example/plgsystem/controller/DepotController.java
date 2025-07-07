@@ -1,6 +1,7 @@
 package com.example.plgsystem.controller;
 
 import com.example.plgsystem.model.Depot;
+import com.example.plgsystem.enums.DepotType;
 import com.example.plgsystem.service.DepotService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -60,7 +61,8 @@ public class DepotController {
      */
     @GetMapping
     public ResponseEntity<?> list(
-            @RequestParam(required = false) Boolean canRefuel,
+            @RequestParam(required = false) DepotType type,
+            @RequestParam(required = false) Boolean isMain,
             @RequestParam(required = false) Integer minGlpCapacity,
             @RequestParam(required = false) Integer minCurrentGlp,
             @RequestParam(required = false) Boolean paginated,
@@ -73,9 +75,12 @@ public class DepotController {
         if (paginated == null || !paginated) {
             List<Depot> depots;
             
-            if (canRefuel != null) {
-                // Filtrar por capacidad de recarga
-                depots = depotService.findByCanRefuel(canRefuel);
+            if (Boolean.TRUE.equals(isMain)) {
+                depots = depotService.findMainDepots();
+            } else if (Boolean.FALSE.equals(isMain)) {
+                depots = depotService.findAuxiliaryDepots();
+            } else if (type != null) {
+                depots = depotService.findByType(type);
             } else if (minGlpCapacity != null) {
                 // Filtrar por capacidad mínima
                 depots = depotService.findByMinCapacity(minGlpCapacity);
@@ -99,9 +104,8 @@ public class DepotController {
         
         Page<Depot> depots;
         
-        if (canRefuel != null) {
-            // Filtrar por capacidad de recarga
-            depots = depotService.findByCanRefuelPaged(canRefuel, pageable);
+        if (type != null) {
+            depots = depotService.findByTypePaged(type, pageable);
         } else if (minGlpCapacity != null) {
             // Filtrar por capacidad mínima
             depots = depotService.findByMinCapacityPaged(minGlpCapacity, pageable);

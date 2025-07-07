@@ -30,8 +30,8 @@ public class OrderRepositoryTest {
         LocalDateTime now = LocalDateTime.now();
         Order order = Order.builder()
                 .id("O001")
-                .arriveTime(now)
-                .dueTime(now.plusHours(4))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(4))
                 .glpRequestM3(100)
                 .position(new Position(10, 20))
                 .build();
@@ -52,8 +52,8 @@ public class OrderRepositoryTest {
         LocalDateTime now = LocalDateTime.now();
         Order order = Order.builder()
                 .id("O001")
-                .arriveTime(now)
-                .dueTime(now.plusHours(4))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(4))
                 .glpRequestM3(100)
                 .position(new Position(10, 20))
                 .build();
@@ -75,16 +75,16 @@ public class OrderRepositoryTest {
         LocalDateTime now = LocalDateTime.now();
         Order order1 = Order.builder()
                 .id("O001")
-                .arriveTime(now)
-                .dueTime(now.plusHours(4))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(4))
                 .glpRequestM3(100)
                 .position(new Position(10, 20))
                 .build();
 
         Order order2 = Order.builder()
                 .id("O002")
-                .arriveTime(now.plusHours(1))
-                .dueTime(now.plusHours(5))
+                .arrivalTime(now.plusHours(1))
+                .deadlineTime(now.plusHours(5))
                 .glpRequestM3(150)
                 .position(new Position(30, 40))
                 .build();
@@ -108,8 +108,8 @@ public class OrderRepositoryTest {
         LocalDateTime now = LocalDateTime.now();
         Order order = Order.builder()
                 .id("O001")
-                .arriveTime(now)
-                .dueTime(now.plusHours(4))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(4))
                 .glpRequestM3(100)
                 .position(new Position(10, 20))
                 .build();
@@ -133,8 +133,8 @@ public class OrderRepositoryTest {
         LocalDateTime now = LocalDateTime.now();
         Order order = Order.builder()
                 .id("O001")
-                .arriveTime(now)
-                .dueTime(now.plusHours(4))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(4))
                 .glpRequestM3(100)
                 .position(new Position(10, 20))
                 .build();
@@ -157,8 +157,8 @@ public class OrderRepositoryTest {
         // Order with pending delivery
         Order pendingOrder = Order.builder()
                 .id("O001")
-                .arriveTime(now)
-                .dueTime(now.plusHours(4))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(4))
                 .glpRequestM3(100)
                 .position(new Position(10, 20))
                 .build();
@@ -166,8 +166,8 @@ public class OrderRepositoryTest {
         // Order with completed delivery
         Order completedOrder = Order.builder()
                 .id("O002")
-                .arriveTime(now)
-                .dueTime(now.plusHours(4))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(4))
                 .glpRequestM3(150)
                 .position(new Position(30, 40))
                 .build();
@@ -193,8 +193,8 @@ public class OrderRepositoryTest {
         // Order due soon
         Order soonDueOrder = Order.builder()
                 .id("O001")
-                .arriveTime(now.minusHours(2))
-                .dueTime(now.plusHours(1))
+                .arrivalTime(now.minusHours(2))
+                .deadlineTime(now.plusHours(1))
                 .glpRequestM3(100)
                 .position(new Position(10, 20))
                 .build();
@@ -202,8 +202,8 @@ public class OrderRepositoryTest {
         // Order due later
         Order laterDueOrder = Order.builder()
                 .id("O002")
-                .arriveTime(now)
-                .dueTime(now.plusHours(4))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(4))
                 .glpRequestM3(150)
                 .position(new Position(30, 40))
                 .build();
@@ -213,7 +213,7 @@ public class OrderRepositoryTest {
         entityManager.flush();
 
         // When
-        List<Order> overdueOrders = orderRepository.findByDueTimeBefore(now.plusHours(2));
+        List<Order> overdueOrders = orderRepository.findByDeadlineTimeBefore(now.plusHours(2));
 
         // Then
         assertEquals(1, overdueOrders.size());
@@ -228,8 +228,8 @@ public class OrderRepositoryTest {
         // Order already arrived
         Order arrivedOrder = Order.builder()
                 .id("O001")
-                .arriveTime(now.minusHours(1))
-                .dueTime(now.plusHours(3))
+                .arrivalTime(now.minusHours(1))
+                .deadlineTime(now.plusHours(3))
                 .glpRequestM3(100)
                 .position(new Position(10, 20))
                 .build();
@@ -237,8 +237,8 @@ public class OrderRepositoryTest {
         // Order not yet arrived
         Order futureOrder = Order.builder()
                 .id("O002")
-                .arriveTime(now.plusHours(2))
-                .dueTime(now.plusHours(6))
+                .arrivalTime(now.plusHours(2))
+                .deadlineTime(now.plusHours(6))
                 .glpRequestM3(150)
                 .position(new Position(30, 40))
                 .build();
@@ -248,7 +248,7 @@ public class OrderRepositoryTest {
         entityManager.flush();
 
         // When
-        List<Order> availableOrders = orderRepository.findByArriveTimeLessThanEqual(now);
+        List<Order> availableOrders = orderRepository.findByArrivalTimeLessThanEqual(now);
 
         // Then
         assertEquals(1, availableOrders.size());
@@ -263,8 +263,8 @@ public class OrderRepositoryTest {
         
         Order order = Order.builder()
                 .id(generatedId)
-                .arriveTime(now)
-                .dueTime(now.plusHours(4))
+                .arrivalTime(now)
+                .deadlineTime(now.plusHours(4))
                 .glpRequestM3(100)
                 .position(new Position(10, 20))
                 .build();
