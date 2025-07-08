@@ -40,6 +40,10 @@ public class OrderService {
         return orderRepository.findById(id);
     }
 
+    public boolean existsByIdIn(List<String> ids) {
+        return orderRepository.existsByIdIn(ids);
+    }
+
     /**
      * Obtiene todos los pedidos
      */

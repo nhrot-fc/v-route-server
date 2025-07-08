@@ -27,8 +27,10 @@ public class Simulation {
     @Delegate
     private final SimulationState state;
 
-    private LocalDateTime startTime;
-    private LocalDateTime endTime;
+    // Real world timestamps
+    private LocalDateTime creationTime;  // When the simulation was created in real-world
+    private LocalDateTime realStartTime; // When the simulation was actually started running
+    private LocalDateTime realEndTime;   // When the simulation was finished in real-world
 
     public Simulation(SimulationState state) {
         this(state, SimulationType.CUSTOM);
@@ -38,12 +40,15 @@ public class Simulation {
         this.id = UUID.randomUUID();
         this.state = state;
         this.status = SimulationStatus.PAUSED;
-        this.startTime = LocalDateTime.now();
+        this.creationTime = LocalDateTime.now();
         this.type = type;
     }
 
     public void start() {
         this.status = SimulationStatus.RUNNING;
+        if (this.realStartTime == null) {
+            this.realStartTime = LocalDateTime.now();
+        }
     }
 
     public void pause() {
@@ -55,7 +60,7 @@ public class Simulation {
     public void finish() {
         if (!type.isDailyOperation()) { // Daily operations can't be finished
             this.status = SimulationStatus.FINISHED;
-            this.endTime = LocalDateTime.now();
+            this.realEndTime = LocalDateTime.now();
         }
     }
 

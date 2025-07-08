@@ -31,9 +31,9 @@ public class Constants {
     public static final int NODE_DISTANCE = 1; // Km
 
     // Storage Locations
-    public static final Position CENTRAL_STORAGE_LOCATION = new Position(12, 8);
-    public static final Position NORTH_INTERMEDIATE_STORAGE_LOCATION = new Position(42, 42);
-    public static final Position EAST_INTERMEDIATE_STORAGE_LOCATION = new Position(63, 3);
+    public static final Position MAIN_DEPOT_LOCATION = new Position(12, 8);
+    public static final Position NORTH_DEPOT_LOCATION = new Position(42, 42);
+    public static final Position EAST_DEPOT_LOCATION = new Position(63, 3);
 
     /*
      * =============================================

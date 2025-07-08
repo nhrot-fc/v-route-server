@@ -1,5 +1,6 @@
 package com.example.plgsystem.controller;
 
+import com.example.plgsystem.dto.BlockageDTO;
 import com.example.plgsystem.model.Blockage;
 import com.example.plgsystem.model.Position;
 import com.example.plgsystem.service.BlockageService;
@@ -197,10 +198,10 @@ public class BlockageControllerTest {
                 new Position(10, 20),
                 new Position(10, 21),
                 new Position(10, 22));
-        Blockage newBlockage = new Blockage(startTime, endTime, blockagePoints);
+        BlockageDTO newBlockage = new BlockageDTO(startTime, endTime, blockagePoints);
 
         // El ID se generará automáticamente al crear el bloqueo
-        when(blockageService.save(any(Blockage.class))).thenReturn(newBlockage);
+        when(blockageService.save(any(Blockage.class))).thenReturn(newBlockage.toEntity());
 
         // When & Then
         mockMvc.perform(post("/api/blockages")
@@ -208,6 +209,43 @@ public class BlockageControllerTest {
                 .content(objectMapper.writeValueAsString(newBlockage)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists());
+    }
+
+    @Test
+    public void testCreateBulkBlockages() throws Exception {
+        // Given
+        LocalDateTime startTime1 = LocalDateTime.of(2025, 6, 1, 8, 0);
+        LocalDateTime endTime1 = LocalDateTime.of(2025, 6, 1, 12, 0);
+        List<Position> blockagePoints1 = Arrays.asList(
+                new Position(10, 20),
+                new Position(10, 21));
+        BlockageDTO newBlockage1 = new BlockageDTO(startTime1, endTime1, blockagePoints1);
+        
+        LocalDateTime startTime2 = LocalDateTime.of(2025, 6, 2, 14, 0);
+        LocalDateTime endTime2 = LocalDateTime.of(2025, 6, 2, 18, 0);
+        List<Position> blockagePoints2 = Arrays.asList(
+                new Position(30, 40),
+                new Position(31, 40));
+        BlockageDTO newBlockage2 = new BlockageDTO(startTime2, endTime2, blockagePoints2);
+        
+        List<BlockageDTO> newBlockages = Arrays.asList(newBlockage1, newBlockage2);
+        
+        // Mock service behavior for bulk create
+        when(blockageService.save(any(Blockage.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        
+        // When & Then
+        mockMvc.perform(post("/api/blockages/bulk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(newBlockages)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].startTime").value("2025-06-01T08:00:00"))
+                .andExpect(jsonPath("$[1].startTime").value("2025-06-02T14:00:00"))
+                .andExpect(jsonPath("$.length()").value(2));
+        
+        // Verify service was called twice
+        verify(blockageService, times(2)).save(any(Blockage.class));
     }
 
     @Test

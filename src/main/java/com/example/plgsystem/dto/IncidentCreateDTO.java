@@ -18,5 +18,4 @@ public class IncidentCreateDTO {
     private Shift shift;
     private LocalDateTime occurrenceTime;
     private Position location;
-    private double transferableGlp;
 }

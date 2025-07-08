@@ -50,7 +50,6 @@ public class IncidentRepositoryTest {
 
         incident.setOccurrenceTime(occurrenceTime);
         incident.setLocation(location);
-        incident.setTransferableGlp(50.0);
 
         // When
         Incident savedIncident = incidentRepository.save(incident);
@@ -64,7 +63,6 @@ public class IncidentRepositoryTest {
         assertEquals(occurrenceTime, savedIncident.getOccurrenceTime());
         assertEquals(location.getX(), savedIncident.getLocation().getX());
         assertEquals(location.getY(), savedIncident.getLocation().getY());
-        assertEquals(50.0, savedIncident.getTransferableGlp());
         assertFalse(savedIncident.isResolved());
     }
 

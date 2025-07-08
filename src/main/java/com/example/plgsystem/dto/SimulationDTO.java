@@ -14,18 +14,25 @@ import lombok.Setter;
 @Setter
 public class SimulationDTO {
     private UUID id;
-    private LocalDateTime currentTime;
+    
+    // Simulation world time
+    private LocalDateTime simulatedCurrentTime;
+    
+    // Real world timestamps
+    private LocalDateTime creationTime;
+    private LocalDateTime realStartTime;
+    private LocalDateTime realEndTime;
+    
     private SimulationType type;
     private SimulationStatus status;
-    private LocalDateTime startTime;
-    private LocalDateTime endTime;
 
     public SimulationDTO(Simulation simulation) {
         this.id = simulation.getId();
-        this.currentTime = simulation.getState().getCurrentTime();
+        this.simulatedCurrentTime = simulation.getState().getCurrentTime();
         this.type = simulation.getType();
         this.status = simulation.getStatus();
-        this.startTime = simulation.getStartTime();
-        this.endTime = simulation.getEndTime();
+        this.creationTime = simulation.getCreationTime();
+        this.realStartTime = simulation.getRealStartTime();
+        this.realEndTime = simulation.getRealEndTime();
     }
 } 

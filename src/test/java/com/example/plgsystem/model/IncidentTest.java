@@ -38,7 +38,6 @@ public class IncidentTest {
         // Verificar que el turno se calcula correctamente en base a la hora (10 AM = T2)
         assertEquals(Shift.T2, incident.getShift());
         assertFalse(incident.isResolved());
-        assertEquals(0, incident.getTransferableGlp());
     }
 
     @Test
@@ -80,15 +79,6 @@ public class IncidentTest {
 
         incident.setResolved(true);
         assertTrue(incident.isResolved());
-    }
-
-    @Test
-    public void testSetAndGetTransferableGlp() {
-        assertEquals(0, incident.getTransferableGlp());
-
-        double transferableGlp = 10.5;
-        incident.setTransferableGlp(transferableGlp);
-        assertEquals(transferableGlp, incident.getTransferableGlp());
     }
 
     @Test

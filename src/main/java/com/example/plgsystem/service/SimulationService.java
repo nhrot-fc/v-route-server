@@ -2,7 +2,10 @@ package com.example.plgsystem.service;
 
 import com.example.plgsystem.dto.SimulationDTO;
 import com.example.plgsystem.dto.SimulationStateDTO;
+import com.example.plgsystem.enums.DepotType;
 import com.example.plgsystem.enums.SimulationType;
+import com.example.plgsystem.enums.VehicleType;
+import com.example.plgsystem.model.Constants;
 import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.simulation.Simulation;
@@ -18,6 +21,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -92,6 +97,102 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         // Broadcast the initial state to create the channel
         sendSimulationUpdate(simulation);
 
+        return simulation;
+    }
+
+    /**
+     * Creates a simplified simulation with automatic generation of vehicles
+     * 
+     * @param type Type of simulation (WEEKLY, INFINITE, CUSTOM)
+     * @param startDateTime Starting date and time of the simulation
+     * @param endDateTime End date for CUSTOM simulations, ignored for other types
+     * @param taVehicleCount Number of TA vehicles to create
+     * @param tbVehicleCount Number of TB vehicles to create
+     * @param tcVehicleCount Number of TC vehicles to create
+     * @param tdVehicleCount Number of TD vehicles to create
+     * @return The created simulation
+     */
+    public Simulation createSimplifiedSimulation(
+            SimulationType type,
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTime,
+            int taVehicleCount,
+            int tbVehicleCount,
+            int tcVehicleCount,
+            int tdVehicleCount) {
+        
+        if (type.isDailyOperation()) {
+            throw new IllegalArgumentException("Cannot create additional daily operation simulations");
+        }
+        
+        // For WEEKLY type, set end date automatically to one week after start
+        if (type == SimulationType.WEEKLY) {
+            endDateTime = startDateTime.plusWeeks(1);
+        }
+        
+        // Get fixed depots from the database
+        Depot mainDepot = new Depot("MAIN", Constants.MAIN_DEPOT_LOCATION, 1000, DepotType.MAIN);
+        Depot northDepot = new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 1000, DepotType.AUXILIARY);
+        Depot eastDepot = new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 1000, DepotType.AUXILIARY);
+        List<Depot> auxDepots = Arrays.asList(northDepot, eastDepot);
+        
+        // Create vehicles automatically
+        List<Vehicle> vehicles = new ArrayList<>();
+        
+        // Generate TA vehicles
+        for (int i = 0; i < taVehicleCount; i++) {
+            String id = "TA" + String.format("%02d", i + 1);
+            Vehicle vehicle = Vehicle.builder()
+                    .id(id)
+                    .type(VehicleType.TA)
+                    .currentPosition(mainDepot.getPosition().clone())
+                    .build();
+            vehicles.add(vehicle);
+        }
+        
+        // Generate TB vehicles
+        for (int i = 0; i < tbVehicleCount; i++) {
+            String id = "TB" + String.format("%02d", i + 1);
+            Vehicle vehicle = Vehicle.builder()
+                    .id(id)
+                    .type(VehicleType.TB)
+                    .currentPosition(mainDepot.getPosition().clone())
+                    .build();
+            vehicles.add(vehicle);
+        }
+        
+        // Generate TC vehicles
+        for (int i = 0; i < tcVehicleCount; i++) {
+            String id = "TC" + String.format("%02d", i + 1);
+            Vehicle vehicle = Vehicle.builder()
+                    .id(id)
+                    .type(VehicleType.TC)
+                    .currentPosition(mainDepot.getPosition().clone())
+                    .build();
+            vehicles.add(vehicle);
+        }
+        
+        // Generate TD vehicles
+        for (int i = 0; i < tdVehicleCount; i++) {
+            String id = "TD" + String.format("%02d", i + 1);
+            Vehicle vehicle = Vehicle.builder()
+                    .id(id)
+                    .type(VehicleType.TD)
+                    .currentPosition(mainDepot.getPosition().clone())
+                    .build();
+            vehicles.add(vehicle);
+        }
+        
+        // Create simulation state
+        SimulationState state = new SimulationState(vehicles, mainDepot, auxDepots, startDateTime);
+        Simulation simulation = new Simulation(state, type);
+        
+        // Store in simulations map
+        simulations.put(simulation.getId(), simulation);
+        
+        // Broadcast the initial state to create the channel
+        sendSimulationUpdate(simulation);
+        
         return simulation;
     }
 

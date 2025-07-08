@@ -21,41 +21,49 @@ public interface MaintenanceRepository extends JpaRepository<Maintenance, UUID> 
     /**
      * Busca mantenimientos por ID de vehículo
      */
+    @Query("SELECT m FROM Maintenance m WHERE m.vehicle.id = :vehicleId ORDER BY m.assignedDate ASC")
     List<Maintenance> findByVehicleId(String vehicleId);
 
     /**
      * Busca mantenimientos por ID de vehículo (paginado)
      */
+    @Query("SELECT m FROM Maintenance m WHERE m.vehicle.id = :vehicleId ORDER BY m.assignedDate ASC")
     Page<Maintenance> findByVehicleId(String vehicleId, Pageable pageable);
 
     /**
      * Busca mantenimientos activos en una fecha específica
      */
+    @Query("SELECT m FROM Maintenance m WHERE m.assignedDate = :date ORDER BY m.assignedDate ASC")
     List<Maintenance> findByAssignedDate(LocalDate date);
 
     /**
      * Busca mantenimientos activos en una fecha específica (paginado)
      */
+    @Query("SELECT m FROM Maintenance m WHERE m.assignedDate = :date ORDER BY m.assignedDate ASC")
     Page<Maintenance> findByAssignedDate(LocalDate date, Pageable pageable);
     
     /**
      * Busca mantenimientos para un vehículo en una fecha específica
      */
+    @Query("SELECT m FROM Maintenance m WHERE m.vehicle.id = :vehicleId AND m.assignedDate = :date ORDER BY m.assignedDate ASC")
     List<Maintenance> findByVehicleIdAndAssignedDate(String vehicleId, LocalDate date);
 
     /**
      * Busca mantenimientos para un vehículo en una fecha específica (paginado)
      */
+    @Query("SELECT m FROM Maintenance m WHERE m.vehicle.id = :vehicleId AND m.assignedDate = :date ORDER BY m.assignedDate ASC")
     Page<Maintenance> findByVehicleIdAndAssignedDate(String vehicleId, LocalDate date, Pageable pageable);
     
     /**
      * Busca mantenimientos activos en un rango de fechas
      */
+    @Query("SELECT m FROM Maintenance m WHERE m.assignedDate BETWEEN :startDate AND :endDate ORDER BY m.assignedDate ASC")
     List<Maintenance> findByAssignedDateBetween(LocalDate startDate, LocalDate endDate);
 
     /**
      * Busca mantenimientos activos en un rango de fechas (paginado)
      */
+    @Query("SELECT m FROM Maintenance m WHERE m.assignedDate BETWEEN :startDate AND :endDate ORDER BY m.assignedDate ASC")
     Page<Maintenance> findByAssignedDateBetween(LocalDate startDate, LocalDate endDate, Pageable pageable);
     
     /**

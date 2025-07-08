@@ -5,6 +5,8 @@ import com.example.plgsystem.dto.OrderDTO;
 import com.example.plgsystem.dto.ServeRecordDTO;
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.service.OrderService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,15 +20,18 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
 
+    private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
     private final OrderService orderService;
 
     public OrderController(OrderService orderService) {
         this.orderService = orderService;
+        logger.info("OrderController initialized");
     }
 
     /**
@@ -34,13 +39,47 @@ public class OrderController {
      */
     @PostMapping
     public ResponseEntity<OrderDTO> create(@RequestBody OrderDTO orderDTO) {
+        logger.info("Creating new order: {}", orderDTO);
         if (orderDTO.getId() == null || orderDTO.getId().isEmpty()) {
             // Generate a unique ID if not provided
             orderDTO.setId(java.util.UUID.randomUUID().toString());
+            logger.info("Generated new UUID for order: {}", orderDTO.getId());
         }
         Order order = orderDTO.toEntity();
         Order savedOrder = orderService.save(order);
+        logger.info("Order created with ID: {}", savedOrder.getId());
         return new ResponseEntity<>(OrderDTO.fromEntity(savedOrder), HttpStatus.CREATED);
+    }
+    
+    /**
+     * Crear múltiples pedidos en una sola operación
+     */
+    @PostMapping("/bulk")
+    public ResponseEntity<List<OrderDTO>> createBulk(@RequestBody List<OrderDTO> orderDTOs) {
+        logger.info("Creating {} orders in bulk", orderDTOs.size());
+        List<OrderDTO> savedOrderDTOs = new ArrayList<>();
+        
+        // Check if any order already exists
+        List<String> orderIds = orderDTOs.stream()
+                .map(OrderDTO::getId)
+                .collect(Collectors.toList());
+        
+        boolean exists = orderService.existsByIdIn(orderIds);
+        
+        if (exists) {
+            logger.warn("Bulk order creation failed - one or more orders already exist with the provided IDs");
+            return ResponseEntity.badRequest().body(null);
+        }
+        
+        for (OrderDTO orderDTO : orderDTOs) {
+            Order order = orderDTO.toEntity();
+            Order savedOrder = orderService.save(order);
+            savedOrderDTOs.add(OrderDTO.fromEntity(savedOrder));
+            logger.debug("Created order with ID: {} as part of bulk operation", savedOrder.getId());
+        }
+        
+        logger.info("Bulk operation completed, created {} orders", savedOrderDTOs.size());
+        return new ResponseEntity<>(savedOrderDTOs, HttpStatus.CREATED);
     }
 
     /**
@@ -48,6 +87,7 @@ public class OrderController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<OrderDTO> update(@PathVariable String id, @RequestBody OrderDTO orderDTO) {
+        logger.info("Updating order with ID: {}", id);
         return orderService.findById(id)
                 .map(existingOrder -> {
                     Order order = orderDTO.toEntity();
@@ -59,9 +99,13 @@ public class OrderController {
                             order.getPosition());
                     orderWithCorrectId.setRemainingGlpM3(order.getRemainingGlpM3());
                     Order updatedOrder = orderService.save(orderWithCorrectId);
+                    logger.info("Order with ID: {} was updated successfully", id);
                     return ResponseEntity.ok(OrderDTO.fromEntity(updatedOrder));
                 })
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseGet(() -> {
+                    logger.warn("Order with ID: {} not found for update", id);
+                    return ResponseEntity.notFound().build();
+                });
     }
 
     /**
@@ -69,9 +113,15 @@ public class OrderController {
      */
     @GetMapping("/{id}")
     public ResponseEntity<OrderDTO> getById(@PathVariable String id) {
+        logger.info("Fetching order with ID: {}", id);
         Optional<Order> order = orderService.findById(id);
-        return order.map(o -> ResponseEntity.ok(OrderDTO.fromEntity(o)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        if (order.isPresent()) {
+            logger.info("Order found with ID: {}", id);
+            return ResponseEntity.ok(OrderDTO.fromEntity(order.get()));
+        } else {
+            logger.warn("Order with ID: {} not found", id);
+            return ResponseEntity.notFound().build();
+        }
     }
 
     /**
@@ -88,21 +138,28 @@ public class OrderController {
             @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "asc") String direction) {
 
+        logger.info("Listing orders with filters - pending: {}, overdueAt: {}, availableAt: {}, paginated: {}, page: {}, size: {}, sortBy: {}, direction: {}",
+                pending, overdueAt, availableAt, paginated, page, size, sortBy, direction);
+
         // Si paginated es null o false, devolvemos todos los resultados sin paginar
         if (paginated == null || !paginated) {
             List<Order> orders;
 
             if (Boolean.TRUE.equals(pending)) {
                 // Filtrar por pedidos pendientes
+                logger.info("Filtering orders by pending status");
                 orders = orderService.findPendingDeliveries();
             } else if (overdueAt != null) {
                 // Filtrar por pedidos vencidos
+                logger.info("Filtering orders by overdue status at: {}", overdueAt);
                 orders = orderService.findOverdueOrders(overdueAt);
             } else if (availableAt != null) {
                 // Filtrar por pedidos disponibles
+                logger.info("Filtering orders by available status at: {}", availableAt);
                 orders = orderService.findAvailableOrders(availableAt);
             } else {
                 // Sin filtros, retornar todos
+                logger.info("Retrieving all orders without filtering");
                 orders = orderService.findAll();
             }
 
@@ -110,6 +167,7 @@ public class OrderController {
                     .map(OrderDTO::fromEntity)
                     .collect(Collectors.toList());
 
+            logger.info("Found {} orders matching criteria", orderDTOs.size());
             return ResponseEntity.ok(orderDTOs);
         }
 
@@ -122,18 +180,24 @@ public class OrderController {
 
         if (Boolean.TRUE.equals(pending)) {
             // Filtrar por pedidos pendientes
+            logger.info("Filtering paginated orders by pending status");
             orderPage = orderService.findPendingDeliveriesPaged(pageable);
         } else if (overdueAt != null) {
             // Filtrar por pedidos vencidos
+            logger.info("Filtering paginated orders by overdue status at: {}", overdueAt);
             orderPage = orderService.findOverdueOrdersPaged(overdueAt, pageable);
         } else if (availableAt != null) {
             // Filtrar por pedidos disponibles
+            logger.info("Filtering paginated orders by available status at: {}", availableAt);
             orderPage = orderService.findAvailableOrdersPaged(availableAt, pageable);
         } else {
             // Sin filtros, retornar todos
+            logger.info("Retrieving all paginated orders without filtering");
             orderPage = orderService.findAllPaged(pageable);
         }
 
+        logger.info("Found page {} of {} with {} orders per page (total: {})", 
+                orderPage.getNumber(), orderPage.getTotalPages(), orderPage.getSize(), orderPage.getTotalElements());
         return ResponseEntity.ok(orderPage.map(OrderDTO::fromEntity));
     }
 
@@ -142,12 +206,17 @@ public class OrderController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
+        logger.info("Attempting to delete order with ID: {}", id);
         return orderService.findById(id)
                 .map(order -> {
                     orderService.deleteById(id);
+                    logger.info("Order with ID: {} was deleted successfully", id);
                     return ResponseEntity.noContent().<Void>build();
                 })
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseGet(() -> {
+                    logger.warn("Order with ID: {} not found for deletion", id);
+                    return ResponseEntity.notFound().build();
+                });
     }
 
     /**
@@ -158,6 +227,9 @@ public class OrderController {
             @PathVariable String id,
             @RequestBody DeliveryRecordDTO deliveryRecord) {
 
+        logger.info("Recording delivery for order ID: {}, vehicle ID: {}, volume: {} m3", 
+                id, deliveryRecord.getVehicleId(), deliveryRecord.getVolumeM3());
+        
         LocalDateTime deliveryTime = deliveryRecord.getServeDate() != null ? deliveryRecord.getServeDate()
                 : LocalDateTime.now();
 
@@ -173,8 +245,13 @@ public class OrderController {
                     dto.setOrderId(serveRecord.getOrder().getId());
                     dto.setGlpVolumeM3(serveRecord.getGlpVolumeM3());
                     dto.setServeDate(serveRecord.getServeDate());
+                    logger.info("Delivery recorded successfully for order ID: {}, serve record ID: {}", 
+                            id, serveRecord.getId());
                     return ResponseEntity.ok(dto);
                 })
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseGet(() -> {
+                    logger.warn("Failed to record delivery for order ID: {}", id);
+                    return ResponseEntity.notFound().build();
+                });
     }
 }

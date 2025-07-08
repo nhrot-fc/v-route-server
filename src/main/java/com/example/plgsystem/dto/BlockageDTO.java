@@ -17,7 +17,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class BlockageCreateDTO {
+public class BlockageDTO {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private List<Position> blockageLines;

@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -271,6 +272,47 @@ public class OrderControllerTest {
             
         // Verify that the ID was preserved and not auto-generated
         verify(orderService).save(argThat(o -> o.getId().equals("O-003")));
+    }
+    
+    @Test
+    public void testCreateBulkOrders() throws Exception {
+        // Given
+        OrderDTO orderDTO1 = new OrderDTO();
+        orderDTO1.setId("O-003");
+        orderDTO1.setArrivalTime(LocalDateTime.of(2025, 5, 1, 8, 0));
+        orderDTO1.setDeadlineTime(LocalDateTime.of(2025, 5, 1, 18, 0));
+        orderDTO1.setGlpRequestM3(100);
+        orderDTO1.setPosition(new Position(10, 20));
+        orderDTO1.setRemainingGlpM3(100);
+        
+        OrderDTO orderDTO2 = new OrderDTO();
+        orderDTO2.setId("O-004");
+        orderDTO2.setArrivalTime(LocalDateTime.of(2025, 5, 2, 10, 0));
+        orderDTO2.setDeadlineTime(LocalDateTime.of(2025, 5, 2, 20, 0));
+        orderDTO2.setGlpRequestM3(200);
+        orderDTO2.setPosition(new Position(30, 40));
+        orderDTO2.setRemainingGlpM3(200);
+        
+        List<OrderDTO> orderDTOs = Arrays.asList(orderDTO1, orderDTO2);
+        
+        when(orderService.findById(anyString())).thenReturn(Optional.empty()); // Order IDs don't exist yet
+        when(orderService.save(any(Order.class))).thenAnswer(invocation -> {
+            Order savedOrder = invocation.getArgument(0);
+            return savedOrder;
+        });
+        
+        // When & Then
+        mockMvc.perform(post("/api/orders/bulk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(orderDTOs)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].id").value("O-003"))
+                .andExpect(jsonPath("$[1].id").value("O-004"))
+                .andExpect(jsonPath("$.length()").value(2));
+                
+        // Verify that save was called twice
+        verify(orderService, times(2)).save(any(Order.class));
     }
 
     @Test

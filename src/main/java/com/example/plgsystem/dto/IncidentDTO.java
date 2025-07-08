@@ -24,7 +24,6 @@ public class IncidentDTO {
     private LocalDateTime occurrenceTime;
     private Position location;
     private boolean resolved;
-    private double transferableGlp;
     private LocalDateTime immobilizationEndTime;
     private LocalDateTime availabilityTime;
     private boolean returnToDepotRequired;
@@ -38,7 +37,6 @@ public class IncidentDTO {
                 .occurrenceTime(incident.getOccurrenceTime())
                 .location(incident.getLocation())
                 .resolved(incident.isResolved())
-                .transferableGlp(incident.getTransferableGlp())
                 .immobilizationEndTime(incident.getImmobilizationEndTime())
                 .availabilityTime(incident.getAvailabilityTime())
                 .returnToDepotRequired(incident.isReturnToDepotRequired())

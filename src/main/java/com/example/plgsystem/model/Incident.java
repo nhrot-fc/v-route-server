@@ -44,9 +44,6 @@ public class Incident implements Serializable {
     @Column(nullable = false)
     private boolean resolved;
 
-    @Column(name = "transferable_glp", nullable = false)
-    private double transferableGlp;
-
     public Incident(Vehicle vehicle, IncidentType type, LocalDateTime occurrenceTime) {
         this.id = UUID.randomUUID();
         this.vehicle = vehicle;
@@ -54,7 +51,6 @@ public class Incident implements Serializable {
         this.occurrenceTime = occurrenceTime;
         this.shift = Shift.fromTime(occurrenceTime.toLocalTime());
         this.resolved = false;
-        this.transferableGlp = 0;
     }
 
     @Transient

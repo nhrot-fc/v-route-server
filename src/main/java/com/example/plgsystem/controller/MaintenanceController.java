@@ -4,6 +4,8 @@ import com.example.plgsystem.dto.MaintenanceCreateDTO;
 import com.example.plgsystem.dto.MaintenanceDTO;
 import com.example.plgsystem.model.Maintenance;
 import com.example.plgsystem.service.MaintenanceService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,10 +27,12 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/maintenances")
 public class MaintenanceController {
     
+    private static final Logger logger = LoggerFactory.getLogger(MaintenanceController.class);
     private final MaintenanceService maintenanceService;
     
     public MaintenanceController(MaintenanceService maintenanceService) {
         this.maintenanceService = maintenanceService;
+        logger.info("MaintenanceController initialized");
     }
     
     /**
@@ -38,12 +42,21 @@ public class MaintenanceController {
      */
     @PostMapping
     public ResponseEntity<MaintenanceDTO> createMaintenance(@RequestBody MaintenanceCreateDTO createDTO) {
+        logger.info("Creating new maintenance for vehicle ID: {}, assigned date: {}", 
+                createDTO.getVehicleId(), createDTO.getAssignedDate());
+        
         return maintenanceService.createMaintenance(
                 createDTO.getVehicleId(), 
                 createDTO.getAssignedDate()
         )
-        .map(maintenance -> new ResponseEntity<>(MaintenanceDTO.fromEntity(maintenance), HttpStatus.CREATED))
-        .orElse(ResponseEntity.badRequest().build());
+        .map(maintenance -> {
+            logger.info("Maintenance created with ID: {}", maintenance.getId());
+            return new ResponseEntity<>(MaintenanceDTO.fromEntity(maintenance), HttpStatus.CREATED);
+        })
+        .orElseGet(() -> {
+            logger.warn("Failed to create maintenance for vehicle ID: {}", createDTO.getVehicleId());
+            return ResponseEntity.badRequest().build();
+        });
     }
     
     /**
@@ -71,35 +84,44 @@ public class MaintenanceController {
             @RequestParam(defaultValue = "assignedDate") String sortBy,
             @RequestParam(defaultValue = "asc") String direction) {
         
+        logger.info("Listing maintenances with filters - vehicleId: {}, date: {}, startDate: {}, endDate: {}, paginated: {}, page: {}, size: {}, sortBy: {}, direction: {}", 
+                vehicleId, date, startDate, endDate, paginated, page, size, sortBy, direction);
+        
         // Si paginated es null o false, devolvemos todos los resultados sin paginar
         if (paginated == null || !paginated) {
             List<Maintenance> maintenances;
             
             // Filtrado por vehículo y fecha
             if (vehicleId != null && date != null) {
+                logger.info("Filtering maintenances by vehicle ID: {} and date: {}", vehicleId, date);
                 maintenances = maintenanceService.findByVehicleIdAndDate(vehicleId, date);
             }
             // Filtrado solo por vehículo
             else if (vehicleId != null) {
+                logger.info("Filtering maintenances by vehicle ID: {}", vehicleId);
                 maintenances = maintenanceService.findByVehicleId(vehicleId);
             }
             // Filtrado solo por fecha
             else if (date != null) {
+                logger.info("Filtering maintenances by date: {}", date);
                 maintenances = maintenanceService.findByDate(date);
             }
             // Filtrado por rango de fechas
             else if (startDate != null && endDate != null) {
+                logger.info("Filtering maintenances by date range: {} to {}", startDate, endDate);
                 maintenances = maintenanceService.findByDateRange(startDate, endDate);
             }
             // Sin filtros, retorna todos
             else {
+                logger.info("Retrieving all maintenances without filtering");
                 maintenances = maintenanceService.findAll();
             }
             
             List<MaintenanceDTO> maintenanceDTOs = maintenances.stream()
                     .map(MaintenanceDTO::fromEntity)
                     .collect(Collectors.toList());
-                    
+            
+            logger.info("Found {} maintenances matching criteria", maintenanceDTOs.size());
             return ResponseEntity.ok(maintenanceDTOs);
         }
         
@@ -114,25 +136,33 @@ public class MaintenanceController {
         
         // Filtrado por vehículo y fecha
         if (vehicleId != null && date != null) {
+            logger.info("Filtering paginated maintenances by vehicle ID: {} and date: {}", vehicleId, date);
             maintenancePage = maintenanceService.findByVehicleIdAndDatePaged(vehicleId, date, pageable);
         }
         // Filtrado solo por vehículo
         else if (vehicleId != null) {
+            logger.info("Filtering paginated maintenances by vehicle ID: {}", vehicleId);
             maintenancePage = maintenanceService.findByVehicleIdPaged(vehicleId, pageable);
         }
         // Filtrado solo por fecha
         else if (date != null) {
+            logger.info("Filtering paginated maintenances by date: {}", date);
             maintenancePage = maintenanceService.findByDatePaged(date, pageable);
         }
         // Filtrado por rango de fechas
         else if (startDate != null && endDate != null) {
+            logger.info("Filtering paginated maintenances by date range: {} to {}", startDate, endDate);
             maintenancePage = maintenanceService.findByDateRangePaged(startDate, endDate, pageable);
         }
         // Sin filtros, retorna todos
         else {
+            logger.info("Retrieving all paginated maintenances without filtering");
             maintenancePage = maintenanceService.findAllPaged(pageable);
         }
         
+        logger.info("Found page {} of {} with {} maintenances per page (total: {})", 
+                maintenancePage.getNumber(), maintenancePage.getTotalPages(), 
+                maintenancePage.getSize(), maintenancePage.getTotalElements());
         return ResponseEntity.ok(maintenancePage.map(MaintenanceDTO::fromEntity));
     }
     
@@ -147,6 +177,9 @@ public class MaintenanceController {
             @RequestParam(defaultValue = "realStart") String sortBy,
             @RequestParam(defaultValue = "desc") String direction) {
         
+        logger.info("Listing active maintenances with parameters - paginated: {}, page: {}, size: {}, sortBy: {}, direction: {}", 
+                paginated, page, size, sortBy, direction);
+        
         // Si paginated es null o false, devolvemos todos los resultados sin paginar
         if (paginated == null || !paginated) {
             List<Maintenance> activeMaintenances = maintenanceService.findActiveMaintenances();
@@ -154,7 +187,8 @@ public class MaintenanceController {
             List<MaintenanceDTO> maintenanceDTOs = activeMaintenances.stream()
                     .map(MaintenanceDTO::fromEntity)
                     .collect(Collectors.toList());
-                    
+            
+            logger.info("Found {} active maintenances", maintenanceDTOs.size());
             return ResponseEntity.ok(maintenanceDTOs);
         }
         
@@ -167,6 +201,9 @@ public class MaintenanceController {
         
         Page<Maintenance> activeMaintenancesPage = maintenanceService.findActiveMaintenancesPaged(pageable);
         
+        logger.info("Found page {} of {} with {} active maintenances per page (total: {})", 
+                activeMaintenancesPage.getNumber(), activeMaintenancesPage.getTotalPages(), 
+                activeMaintenancesPage.getSize(), activeMaintenancesPage.getTotalElements());
         return ResponseEntity.ok(activeMaintenancesPage.map(MaintenanceDTO::fromEntity));
     }
     
@@ -175,8 +212,15 @@ public class MaintenanceController {
      */
     @GetMapping("/{id}")
     public ResponseEntity<MaintenanceDTO> getMaintenanceById(@PathVariable UUID id) {
+        logger.info("Fetching maintenance with ID: {}", id);
         return maintenanceService.findById(id)
-                .map(maintenance -> ResponseEntity.ok(MaintenanceDTO.fromEntity(maintenance)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .map(maintenance -> {
+                    logger.info("Maintenance found with ID: {}", id);
+                    return ResponseEntity.ok(MaintenanceDTO.fromEntity(maintenance));
+                })
+                .orElseGet(() -> {
+                    logger.warn("Maintenance with ID: {} not found", id);
+                    return ResponseEntity.notFound().build();
+                });
     }
 }

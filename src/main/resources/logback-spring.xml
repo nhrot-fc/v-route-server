@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <property name="LOGS" value="./logs" />
+
+    <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %black(%d{ISO8601}) %highlight(%-5level) [%blue(%t)] %yellow(%C{1}): %msg%n%throwable
+            </Pattern>
+        </layout>
+    </appender>
+
+    <appender name="RollingFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/application.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %C{1} [%t] %m%n</Pattern>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- daily rollover -->
+            <fileNamePattern>${LOGS}/archived/application-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <!-- keep 30 days' worth of history -->
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Controllers specific logs with separate files per controller -->
+    <appender name="BlockageControllerFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/controller-blockage.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %m%n</Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/controller-blockage-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="IncidentControllerFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/controller-incident.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %m%n</Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/controller-incident-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="OrderControllerFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/controller-order.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %m%n</Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/controller-order-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="ServeRecordControllerFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/controller-serve-record.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %m%n</Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/controller-serve-record-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="SimulationControllerFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/controller-simulation.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %m%n</Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/controller-simulation-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="DashboardControllerFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/controller-dashboard.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %m%n</Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/controller-dashboard-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="MaintenanceControllerFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/controller-maintenance.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %m%n</Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/controller-maintenance-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="DepotControllerFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/controller-depot.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %m%n</Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/controller-depot-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="VehicleControllerFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/controller-vehicle.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>%d %p %m%n</Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/controller-vehicle-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Logger with additivity=false only uses the specified appender, not inherited ones -->
+    <logger name="com.example.plgsystem.controller.BlockageController" level="INFO" additivity="false">
+        <appender-ref ref="BlockageControllerFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="com.example.plgsystem.controller.IncidentController" level="INFO" additivity="false">
+        <appender-ref ref="IncidentControllerFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="com.example.plgsystem.controller.OrderController" level="INFO" additivity="false">
+        <appender-ref ref="OrderControllerFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="com.example.plgsystem.controller.ServeRecordController" level="INFO" additivity="false">
+        <appender-ref ref="ServeRecordControllerFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="com.example.plgsystem.controller.SimulationController" level="INFO" additivity="false">
+        <appender-ref ref="SimulationControllerFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="com.example.plgsystem.controller.DashboardController" level="INFO" additivity="false">
+        <appender-ref ref="DashboardControllerFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="com.example.plgsystem.controller.MaintenanceController" level="INFO" additivity="false">
+        <appender-ref ref="MaintenanceControllerFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="com.example.plgsystem.controller.DepotController" level="INFO" additivity="false">
+        <appender-ref ref="DepotControllerFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="com.example.plgsystem.controller.VehicleController" level="INFO" additivity="false">
+        <appender-ref ref="VehicleControllerFile" />
+        <appender-ref ref="Console" />
+    </logger>
+
+    <!-- LOG everything at INFO level -->
+    <root level="info">
+        <appender-ref ref="RollingFile" />
+        <appender-ref ref="Console" />
+    </root>
+
+</configuration> 

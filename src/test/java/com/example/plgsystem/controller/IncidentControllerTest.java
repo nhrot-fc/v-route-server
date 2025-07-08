@@ -40,13 +40,13 @@ public class IncidentControllerTest {
 
     @MockitoBean
     private IncidentService incidentService;
-    
+
     @MockitoBean
     private VehicleService vehicleService;
 
     @Autowired
     private ObjectMapper objectMapper;
-    
+
     private Vehicle vehicle1;
     private Vehicle vehicle2;
     private Incident incident1;
@@ -61,28 +61,28 @@ public class IncidentControllerTest {
         // Crear IDs fijos para pruebas
         incidentId1 = UUID.fromString("a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6");
         incidentId2 = UUID.fromString("b2c3d4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7");
-        
+
         // Crear vehículos para pruebas
         vehicle1 = Vehicle.builder()
                 .id("V-001")
                 .type(VehicleType.TA)
                 .currentPosition(new Position(10, 20))
                 .build();
-        
+
         vehicle2 = Vehicle.builder()
                 .id("V-002")
                 .type(VehicleType.TB)
                 .currentPosition(new Position(30, 40))
                 .build();
-        
+
         // Crear tiempos de ocurrencia
         occurrenceTime1 = LocalDateTime.of(2025, 5, 15, 9, 0); // 9 AM - Shift T1
         occurrenceTime2 = LocalDateTime.of(2025, 5, 15, 14, 0); // 2 PM - Shift T2
-        
+
         // Crear incidentes para pruebas
         incident1 = new Incident(vehicle1, IncidentType.TI1, occurrenceTime1);
         incident2 = new Incident(vehicle2, IncidentType.TI2, occurrenceTime2);
-        
+
         // Establecer IDs manualmente
         try {
             java.lang.reflect.Field idField = Incident.class.getDeclaredField("id");
@@ -92,14 +92,10 @@ public class IncidentControllerTest {
         } catch (Exception e) {
             throw new RuntimeException("Failed to set ID field", e);
         }
-        
+
         // Configurar ubicaciones
         incident1.setLocation(new Position(15, 25));
         incident2.setLocation(new Position(35, 45));
-        
-        // Configurar GLP transferible
-        incident1.setTransferableGlp(50.5);
-        incident2.setTransferableGlp(30.0);
     }
 
     @Test
@@ -114,13 +110,13 @@ public class IncidentControllerTest {
                 .andExpect(jsonPath("$[0].vehicleId").value("V-001"))
                 .andExpect(jsonPath("$[1].vehicleId").value("V-002"));
     }
-    
+
     @Test
     public void testGetAllIncidents_WithPagination() throws Exception {
         // Given
-        Page<Incident> incidentPage = new PageImpl<>(Arrays.asList(incident1, incident2), 
+        Page<Incident> incidentPage = new PageImpl<>(Arrays.asList(incident1, incident2),
                 PageRequest.of(0, 10), 2);
-        
+
         when(incidentService.findAllPaged(any(Pageable.class))).thenReturn(incidentPage);
 
         // When & Then
@@ -175,7 +171,7 @@ public class IncidentControllerTest {
         // Given
         LocalDateTime start = LocalDateTime.of(2025, 5, 1, 0, 0);
         LocalDateTime end = LocalDateTime.of(2025, 5, 31, 23, 59);
-        
+
         when(incidentService.findByDateRange(start, end)).thenReturn(Arrays.asList(incident1, incident2));
 
         // When & Then
@@ -194,7 +190,7 @@ public class IncidentControllerTest {
         String vehicleId = "V-001";
         LocalDateTime start = LocalDateTime.of(2025, 5, 1, 0, 0);
         LocalDateTime end = LocalDateTime.of(2025, 5, 31, 23, 59);
-        
+
         when(incidentService.findByVehicleAndDateRange(vehicleId, start, end))
                 .thenReturn(Collections.singletonList(incident1));
 
@@ -216,8 +212,7 @@ public class IncidentControllerTest {
         createDTO.setType(IncidentType.TI1);
         createDTO.setOccurrenceTime(LocalDateTime.of(2025, 5, 15, 10, 0));
         createDTO.setLocation(new Position(10, 20));
-        createDTO.setTransferableGlp(50.5);
-        
+
         when(vehicleService.findById("V-001")).thenReturn(Optional.of(vehicle1));
         when(incidentService.save(any(Incident.class))).thenReturn(incident1);
 
@@ -227,8 +222,7 @@ public class IncidentControllerTest {
                 .content(objectMapper.writeValueAsString(createDTO)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(incidentId1.toString()))
-                .andExpect(jsonPath("$.vehicleId").value("V-001"))
-                .andExpect(jsonPath("$.transferableGlp").value(50.5));
+                .andExpect(jsonPath("$.vehicleId").value("V-001"));
     }
 
     @Test
@@ -238,7 +232,7 @@ public class IncidentControllerTest {
         createDTO.setVehicleId("nonexistent");
         createDTO.setType(IncidentType.TI1);
         createDTO.setOccurrenceTime(LocalDateTime.now());
-        
+
         when(vehicleService.findById("nonexistent")).thenReturn(Optional.empty());
 
         // When & Then
@@ -252,7 +246,7 @@ public class IncidentControllerTest {
     public void testResolveIncident() throws Exception {
         // Given
         Incident resolvedIncident = new Incident(vehicle1, IncidentType.TI1, occurrenceTime1);
-        
+
         // Establecer ID manualmente
         try {
             java.lang.reflect.Field idField = Incident.class.getDeclaredField("id");
@@ -261,9 +255,9 @@ public class IncidentControllerTest {
         } catch (Exception e) {
             throw new RuntimeException("Failed to set ID field", e);
         }
-        
+
         resolvedIncident.setResolved(true);
-        
+
         when(incidentService.resolveIncident(incidentId1)).thenReturn(Optional.of(resolvedIncident));
 
         // When & Then
@@ -283,4 +277,4 @@ public class IncidentControllerTest {
         mockMvc.perform(patch("/api/incidents/" + nonExistentId + "/resolve"))
                 .andExpect(status().isNotFound());
     }
-} 
+}
