@@ -12,11 +12,13 @@ import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.enums.VehicleStatus;
+import lombok.Getter;
 
 /**
  * Represents an action that a vehicle can execute during the simulation.
  * Actions include movements, loading, unloading, refueling, etc.
  */
+@Getter
 public class Action {
     // General attributes for all actions
     private final ActionType type;
@@ -47,44 +49,8 @@ public class Action {
         this.fuelChangeGal = fuelChangeGal;
     }
 
-    public ActionType getType() {
-        return type;
-    }
-
     public Duration getDuration() {
         return Duration.between(expectedStartTime, expectedEndTime);
-    }
-
-    public LocalDateTime getExpectedStartTime() {
-        return expectedStartTime;
-    }
-
-    public LocalDateTime getExpectedEndTime() {
-        return expectedEndTime;
-    }
-
-    public Position getDestination() {
-        return destination;
-    }
-
-    public int getGlpChangeM3() {
-        return glpChangeM3;
-    }
-
-    public Order getOrder() {
-        return order;
-    }
-
-    public String getOrderId() {
-        return orderId;
-    }
-
-    public double getFuelChangeGal() {
-        return fuelChangeGal;
-    }
-
-    public List<Position> getPath() {
-        return path;
     }
 
     public boolean execute(Vehicle vehicle, SimulationState environment,
@@ -180,17 +146,15 @@ public class Action {
         }
         
         // Additional checks based on action type
-        switch (type) {
-            case DRIVE:
-                return path != null && !path.isEmpty() && vehicle.getCurrentFuelGal() >= Math.abs(fuelChangeGal);
-            case RELOAD:
+        return switch (type) {
+            case DRIVE -> path != null && !path.isEmpty() && vehicle.getCurrentFuelGal() >= Math.abs(fuelChangeGal);
+            case RELOAD -> {
                 Depot depot = findDepotByPosition(environment, destination);
-                return depot != null && depot.getCurrentGlpM3() >= Math.abs(glpChangeM3);
-            case SERVE:
-                return vehicle.getCurrentGlpM3() >= Math.abs(glpChangeM3);
-            default:
-                return true;
-        }
+                yield depot != null && depot.getCurrentGlpM3() >= Math.abs(glpChangeM3);
+            }
+            case SERVE -> vehicle.getCurrentGlpM3() >= Math.abs(glpChangeM3);
+            default -> true;
+        };
     }
     
     /**

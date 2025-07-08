@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -58,15 +59,13 @@ public class ServeRecordControllerTest {
     private ServeRecord serveRecord1;
     private ServeRecord serveRecord2;
     private UUID serveRecordId1;
-    private UUID serveRecordId2;
     private LocalDateTime serveDate1;
-    private LocalDateTime serveDate2;
 
     @BeforeEach
     public void setUp() {
-        // Crear IDs fijos para pruebas
+        // Crear ID fijos para pruebas
         serveRecordId1 = UUID.fromString("a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6");
-        serveRecordId2 = UUID.fromString("b2c3d4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7");
+        UUID serveRecordId2 = UUID.fromString("b2c3d4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7");
         
         // Crear vehículos para pruebas
         vehicle1 = Vehicle.builder()
@@ -84,7 +83,7 @@ public class ServeRecordControllerTest {
         // Crear fechas para pruebas
         LocalDateTime now = LocalDateTime.now();
         serveDate1 = now.minusHours(2);
-        serveDate2 = now.minusHours(1);
+        LocalDateTime serveDate2 = now.minusHours(1);
         
         // Crear órdenes para pruebas
         order1 = Order.builder()
@@ -187,7 +186,7 @@ public class ServeRecordControllerTest {
     public void testGetServeRecordsByOrderId() throws Exception {
         // Given
         String orderId = "O-001";
-        when(serveRecordService.findByOrderId(orderId)).thenReturn(Arrays.asList(serveRecord1));
+        when(serveRecordService.findByOrderId(orderId)).thenReturn(Collections.singletonList(serveRecord1));
 
         // When & Then
         mockMvc.perform(get("/api/serve-records")
@@ -201,7 +200,7 @@ public class ServeRecordControllerTest {
     public void testGetServeRecordsByVehicleId() throws Exception {
         // Given
         String vehicleId = "V-001";
-        when(serveRecordService.findByVehicleId(vehicleId)).thenReturn(Arrays.asList(serveRecord1));
+        when(serveRecordService.findByVehicleId(vehicleId)).thenReturn(Collections.singletonList(serveRecord1));
 
         // When & Then
         mockMvc.perform(get("/api/serve-records")
@@ -248,7 +247,7 @@ public class ServeRecordControllerTest {
         // Given
         String orderId = "O-001";
         Page<ServeRecord> recordPage = new PageImpl<>(
-                Arrays.asList(serveRecord1),
+                Collections.singletonList(serveRecord1),
                 PageRequest.of(0, 10),
                 1
         );
@@ -271,7 +270,7 @@ public class ServeRecordControllerTest {
         // Given
         String vehicleId = "V-001";
         Page<ServeRecord> recordPage = new PageImpl<>(
-                Arrays.asList(serveRecord1),
+                Collections.singletonList(serveRecord1),
                 PageRequest.of(0, 10),
                 1
         );

@@ -47,7 +47,7 @@ public class ServeRecordTest {
     public void testServeRecordCreation() {
         assertNotNull(serveRecord);
         assertNotNull(serveRecord.getId()); // ID should be automatically generated UUID
-        assertTrue(serveRecord.getId() instanceof UUID);
+        assertInstanceOf(UUID.class, serveRecord.getId());
         assertEquals(vehicle, serveRecord.getVehicle());
         assertEquals(order, serveRecord.getOrder());
         assertEquals(volumeM3, serveRecord.getGlpVolumeM3());

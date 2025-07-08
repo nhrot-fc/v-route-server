@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +88,7 @@ public class DashboardController {
         List<Order> overdueOrders = orderRepository.findByDeadlineTimeBefore(now)
             .stream()
             .filter(order -> order.getRemainingGlpM3() > 0)
-            .collect(Collectors.toList());
+            .toList();
         
         overview.put("totalOrders", orderRepository.count());
         overview.put("pendingOrders", pendingOrders.size());
@@ -104,12 +105,13 @@ public class DashboardController {
         
         overview.put("totalStorageCapacity", totalStorageCapacity);
         overview.put("currentTotalGLP", currentTotalGLP);
-        overview.put("storageUtilization", 
-                    totalStorageCapacity > 0 ? (currentTotalGLP / totalStorageCapacity * 100) : 0.0);
+        double utilization = totalStorageCapacity > 0 ? (currentTotalGLP / totalStorageCapacity * 100) : 0.0;
+        overview.put("storageUtilization",
+                utilization);
         
         logger.debug("Depot statistics calculated: totalCapacity={}, currentGLP={}, utilization={}%",
-                totalStorageCapacity, currentTotalGLP, 
-                totalStorageCapacity > 0 ? (currentTotalGLP / totalStorageCapacity * 100) : 0.0);
+                totalStorageCapacity, currentTotalGLP,
+                utilization);
         
         // Fleet capacity statistics
         List<Vehicle> allVehicles = vehicleRepository.findAll();
@@ -125,16 +127,16 @@ public class DashboardController {
         // Current operational status
         List<Blockage> activeBlockages = blockageRepository.findAll().stream()
             .filter(blockage -> blockage.isActiveAt(now))
-            .collect(Collectors.toList());
+            .toList();
         
         List<Maintenance> activeMaintenance = maintenanceRepository.findAll().stream()
             .filter(maintenance -> maintenance.getRealStart() != null && 
                    (maintenance.getRealEnd() == null || now.isBefore(maintenance.getRealEnd())))
-            .collect(Collectors.toList());
+            .toList();
             
         List<Incident> activeIncidents = incidentRepository.findAll().stream()
             .filter(incident -> !incident.isResolved())
-            .collect(Collectors.toList());
+            .toList();
         
         overview.put("activeBlockages", activeBlockages.size());
         overview.put("activeMaintenance", activeMaintenance.size());
@@ -211,7 +213,7 @@ public class DashboardController {
         
         List<Order> urgentOrders = orderRepository.findPendingDeliveries().stream()
                 .filter(order -> order.getDeadlineTime().isBefore(deadline) && order.getDeadlineTime().isAfter(now))
-                .sorted((o1, o2) -> o1.getDeadlineTime().compareTo(o2.getDeadlineTime()))
+                .sorted(Comparator.comparing(Order::getDeadlineTime))
                 .collect(Collectors.toList());
         
         logger.info("Found {} urgent orders within {} hours", urgentOrders.size(), hoursAhead);
@@ -242,11 +244,10 @@ public class DashboardController {
         
         int activeIncidents = incidentRepository.findAll().stream()
             .filter(incident -> !incident.isResolved())
-            .collect(Collectors.toList()).size();
+            .toList().size();
             
-        int overdueOrders = orderRepository.findByDeadlineTimeBefore(now).stream()
-            .filter(order -> order.getRemainingGlpM3() > 0)
-            .collect(Collectors.toList()).size();
+        int overdueOrders = (int) orderRepository.findByDeadlineTimeBefore(now).stream()
+                .filter(order -> order.getRemainingGlpM3() > 0).count();
         
         double vehicleHealthScore = totalVehicles > 0 ? (double) availableVehicles / totalVehicles * 100 : 0;
         double incidentHealthScore = Math.max(0, 100 - (activeIncidents * 10)); // Each incident reduces score by 10

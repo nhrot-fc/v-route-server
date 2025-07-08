@@ -95,8 +95,8 @@ class RandomDistributorTest {
         
         List<Vehicle> vehicles = Arrays.asList(availableVehicle, unavailableVehicle);
         
-        List<Order> orders = Arrays.asList(
-            createMockOrder("ORD-1", 10, false)
+        List<Order> orders = List.of(
+                createMockOrder("ORD-1", 10, false)
         );
         
         when(mockState.getVehicles()).thenReturn(vehicles);
@@ -115,8 +115,8 @@ class RandomDistributorTest {
     @Test
     void createInitialRandomAssignments_shouldNotAssignDeliveredOrders() {
         // Arrange
-        List<Vehicle> vehicles = Arrays.asList(
-            createMockVehicle("V-001", VehicleType.TA, true, 30)
+        List<Vehicle> vehicles = List.of(
+                createMockVehicle("V-001", VehicleType.TA, true, 30)
         );
         
         List<Order> orders = Arrays.asList(

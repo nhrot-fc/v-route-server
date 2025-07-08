@@ -58,7 +58,7 @@ public class SolutionEvaluator {
 
     private static double evaluateRoute(Route route, Vehicle vehicle, SimulationState state,
             Map<String, Integer> ordersState, Map<String, Integer> depotsState) {
-        List<RouteStop> stops = route.getStops();
+        List<RouteStop> stops = route.stops();
         if (stops.isEmpty()) {
             return 0.0;
         }
@@ -67,7 +67,7 @@ public class SolutionEvaluator {
         int currentGlp = vehicle.getCurrentGlpM3();
         double currentFuel = vehicle.getCurrentFuelGal();
         Position currentPosition = vehicle.getCurrentPosition();
-        LocalDateTime currentTime = route.getStartTime();
+        LocalDateTime currentTime = route.startTime();
 
         for (RouteStop stop : stops) {
             Position targetPosition;
@@ -138,16 +138,15 @@ public class SolutionEvaluator {
                     int depotGlp = depotsState.getOrDefault(depotId, 0);
 
                     if (depotGlp < glpToLoad) {
-                        int glpAvailable = depotGlp;
 
                         depotsState.put(depotId, 0);
 
                         int capacityRemaining = vehicle.getGlpCapacityM3() - currentGlp;
-                        int actualLoad = Math.min(glpAvailable, capacityRemaining);
+                        int actualLoad = Math.min(depotGlp, capacityRemaining);
                         currentGlp += actualLoad;
 
                         // Penalizamos la cantidad de GLP que no se pudo cargar
-                        routeCost += (glpToLoad - glpAvailable) * 5.0;
+                        routeCost += (glpToLoad - depotGlp) * 5.0;
                     } else {
                         depotsState.put(depotId, depotGlp - glpToLoad);
 
@@ -180,7 +179,7 @@ public class SolutionEvaluator {
     }
 
     /**
-     * Crea una solución infactible con costo infinito
+     * Crea una solución no factible con costo infinito
      */
     private static Solution createInfeasibleSolution(Solution originalSolution) {
         return new Solution(

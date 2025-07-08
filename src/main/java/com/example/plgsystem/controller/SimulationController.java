@@ -209,13 +209,13 @@ public class SimulationController {
     public ResponseEntity<Map<UUID, SimulationDTO>> listSimulations() {
         logger.info("Listing all simulations");
         Map<UUID, Simulation> simulations = simulationService.getAllSimulations();
-        Map<UUID, SimulationDTO> dtos = simulations.entrySet().stream()
+        Map<UUID, SimulationDTO> simulationDTOList = simulations.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
                         e -> new SimulationDTO(e.getValue())
                 ));
-        logger.info("Found {} active simulations", dtos.size());
-        return ResponseEntity.ok(dtos);
+        logger.info("Found {} active simulations", simulationDTOList.size());
+        return ResponseEntity.ok(simulationDTOList);
     }
     
     @PostMapping("/{id}/start")

@@ -51,14 +51,13 @@ class SolutionGeneratorTest {
     
     @Mock
     private Depot mockAuxDepot;
-    
-    private LocalDateTime currentTime;
+
     private Map<String, List<DeliveryPart>> assignments;
     private List<Position> mockPath;
 
     @BeforeEach
     void setUp() {
-        currentTime = LocalDateTime.now();
+        LocalDateTime currentTime = LocalDateTime.now();
         
         // Create a mock path that will be returned by PathFinder
         mockPath = new ArrayList<>();
@@ -128,8 +127,8 @@ class SolutionGeneratorTest {
             new DeliveryPart("ORD-1", 5, currentTime.plusHours(2)),
             new DeliveryPart("ORD-2", 7, currentTime.plusHours(3))
         )));
-        assignments.put("V-002", new ArrayList<>(Arrays.asList(
-            new DeliveryPart("ORD-2", 5, currentTime.plusHours(3))
+        assignments.put("V-002", new ArrayList<>(List.of(
+                new DeliveryPart("ORD-2", 5, currentTime.plusHours(3))
         )));
     }
 

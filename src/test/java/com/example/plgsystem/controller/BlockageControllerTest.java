@@ -44,7 +44,6 @@ public class BlockageControllerTest {
     private ObjectMapper objectMapper;
 
     private Blockage blockage1;
-    private Blockage blockage2;
     private List<Blockage> blockages;
     private Page<Blockage> blockagePage;
     private UUID blockageId1;
@@ -52,7 +51,7 @@ public class BlockageControllerTest {
 
     @BeforeEach
     public void setUp() {
-        // Crear IDs fijos para pruebas
+        // Crear ID fijos para pruebas
         blockageId1 = UUID.fromString("a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6");
         blockageId2 = UUID.fromString("b2c3d4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7");
 
@@ -79,7 +78,7 @@ public class BlockageControllerTest {
                 new Position(30, 40),
                 new Position(31, 40),
                 new Position(32, 40));
-        blockage2 = new Blockage(startTime2, endTime2, blockagePoints2);
+        Blockage blockage2 = new Blockage(startTime2, endTime2, blockagePoints2);
         // Establecer ID manualmente
         try {
             java.lang.reflect.Field idField = Blockage.class.getDeclaredField("id");

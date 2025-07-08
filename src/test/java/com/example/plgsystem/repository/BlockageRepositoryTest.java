@@ -129,7 +129,8 @@ public class BlockageRepositoryTest {
         blockageRepository.save(updatedBlockage);
         
         // Then
-        Blockage refreshedBlockage = blockageRepository.findById(blockageId).get();
+        Blockage refreshedBlockage;
+        refreshedBlockage = blockageRepository.findById(blockageId).get();
         assertEquals(newEnd, refreshedBlockage.getEndTime());
         assertEquals(start, refreshedBlockage.getStartTime()); // Should not change
     }
@@ -200,7 +201,7 @@ public class BlockageRepositoryTest {
 
         // Then
         assertEquals(1, activeBlockages.size());
-        assertEquals(blockage1.getId(), activeBlockages.get(0).getId());
+        assertEquals(blockage1.getId(), activeBlockages.getFirst().getId());
     }
 
     @Test

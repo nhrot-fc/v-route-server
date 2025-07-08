@@ -49,7 +49,6 @@ public class SimulationControllerTest {
     private DepotService depotService;
 
     private Simulation testSimulation;
-    private SimulationState testState;
     private UUID simulationId;
 
     @BeforeEach
@@ -60,7 +59,9 @@ public class SimulationControllerTest {
         Depot mainDepot = new Depot("CENTRAL", new Position(12, 8), 1000, DepotType.MAIN);
         mainDepot.refill();
 
-        testState = new SimulationState(
+        // Empty vehicles list
+        // Empty aux depots
+        SimulationState testState = new SimulationState(
                 Collections.emptyList(), // Empty vehicles list
                 mainDepot,
                 new ArrayList<>(), // Empty aux depots

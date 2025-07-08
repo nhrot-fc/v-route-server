@@ -18,6 +18,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -40,7 +41,6 @@ public class DepotControllerTest {
 
     private Depot mainDepot;
     private Depot auxiliaryDepot;
-    private List<Depot> depots;
     private Page<Depot> depotPage;
 
     @BeforeEach
@@ -54,7 +54,7 @@ public class DepotControllerTest {
         auxiliaryDepot.setCurrentGlpM3(1500);
 
         // Lista de depósitos
-        depots = Arrays.asList(mainDepot, auxiliaryDepot);
+        List<Depot> depots = Arrays.asList(mainDepot, auxiliaryDepot);
 
         // Página de depósitos para pruebas paginadas
         depotPage = new PageImpl<>(depots, PageRequest.of(0, 10), 2);
@@ -176,7 +176,7 @@ public class DepotControllerTest {
     @Test
     public void testGetDepotsByType() throws Exception {
         // Given
-        List<Depot> mainDepots = Arrays.asList(mainDepot);
+        List<Depot> mainDepots = Collections.singletonList(mainDepot);
         when(depotService.findByType(DepotType.MAIN)).thenReturn(mainDepots);
 
         // When & Then
@@ -192,7 +192,7 @@ public class DepotControllerTest {
     @Test
     public void testGetDepotsByMinCapacity() throws Exception {
         // Given
-        when(depotService.findByMinCapacity(3000)).thenReturn(Arrays.asList(mainDepot));
+        when(depotService.findByMinCapacity(3000)).thenReturn(Collections.singletonList(mainDepot));
 
         // When & Then
         mockMvc.perform(get("/api/depots")
@@ -207,7 +207,7 @@ public class DepotControllerTest {
     @Test
     public void testGetMainDepots() throws Exception {
         // Given
-        when(depotService.findMainDepots()).thenReturn(Arrays.asList(mainDepot));
+        when(depotService.findMainDepots()).thenReturn(Collections.singletonList(mainDepot));
 
         // When & Then
         mockMvc.perform(get("/api/depots")

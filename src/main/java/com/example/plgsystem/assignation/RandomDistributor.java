@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Comparator;
-import java.util.stream.Collectors;
 
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Vehicle;
@@ -18,12 +17,10 @@ public class RandomDistributor {
 
     public static Map<String, List<DeliveryPart>> createInitialRandomAssignments(SimulationState environment) {
         Map<String, List<DeliveryPart>> assignments = new HashMap<>();
-        List<Vehicle> availableVehicles = new ArrayList<>(environment.getVehicles().stream()
-                .filter(v -> v.isAvailable())
-                .collect(Collectors.toList()));
-        List<Order> pendingOrders = new ArrayList<>(environment.getOrders().stream()
-                .filter(o -> !o.isDelivered())
-                .collect(Collectors.toList()));
+        List<Vehicle> availableVehicles = environment.getVehicles().stream()
+                .filter(Vehicle::isAvailable).toList();
+        List<Order> pendingOrders = environment.getOrders().stream()
+                .filter(o -> !o.isDelivered()).toList();
 
         for (Vehicle vehicle : availableVehicles) {
             assignments.put(vehicle.getId(), new ArrayList<>());
@@ -78,6 +75,6 @@ public class RandomDistributor {
                 return vehicle;
             }
         }
-        return vehicles.get(vehicles.size() - 1);
+        return vehicles.getLast();
     }
 }

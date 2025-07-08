@@ -19,7 +19,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Vehicle;
-import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.simulation.SimulationState;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -38,16 +37,13 @@ class MetaheuristicSolverTest {
     @Mock
     private Order mockOrder;
     
-    @Mock
-    private Depot mockMainDepot;
-    
     @BeforeEach
     void setUp() {
         // Only mock what's actually needed
         when(mockVehicle.getId()).thenReturn("V-001");
         when(mockOrder.getId()).thenReturn("ORD-1");
-        when(mockState.getVehicles()).thenReturn(Arrays.asList(mockVehicle));
-        when(mockState.getOrders()).thenReturn(Arrays.asList(mockOrder));
+        when(mockState.getVehicles()).thenReturn(List.of(mockVehicle));
+        when(mockState.getOrders()).thenReturn(List.of(mockOrder));
         when(mockState.getVehicleById("V-001")).thenReturn(mockVehicle);
         when(mockState.getOrderById("ORD-1")).thenReturn(mockOrder);
     }
@@ -61,8 +57,8 @@ class MetaheuristicSolverTest {
             
             // Mock initial assignments
             Map<String, List<DeliveryPart>> mockAssignments = new HashMap<>();
-            mockAssignments.put("V-001", Arrays.asList(
-                new DeliveryPart("ORD-1", 10, LocalDateTime.now().plusHours(2))
+            mockAssignments.put("V-001", List.of(
+                    new DeliveryPart("ORD-1", 10, LocalDateTime.now().plusHours(2))
             ));
             
             mockedRandomDistributor.when(() -> RandomDistributor.createInitialRandomAssignments(any()))
@@ -99,8 +95,8 @@ class MetaheuristicSolverTest {
                                    });
             
             // Mock DistributionOperations for neighborhood generation
-            try (MockedStatic<DistributionOperations> mockedDistribOps = mockStatic(DistributionOperations.class, withSettings())) {
-                mockedDistribOps.when(() -> DistributionOperations.randomOperationWithState(any(), any()))
+            try (MockedStatic<DistributionOperations> mockedDistributeOps = mockStatic(DistributionOperations.class, withSettings())) {
+                mockedDistributeOps.when(() -> DistributionOperations.randomOperationWithState(any(), any()))
                                 .thenAnswer((Answer<Map<String, List<DeliveryPart>>>) invocation -> {
                                     Map<String, List<DeliveryPart>> input = invocation.getArgument(0);
                                     // Return the same map to simulate no improvement
@@ -127,8 +123,8 @@ class MetaheuristicSolverTest {
             
             // Mock initial assignments
             Map<String, List<DeliveryPart>> mockAssignments = new HashMap<>();
-            mockAssignments.put("V-001", Arrays.asList(
-                new DeliveryPart("ORD-1", 10, LocalDateTime.now().plusHours(2))
+            mockAssignments.put("V-001", List.of(
+                    new DeliveryPart("ORD-1", 10, LocalDateTime.now().plusHours(2))
             ));
             
             mockedRandomDistributor.when(() -> RandomDistributor.createInitialRandomAssignments(any()))
@@ -177,8 +173,8 @@ class MetaheuristicSolverTest {
                                    });
             
             // Mock neighborhood generation
-            try (MockedStatic<DistributionOperations> mockedDistribOps = mockStatic(DistributionOperations.class, withSettings())) {
-                mockedDistribOps.when(() -> DistributionOperations.randomOperationWithState(any(), any()))
+            try (MockedStatic<DistributionOperations> mockedDistributeOps = mockStatic(DistributionOperations.class, withSettings())) {
+                mockedDistributeOps.when(() -> DistributionOperations.randomOperationWithState(any(), any()))
                                 .thenAnswer((Answer<Map<String, List<DeliveryPart>>>) invocation -> {
                                     // Return a different assignment each time to trigger evaluation
                                     return new HashMap<>(mockAssignments);

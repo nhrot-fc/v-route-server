@@ -14,7 +14,7 @@ public class ActionFactory {
 
     public static Action createDrivingAction(List<Position> path, double fuelConsumedGal, LocalDateTime startTime,
             LocalDateTime endTime) {
-        Position endPosition = path.isEmpty() ? null : path.get(path.size() - 1);
+        Position endPosition = path.isEmpty() ? null : path.getLast();
         return new Action(ActionType.DRIVE, path, endPosition, startTime, endTime, null, 0,
                 -Math.abs(fuelConsumedGal));
     }

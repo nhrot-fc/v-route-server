@@ -10,10 +10,12 @@ import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.assignation.DeliveryPart;
+import lombok.Getter;
 
 /**
  * Represents a plan of actions for a vehicle to execute during the simulation.
  */
+@Getter
 public class VehiclePlan {
     private final Vehicle vehicle;
     private final List<Action> actions;
@@ -54,44 +56,9 @@ public class VehiclePlan {
         this.totalDistanceKm = distKm;
         this.totalGlpDeliveredM3 = glpDelivered;
         this.totalFuelConsumedGal = fuelConsumed;
-        this.startTime = this.actions.isEmpty() ? null : this.actions.get(0).getExpectedStartTime();
+        this.startTime = this.actions.isEmpty() ? null : this.actions.getFirst().getExpectedStartTime();
     }
 
-    /**
-     * Gets the vehicle this plan is for
-     * 
-     * @return The vehicle
-     */
-    public Vehicle getVehicle() {
-        return vehicle;
-    }
-
-    /**
-     * Gets the list of actions in this plan
-     * 
-     * @return An unmodifiable list of actions
-     */
-    public List<Action> getActions() {
-        return Collections.unmodifiableList(actions);
-    }
-
-    /**
-     * Gets the creation time of this plan
-     * 
-     * @return The LocalDateTime when this plan was created
-     */
-    public LocalDateTime getPlanCreationTime() {
-        return planCreationTime;
-    }
-
-    /**
-     * Gets the delivery instructions this plan is based on
-     * 
-     * @return An unmodifiable list of delivery instructions
-     */
-    public List<DeliveryPart> getInstructions() {
-        return Collections.unmodifiableList(instructions);
-    }
 
     /**
      * Gets the expected start time of the plan
@@ -102,7 +69,7 @@ public class VehiclePlan {
         if (actions.isEmpty()) {
             return null;
         }
-        return actions.get(0).getExpectedStartTime();
+        return actions.getFirst().getExpectedStartTime();
     }
 
     /**
@@ -114,32 +81,11 @@ public class VehiclePlan {
         if (actions.isEmpty()) {
             return null;
         }
-        return actions.get(actions.size() - 1).getExpectedEndTime();
-    }
-
-    // Getters
-    public List<Order> getServedOrders() {
-        return Collections.unmodifiableList(servedOrders);
-    }
-
-    public double getTotalDistanceKm() {
-        return totalDistanceKm;
-    }
-
-    public double getTotalGlpDeliveredM3() {
-        return totalGlpDeliveredM3;
-    }
-
-    public double getTotalFuelConsumedGal() {
-        return totalFuelConsumedGal;
-    }
-
-    public LocalDateTime getStartTime() {
-        return startTime;
+        return actions.getLast().getExpectedEndTime();
     }
 
     public Position getFinalPosition() {
-        return actions.isEmpty() ? vehicle.getCurrentPosition() : actions.get(actions.size() - 1).getDestination();
+        return actions.isEmpty() ? vehicle.getCurrentPosition() : actions.getLast().getDestination();
     }
 
     public VehicleStatus getStatusAt(LocalDateTime time) {
@@ -156,22 +102,14 @@ public class VehiclePlan {
             LocalDateTime currentActionEndTime = currentActionStartTime.plus(action.getDuration());
 
             if (!time.isBefore(currentActionStartTime) && time.isBefore(currentActionEndTime)) {
-                switch (action.getType()) {
-                    case DRIVE:
-                        return VehicleStatus.DRIVING;
-                    case REFUEL:
-                        return VehicleStatus.REFUELING;
-                    case RELOAD:
-                        return VehicleStatus.RELOADING;
-                    case SERVE:
-                        return VehicleStatus.SERVING;
-                    case MAINTENANCE:
-                        return VehicleStatus.MAINTENANCE;
-                    case WAIT:
-                        return VehicleStatus.IDLE;
-                    default:
-                        return VehicleStatus.AVAILABLE;
-                }
+                return switch (action.getType()) {
+                    case DRIVE -> VehicleStatus.DRIVING;
+                    case REFUEL -> VehicleStatus.REFUELING;
+                    case RELOAD -> VehicleStatus.RELOADING;
+                    case SERVE -> VehicleStatus.SERVING;
+                    case MAINTENANCE -> VehicleStatus.MAINTENANCE;
+                    case WAIT -> VehicleStatus.IDLE;
+                };
             }
             currentActionStartTime = currentActionEndTime; // Move to the start time of the next action
         }

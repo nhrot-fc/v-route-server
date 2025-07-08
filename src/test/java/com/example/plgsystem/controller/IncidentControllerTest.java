@@ -48,19 +48,16 @@ public class IncidentControllerTest {
     private ObjectMapper objectMapper;
 
     private Vehicle vehicle1;
-    private Vehicle vehicle2;
     private Incident incident1;
     private Incident incident2;
     private UUID incidentId1;
-    private UUID incidentId2;
     private LocalDateTime occurrenceTime1;
-    private LocalDateTime occurrenceTime2;
 
     @BeforeEach
     public void setUp() {
-        // Crear IDs fijos para pruebas
+        // Crear ID fijos para pruebas
         incidentId1 = UUID.fromString("a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6");
-        incidentId2 = UUID.fromString("b2c3d4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7");
+        UUID incidentId2 = UUID.fromString("b2c3d4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7");
 
         // Crear vehículos para pruebas
         vehicle1 = Vehicle.builder()
@@ -69,7 +66,7 @@ public class IncidentControllerTest {
                 .currentPosition(new Position(10, 20))
                 .build();
 
-        vehicle2 = Vehicle.builder()
+        Vehicle vehicle2 = Vehicle.builder()
                 .id("V-002")
                 .type(VehicleType.TB)
                 .currentPosition(new Position(30, 40))
@@ -77,7 +74,7 @@ public class IncidentControllerTest {
 
         // Crear tiempos de ocurrencia
         occurrenceTime1 = LocalDateTime.of(2025, 5, 15, 9, 0); // 9 AM - Shift T1
-        occurrenceTime2 = LocalDateTime.of(2025, 5, 15, 14, 0); // 2 PM - Shift T2
+        LocalDateTime occurrenceTime2 = LocalDateTime.of(2025, 5, 15, 14, 0); // 2 PM - Shift T2
 
         // Crear incidentes para pruebas
         incident1 = new Incident(vehicle1, IncidentType.TI1, occurrenceTime1);
@@ -156,7 +153,7 @@ public class IncidentControllerTest {
     @Test
     public void testGetIncidentsByVehicleId() throws Exception {
         // Given
-        when(incidentService.findByVehicleId("V-001")).thenReturn(Arrays.asList(incident1));
+        when(incidentService.findByVehicleId("V-001")).thenReturn(Collections.singletonList(incident1));
 
         // When & Then
         mockMvc.perform(get("/api/incidents")

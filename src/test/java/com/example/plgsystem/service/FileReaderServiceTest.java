@@ -41,8 +41,10 @@ public class FileReaderServiceTest {
     @Test
     void loadOrdersFromFile_withValidData_returnsOrdersList() throws IOException {
         // Arrange
-        String csvContent = "01d11h25m:69,49,c-001,3m3,4h\n" +
-                "01d12h30m:80,120,c-002,5m3,8h\n";
+        String csvContent = """
+                01d11h25m:69,49,c-001,3m3,4h
+                01d12h30m:80,120,c-002,5m3,8h
+                """;
 
         MockMultipartFile file = new MockMultipartFile(
                 "orders.csv",
@@ -52,26 +54,6 @@ public class FileReaderServiceTest {
 
         LocalDate referenceDate = LocalDate.of(2025, 1, 1);
 
-        // Create the expected orders
-        List<Order> expectedOrders = new ArrayList<>();
-
-        Order order1 = new Order(
-                "c-001-202501011125",
-                LocalDateTime.of(2025, 1, 1, 11, 25),
-                LocalDateTime.of(2025, 1, 1, 15, 25),
-                3,
-                new Position(69, 49));
-
-        Order order2 = new Order(
-                "c-002-202501011230",
-                LocalDateTime.of(2025, 1, 1, 12, 30),
-                LocalDateTime.of(2025, 1, 1, 20, 30),
-                5,
-                new Position(80, 120));
-
-        expectedOrders.add(order1);
-        expectedOrders.add(order2);
-
         // Act
         List<Order> orders = fileReaderService.loadOrdersFromFile(file, referenceDate);
 
@@ -79,7 +61,7 @@ public class FileReaderServiceTest {
         assertEquals(2, orders.size());
 
         // Check first order
-        Order firstOrder = orders.get(0);
+        Order firstOrder = orders.getFirst();
         System.out.println(firstOrder);
         assertEquals("c-001-202501011125", firstOrder.getId());
         assertEquals(3, firstOrder.getGlpRequestM3());
@@ -104,9 +86,11 @@ public class FileReaderServiceTest {
     @Test
     void loadOrdersFromFile_withInvalidLine_skipsInvalidLines() throws IOException {
         // Arrange
-        String csvContent = "01d11h25m:69,49,c-001,3m3,4h\n" +
-                "invalid_line\n" +
-                "01d12h30m:80,120,c-002,5m3,8h\n";
+        String csvContent = """
+                01d11h25m:69,49,c-001,3m3,4h
+                invalid_line
+                01d12h30m:80,120,c-002,5m3,8h
+                """;
 
         MockMultipartFile file = new MockMultipartFile(
                 "orders.csv",
@@ -126,8 +110,10 @@ public class FileReaderServiceTest {
     @Test
     void loadBlockagesFromFile_withValidData_returnsBlockagesList() throws IOException {
         // Arrange
-        String csvContent = "01d00h31m-01d21h35m:15,10,30,10,30,18,15,18\n" +
-                "02d00h00m-02d23h59m:50,50,60,50,60,60,50,60\n";
+        String csvContent = """
+                01d00h31m-01d21h35m:15,10,30,10,30,18,15,18
+                02d00h00m-02d23h59m:50,50,60,50,60,60,50,60
+                """;
 
         MockMultipartFile file = new MockMultipartFile(
                 "blockages.csv",
@@ -150,16 +136,18 @@ public class FileReaderServiceTest {
         // Check second blockage
         Blockage secondBlockage = blockages.get(1);
         assertEquals(4, secondBlockage.getLines().size());
-        assertEquals(50, secondBlockage.getLines().get(0).getX());
-        assertEquals(50, secondBlockage.getLines().get(0).getY());
+        assertEquals(50, secondBlockage.getLines().getFirst().getX());
+        assertEquals(50, secondBlockage.getLines().getFirst().getY());
     }
 
     @Test
     void loadBlockagesFromFile_withInvalidData_skipsInvalidLines() throws IOException {
         // Arrange
-        String csvContent = "01d00h31m-01d21h35m:15,10,30,10,30,18,15,18\n" +
-                "invalid-blockage-line\n" +
-                "02d00h00m-02d23h59m:50,50,60,50,60,60,50,60\n";
+        String csvContent = """
+                01d00h31m-01d21h35m:15,10,30,10,30,18,15,18
+                invalid-blockage-line
+                02d00h00m-02d23h59m:50,50,60,50,60,60,50,60
+                """;
 
         MockMultipartFile file = new MockMultipartFile(
                 "blockages.csv",
@@ -179,8 +167,10 @@ public class FileReaderServiceTest {
     @Test
     void loadAndSaveOrders_savesToRepository() throws IOException {
         // Arrange
-        String csvContent = "01d11h25m:69,49,c-001,3m3,4h\n" +
-                "01d12h30m:80,120,c-002,5m3,8h\n";
+        String csvContent = """
+                01d11h25m:69,49,c-001,3m3,4h
+                01d12h30m:80,120,c-002,5m3,8h
+                """;
 
         MockMultipartFile file = new MockMultipartFile(
                 "orders.csv",
@@ -209,8 +199,10 @@ public class FileReaderServiceTest {
     @Test
     void loadAndSaveBlockages_savesToRepository() throws IOException {
         // Arrange
-        String csvContent = "01d00h31m-01d21h35m:15,10,30,10,30,18,15,18\n" +
-                "02d00h00m-02d23h59m:50,50,60,50,60,60,50,60\n";
+        String csvContent = """
+                01d00h31m-01d21h35m:15,10,30,10,30,18,15,18
+                02d00h00m-02d23h59m:50,50,60,50,60,60,50,60
+                """;
 
         MockMultipartFile file = new MockMultipartFile(
                 "blockages.csv",

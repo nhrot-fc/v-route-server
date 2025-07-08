@@ -53,9 +53,7 @@ public class OrderControllerTest {
     
     private Order order1;
     private Order order2;
-    private Vehicle vehicle;
     private ServeRecord serveRecord;
-    private UUID serveRecordId;
 
     @BeforeEach
     public void setUp() {
@@ -64,7 +62,7 @@ public class OrderControllerTest {
         Position position2 = new Position(30, 40);
         
         // Crear vehículo
-        vehicle = Vehicle.builder()
+        Vehicle vehicle = Vehicle.builder()
                 .id("V-001")
                 .type(VehicleType.TA)
                 .currentPosition(new Position(5, 5))
@@ -97,7 +95,7 @@ public class OrderControllerTest {
         order2.setRemainingGlpM3(200);
         
         // Crear registro de entrega
-        serveRecordId = UUID.randomUUID();
+        UUID serveRecordId = UUID.randomUUID();
         serveRecord = new ServeRecord(vehicle, order1, 50, now);
         
         // Establecer ID manualmente
@@ -296,10 +294,7 @@ public class OrderControllerTest {
         List<OrderDTO> orderDTOs = Arrays.asList(orderDTO1, orderDTO2);
         
         when(orderService.findById(anyString())).thenReturn(Optional.empty()); // Order IDs don't exist yet
-        when(orderService.save(any(Order.class))).thenAnswer(invocation -> {
-            Order savedOrder = invocation.getArgument(0);
-            return savedOrder;
-        });
+        when(orderService.save(any(Order.class))).thenAnswer(invocation -> invocation.<Order>getArgument(0));
         
         // When & Then
         mockMvc.perform(post("/api/orders/bulk")
@@ -327,10 +322,7 @@ public class OrderControllerTest {
         orderDTO.setRemainingGlpM3(100);
 
         // Mock the behavior of ID generation and saving
-        when(orderService.save(any(Order.class))).thenAnswer(invocation -> {
-            Order savedOrder = invocation.getArgument(0);
-            return savedOrder;
-        });
+        when(orderService.save(any(Order.class))).thenAnswer(invocation -> invocation.<Order>getArgument(0));
 
         // When & Then
         mockMvc.perform(post("/api/orders")

@@ -28,12 +28,11 @@ public class SimulationWebSocketTest {
     private SimulationService simulationService;
 
     private Simulation testSimulation;
-    private UUID simulationId;
 
     @BeforeEach
     public void setUp() {
         // Create test simulation with a UUID
-        simulationId = UUID.randomUUID();
+        UUID simulationId = UUID.randomUUID();
 
         // Create simulation state
         Depot mainDepot = new Depot("MD001", new Position(0, 0), 10000, DepotType.MAIN);
@@ -56,7 +55,7 @@ public class SimulationWebSocketTest {
     }
 
     @Test
-    public void testWebSocketSubscription() throws Exception {
+    public void testWebSocketSubscription() {
         // This is a more complex test that would normally connect to the WebSocket
         // endpoint
         // For a simple unit test, we'll just verify the simulation service is correctly

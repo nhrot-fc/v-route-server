@@ -217,8 +217,8 @@ public class MaintenanceRepositoryTest {
 
         // Then
         assertEquals(1, specificMaintenances.size());
-        assertEquals("V001", specificMaintenances.get(0).getVehicle().getId());
-        assertEquals(date1, specificMaintenances.get(0).getAssignedDate());
+        assertEquals("V001", specificMaintenances.getFirst().getVehicle().getId());
+        assertEquals(date1, specificMaintenances.getFirst().getAssignedDate());
     }
 
     @Test
@@ -291,6 +291,6 @@ public class MaintenanceRepositoryTest {
 
         // Then
         assertEquals(1, activeMaintenances.size());
-        assertEquals("V001", activeMaintenances.get(0).getVehicle().getId());
+        assertEquals("V001", activeMaintenances.getFirst().getVehicle().getId());
     }
 } 

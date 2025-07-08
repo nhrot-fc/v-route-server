@@ -86,7 +86,7 @@ public class SolutionGenerator {
                         double distanceToDepot = currentPos.distanceTo(nearestDepot.getPosition());
                         double fuelToDepot = estimateFuelConsumption(vehicle, distanceToDepot);
 
-                        // Skip if can't reach depot
+                        // Skip if vehicle can't reach depot
                         if (currentFuel >= fuelToDepot) {
                             // Add depot stop
                             int glpToLoad = Math.min(

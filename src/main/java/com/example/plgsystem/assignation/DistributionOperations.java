@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.stream.Collectors;
 
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Position;
@@ -38,7 +37,7 @@ public class DistributionOperations {
         List<String> vehiclesWithAssignments = result.entrySet().stream()
                 .filter(e -> e.getValue().size() > 2) // Need at least 3 items to shuffle segment
                 .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+                .toList();
 
         if (vehiclesWithAssignments.isEmpty()) {
             return result; // No eligible vehicles
@@ -76,7 +75,7 @@ public class DistributionOperations {
         List<String> vehiclesWithAssignments = result.entrySet().stream()
                 .filter(e -> e.getValue().size() > 1) // Need at least 2 items to move
                 .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+                .toList();
 
         if (vehiclesWithAssignments.isEmpty()) {
             return result; // No eligible vehicles
@@ -111,7 +110,7 @@ public class DistributionOperations {
         List<String> vehiclesWithAssignments = result.entrySet().stream()
                 .filter(e -> !e.getValue().isEmpty())
                 .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+                .toList();
 
         if (vehiclesWithAssignments.size() < 2) {
             return result; // Need at least 2 vehicles
@@ -158,7 +157,7 @@ public class DistributionOperations {
         List<String> sourceVehicles = result.entrySet().stream()
                 .filter(e -> !e.getValue().isEmpty())
                 .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+                .toList();
 
         if (sourceVehicles.isEmpty()) {
             return result; // No source vehicles
@@ -234,7 +233,7 @@ public class DistributionOperations {
         List<String> eligibleVehicles = result.entrySet().stream()
                 .filter(e -> e.getValue().size() > 1)
                 .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+                .toList();
 
         if (eligibleVehicles.isEmpty()) {
             return result;
@@ -260,7 +259,7 @@ public class DistributionOperations {
         List<String> eligibleVehicles = result.entrySet().stream()
                 .filter(e -> e.getValue().size() > 1)
                 .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+                .toList();
 
         if (eligibleVehicles.isEmpty()) {
             return result;
@@ -352,7 +351,7 @@ public class DistributionOperations {
         List<String> vehiclesWithDeliveries = result.entrySet().stream()
                 .filter(e -> !e.getValue().isEmpty())
                 .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+                .toList();
 
         if (vehiclesWithDeliveries.size() < 2) {
             return result;
@@ -368,14 +367,14 @@ public class DistributionOperations {
         // Get positions of orders for both vehicles
         Map<String, Position> orderPositions = new HashMap<>();
         for (String orderId : result.get(vehicleId1).stream().map(DeliveryPart::getOrderId)
-                .collect(Collectors.toList())) {
+                .toList()) {
             Order order = state.getOrderById(orderId);
             if (order != null) {
                 orderPositions.put(orderId, order.getPosition());
             }
         }
         for (String orderId : result.get(vehicleId2).stream().map(DeliveryPart::getOrderId)
-                .collect(Collectors.toList())) {
+                .toList()) {
             Order order = state.getOrderById(orderId);
             if (order != null) {
                 orderPositions.put(orderId, order.getPosition());
@@ -468,32 +467,6 @@ public class DistributionOperations {
     }
 
     /**
-     * Internal operation: Sort by GLP volume for efficient loading
-     */
-    public static Map<String, List<DeliveryPart>> sortByVolume(Map<String, List<DeliveryPart>> assignments) {
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Get vehicles with multiple deliveries
-        List<String> eligibleVehicles = result.entrySet().stream()
-                .filter(e -> e.getValue().size() > 1)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        if (eligibleVehicles.isEmpty()) {
-            return result;
-        }
-
-        // Select random vehicle
-        String vehicleId = eligibleVehicles.get(random.nextInt(eligibleVehicles.size()));
-        List<DeliveryPart> deliveries = result.get(vehicleId);
-
-        // Sort by GLP volume (descending)
-        deliveries.sort(Comparator.comparing(DeliveryPart::getGlpDeliverM3).reversed());
-
-        return result;
-    }
-
-    /**
      * Helper method to calculate the center position of a set of deliveries
      */
     private static Position calculateCenter(List<DeliveryPart> deliveries, Map<String, Position> positionMap) {
@@ -527,29 +500,18 @@ public class DistributionOperations {
             Map<String, List<DeliveryPart>> assignments, SimulationState state) {
         int operationType = random.nextInt(10);
 
-        switch (operationType) {
-            case 0:
-                return shuffleSegment(assignments);
-            case 1:
-                return moveDelivery(assignments);
-            case 2:
-                return swapDeliveries(assignments);
-            case 3:
-                return moveDeliveryBetweenVehicles(assignments);
-            case 4:
-                return swapVehicles(assignments);
-            case 5:
-                return sortByDeadline(assignments);
-            case 6:
-                return reverseDeliveries(assignments);
-            case 7:
-                return balanceByCapacity(assignments, state);
-            case 8:
-                return geographicClustering(assignments, state);
-            case 9:
-                return balanceDeliveryCount(assignments);
-            default:
-                return cloneAssignments(assignments);
-        }
+        return switch (operationType) {
+            case 0 -> shuffleSegment(assignments);
+            case 1 -> moveDelivery(assignments);
+            case 2 -> swapDeliveries(assignments);
+            case 3 -> moveDeliveryBetweenVehicles(assignments);
+            case 4 -> swapVehicles(assignments);
+            case 5 -> sortByDeadline(assignments);
+            case 6 -> reverseDeliveries(assignments);
+            case 7 -> balanceByCapacity(assignments, state);
+            case 8 -> geographicClustering(assignments, state);
+            case 9 -> balanceDeliveryCount(assignments);
+            default -> cloneAssignments(assignments);
+        };
     }
 }

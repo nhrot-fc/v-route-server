@@ -58,12 +58,12 @@ public class SimulationStateDTO {
         // Filtrar pedidos pendientes
         List<Order> pendingOrders = state.getOrders().stream()
                 .filter(order -> !order.isDelivered())
-                .collect(Collectors.toList());
+                .toList();
         
         // Filtrar órdenes con entrega vencida
         List<Order> overdueOrders = state.getOrders().stream()
                 .filter(order -> order.isOverdue(state.getCurrentTime()))
-                .collect(Collectors.toList());
+                .toList();
         
         // Filtrar bloqueos activos
         List<Blockage> activeBlockages = state.getBlockages().stream()
@@ -94,7 +94,7 @@ public class SimulationStateDTO {
                         .filter(incident -> !incident.isResolved())
                         .map(IncidentDTO::fromEntity)
                         .collect(Collectors.toList()))
-                // Convertir mantenimientos a DTOs
+                // Convertir mantenimientos a DTO
                 .scheduledMaintenances(state.getMaintenances().stream()
                         .map(MaintenanceDTO::fromEntity)
                         .collect(Collectors.toList()))

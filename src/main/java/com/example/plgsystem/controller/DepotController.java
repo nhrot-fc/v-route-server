@@ -48,7 +48,7 @@ public class DepotController {
         logger.info("Updating depot with ID: {}", id);
         return depotService.findById(id)
                 .map(existingDepot -> {
-                    // El ID lo establece el cliente pues es un String, solo verificamos que exista
+                    // El ID lo establece el cliente, pues es un String, solo verificamos que exista
                     Depot updatedDepot = depotService.save(depot);
                     logger.info("Depot with ID: {} was updated successfully", id);
                     return ResponseEntity.ok(updatedDepot);

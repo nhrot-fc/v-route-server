@@ -90,7 +90,7 @@ public class SimulationState {
      */
     private void processStateChanges() {
         // Clean past orders, incidents, blockages, maintenances
-        orders.removeIf(order -> order.isDelivered());
+        orders.removeIf(Order::isDelivered);
         blockages.removeIf(blockage -> blockage.getEndTime().isBefore(currentTime));
 
         // Process incidents

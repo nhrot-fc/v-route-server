@@ -37,7 +37,7 @@ public class Solution {
             Route route = entry.getValue();
             List<DeliveryPart> deliveryParts = new ArrayList<>();
 
-            for (RouteStop stop : route.getStops()) {
+            for (RouteStop stop : route.stops()) {
                 if (stop.isOrderStop()) {
                     deliveryParts.add(new DeliveryPart(
                             stop.getOrderId(),

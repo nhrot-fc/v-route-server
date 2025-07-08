@@ -76,7 +76,7 @@ public class VehicleRepositoryTest {
         // Then
         assertEquals(2, taVehicles.size());
         assertEquals(1, tbVehicles.size());
-        assertEquals("V003", tbVehicles.get(0).getId());
+        assertEquals("V003", tbVehicles.getFirst().getId());
     }
 
     @Test
@@ -107,8 +107,8 @@ public class VehicleRepositoryTest {
         // Then
         assertEquals(1, availableVehicles.size());
         assertEquals(1, inRouteVehicles.size());
-        assertEquals("V001", availableVehicles.get(0).getId());
-        assertEquals("V002", inRouteVehicles.get(0).getId());
+        assertEquals("V001", availableVehicles.getFirst().getId());
+        assertEquals("V002", inRouteVehicles.getFirst().getId());
     }
 
     @Test

@@ -7,7 +7,6 @@ import static org.mockito.Mockito.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,8 +85,8 @@ class SolutionEvaluatorTest {
         depotsState.put("DEP-1", 100);
         
         Map<String, Route> routes = new HashMap<>();
-        List<RouteStop> stops = Arrays.asList(
-            new RouteStop("ORD-1", currentTime.plusHours(1), 10)
+        List<RouteStop> stops = List.of(
+                new RouteStop("ORD-1", currentTime.plusHours(1), 10)
         );
         routes.put("V-001", new Route("V-001", stops, currentTime));
         
@@ -125,8 +124,8 @@ class SolutionEvaluatorTest {
         depotsState.put("DEP-1", 100);
         
         Map<String, Route> routes = new HashMap<>();
-        List<RouteStop> stops = Arrays.asList(
-            new RouteStop("ORD-1", currentTime.plusHours(1), 5)
+        List<RouteStop> stops = List.of(
+                new RouteStop("ORD-1", currentTime.plusHours(1), 5)
         );
         routes.put("V-001", new Route("V-001", stops, currentTime));
         
@@ -163,8 +162,8 @@ class SolutionEvaluatorTest {
         depotsState.put("DEP-1", 100);
         
         Map<String, Route> routes = new HashMap<>();
-        List<RouteStop> stops = Arrays.asList(
-            new RouteStop("ORD-1", currentTime.plusHours(1), 10)
+        List<RouteStop> stops = List.of(
+                new RouteStop("ORD-1", currentTime.plusHours(1), 10)
         );
         routes.put("V-001", new Route("V-001", stops, currentTime));
         
@@ -193,8 +192,8 @@ class SolutionEvaluatorTest {
         depotsState.put("DEP-1", 100);
         
         Map<String, Route> routes = new HashMap<>();
-        List<RouteStop> stops = Arrays.asList(
-            new RouteStop("ORD-1", currentTime.plusHours(1), 10)
+        List<RouteStop> stops = List.of(
+                new RouteStop("ORD-1", currentTime.plusHours(1), 10)
         );
         routes.put("V-001", new Route("V-001", stops, currentTime));
         

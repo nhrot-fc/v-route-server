@@ -23,12 +23,11 @@ public class Orchestrator {
     private static final Logger logger = Logger.getLogger(Orchestrator.class.getName());
 
     private final SimulationState environment;
-    private Map<Vehicle, VehiclePlan> vehiclePlans;
+    private final Map<Vehicle, VehiclePlan> vehiclePlans;
+    private final List<Event> eventQueue;
+
     private LocalDateTime simulationTime;
     private boolean simulationRunning;
-
-    private List<Event> eventQueue;
-
     private boolean needsReplanning;
 
     // Tick counter for replanning
@@ -115,8 +114,8 @@ public class Orchestrator {
     }
 
     private void processEvents() {
-        while (!eventQueue.isEmpty() && eventQueue.get(0).getTime().isBefore(simulationTime)) {
-            Event event = eventQueue.remove(0);
+        while (!eventQueue.isEmpty() && eventQueue.getFirst().getTime().isBefore(simulationTime)) {
+            Event event = eventQueue.removeFirst();
             processEvent(event);
         }
     }
@@ -127,7 +126,7 @@ public class Orchestrator {
         switch (event.getType()) {
             case ORDER_ARRIVAL:
                 if (event.getEntityId() != null && event.getData() != null) {
-                    Order order = event.getData();
+                    Order order = (Order) event.getData();
                     environment.addOrder(order);
                     logger.info("Added new order to environment: " + order.getId());
                     needsReplanning = false;
@@ -136,7 +135,7 @@ public class Orchestrator {
 
             case BLOCKAGE_START:
                 if (event.getData() != null) {
-                    Blockage blockage = event.getData();
+                    Blockage blockage = (Blockage) event.getData();
                     environment.addBlockage(blockage);
                     logger.info("Blockage started: " + blockage);
                     needsReplanning = false;
@@ -170,7 +169,7 @@ public class Orchestrator {
 
             case MAINTENANCE_START:
                 if (event.getEntityId() != null && event.getData() != null) {
-                    Maintenance task = event.getData();
+                    Maintenance task = (Maintenance) event.getData();
                     environment.addMaintenance(task);
 
                     // Update vehicle status to MAINTENANCE
@@ -312,9 +311,6 @@ public class Orchestrator {
         // Proceed with assignation when we have both orders and vehicles
         Solution solution = MetaheuristicSolver.solve(environment);
 
-        // Set of vehicles with assigned plans
-        Set<Vehicle> assignedVehicles = new HashSet<>();
-
         // Create plans for vehicles with delivery instructions
         for (Map.Entry<String, List<DeliveryPart>> entry : solution.getVehicleOrderAssignments().entrySet()) {
             String vehicleId = entry.getKey();
@@ -326,7 +322,6 @@ public class Orchestrator {
                 VehiclePlan plan = VehiclePlanCreator.createPlan(environment, vehicle, instructions);
                 if (plan != null) {
                     vehiclePlans.put(vehicle, plan);
-                    assignedVehicles.add(vehicle);
                     logger.info(plan.toString());
                 } else {
                     logger.warning("Failed to create plan for vehicle: " + vehicle.getId());
@@ -411,14 +406,5 @@ public class Orchestrator {
         }
         this.ticksPerReplan = ticks;
         logger.info("Replanning frequency set to: " + ticks + " ticks");
-    }
-
-    /**
-     * Gets the current number of ticks between replanning operations
-     * 
-     * @return Number of ticks between replans
-     */
-    public int getTicksPerReplan() {
-        return this.ticksPerReplan;
     }
 }

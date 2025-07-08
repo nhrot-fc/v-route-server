@@ -53,15 +53,12 @@ public class MaintenanceControllerTest {
     private Maintenance maintenance1;
     private Maintenance maintenance2;
     private UUID maintenanceId1;
-    private UUID maintenanceId2;
-    private LocalDate assignedDate1;
-    private LocalDate assignedDate2;
 
     @BeforeEach
     public void setUp() {
-        // Crear IDs fijos para pruebas
+        // Crear ID fijos para pruebas
         maintenanceId1 = UUID.fromString("a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6");
-        maintenanceId2 = UUID.fromString("b2c3d4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7");
+        UUID maintenanceId2 = UUID.fromString("b2c3d4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7");
         
         // Crear vehículos para pruebas
         vehicle1 = Vehicle.builder()
@@ -77,8 +74,8 @@ public class MaintenanceControllerTest {
                 .build();
         
         // Crear fechas para mantenimientos
-        assignedDate1 = LocalDate.now();
-        assignedDate2 = LocalDate.now().plusDays(1);
+        LocalDate assignedDate1 = LocalDate.now();
+        LocalDate assignedDate2 = LocalDate.now().plusDays(1);
         
         // Crear mantenimientos para pruebas
         maintenance1 = new Maintenance(vehicle1, assignedDate1);

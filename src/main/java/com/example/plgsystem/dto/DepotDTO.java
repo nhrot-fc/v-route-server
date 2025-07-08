@@ -28,8 +28,4 @@ public class DepotDTO {
             .currentGlpM3(depot.getCurrentGlpM3())
             .build();
     }
-
-    public Depot toEntity() {
-        return new Depot(id, position, glpCapacityM3, type);
-    }
 }

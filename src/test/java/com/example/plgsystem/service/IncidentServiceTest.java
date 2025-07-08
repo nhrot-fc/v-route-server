@@ -335,10 +335,7 @@ public class IncidentServiceTest {
         incident.setResolved(false);
 
         when(incidentRepository.findById(incidentId)).thenReturn(Optional.of(incident));
-        when(incidentRepository.save(any(Incident.class))).thenAnswer(i -> {
-            Incident savedIncident = (Incident) i.getArguments()[0];
-            return savedIncident;
-        });
+        when(incidentRepository.save(any(Incident.class))).thenAnswer(i -> i.getArguments()[0]);
 
         // Act
         Optional<Incident> result = incidentService.resolveIncident(incidentId);

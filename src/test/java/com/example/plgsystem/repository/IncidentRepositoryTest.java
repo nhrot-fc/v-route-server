@@ -215,10 +215,10 @@ public class IncidentRepositoryTest {
 
         // Then
         assertEquals(1, resolvedIncidents.size());
-        assertEquals(incident1.getId(), resolvedIncidents.get(0).getId());
+        assertEquals(incident1.getId(), resolvedIncidents.getFirst().getId());
 
         assertEquals(1, unresolvedIncidents.size());
-        assertEquals(incident2.getId(), unresolvedIncidents.get(0).getId());
+        assertEquals(incident2.getId(), unresolvedIncidents.getFirst().getId());
     }
 
     @Test

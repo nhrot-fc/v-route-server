@@ -182,7 +182,7 @@ public class OrderRepositoryTest {
 
         // Then
         assertEquals(1, pendingOrders.size());
-        assertEquals("O001", pendingOrders.get(0).getId());
+        assertEquals("O001", pendingOrders.getFirst().getId());
     }
 
     @Test
@@ -217,7 +217,7 @@ public class OrderRepositoryTest {
 
         // Then
         assertEquals(1, overdueOrders.size());
-        assertEquals("O001", overdueOrders.get(0).getId());
+        assertEquals("O001", overdueOrders.getFirst().getId());
     }
 
     @Test
@@ -252,7 +252,7 @@ public class OrderRepositoryTest {
 
         // Then
         assertEquals(1, availableOrders.size());
-        assertEquals("O001", availableOrders.get(0).getId());
+        assertEquals("O001", availableOrders.getFirst().getId());
     }
 
     @Test

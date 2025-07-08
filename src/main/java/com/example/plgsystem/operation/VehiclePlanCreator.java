@@ -10,27 +10,23 @@ import com.example.plgsystem.simulation.SimulationState;
 import java.time.LocalDateTime;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
  * Simplified Rules for Vehicle Plan Generation:
- * 
  * Start:
  * - If vehicle is at main depot → Execute routine maintenance
- * 
  * Core Logic (for each delivery):
- * 1. Check if need GLP → Go to nearest GLP depot (handles fuel automatically)
+ * 1. Check if vehicle needs GLP → Go to nearest GLP depot (handles fuel automatically)
  * 2. Go to order location (handles fuel automatically)
  * 3. Serve order
- * 
  * End:
  * - Return to main depot (handles fuel automatically)
- * 
  * Simple Go-To-Location Logic:
  * 1. Check if path exists → If not, return null
- * 2. Check if has enough fuel → If not, go to fuel depot first
+ * 2. Check if vehicle has enough fuel → If not, go to fuel depot first
  * 3. Go to location
- * 
  * Constraints:
  * - GLP can be refilled at any depot (main or auxiliary)
  * - Fuel can ONLY be refilled at the main depot
@@ -141,7 +137,7 @@ public class VehiclePlanCreator {
     /**
      * Tries to go to a location with the simple logic:
      * 1. Check if path exists
-     * 2. Check if has enough fuel - if not, go to fuel depot first
+     * 2. Check if vehicle has enough fuel - if not, go to fuel depot first
      * 3. Go to location
      */
     public static LocalDateTime goToLocation(SimulationState environment, Vehicle vehicle, Position destination,
@@ -152,12 +148,12 @@ public class VehiclePlanCreator {
                 return null; // No path available
             }
 
-            // 2. Check if has enough fuel
+            // 2. Check if vehicle has enough fuel
             if (!hasEnoughFuel(environment, vehicle, destination, currentTime)) {
                 // Need to refuel first
                 Depot fuelDepot = environment.getMainDepot();
                 
-                // Check if can reach fuel depot
+                // Check if vehicle can reach fuel depot
                 if (!hasPath(environment, vehicle.getCurrentPosition(), fuelDepot.getPosition(), currentTime) ||
                     !hasEnoughFuel(environment, vehicle, fuelDepot.getPosition(), currentTime)) {
                     return null; // Can't reach fuel depot
@@ -167,7 +163,7 @@ public class VehiclePlanCreator {
                 currentTime = driveToLocation(environment, vehicle, fuelDepot.getPosition(), currentTime, actions);
                 currentTime = vehicleRefuel(vehicle, fuelDepot, currentTime, actions);
                 
-                // Check again if can reach destination after refueling
+                // Check again if vehicle can reach destination after refueling
                 if (!hasPath(environment, vehicle.getCurrentPosition(), destination, currentTime) ||
                     !hasEnoughFuel(environment, vehicle, destination, currentTime)) {
                     return null; // Still can't reach destination
@@ -205,7 +201,7 @@ public class VehiclePlanCreator {
     public static LocalDateTime processGlpSupply(SimulationState environment, Vehicle vehicle, int glpRequired,
             LocalDateTime currentTime, List<Action> actions) {
         try {
-            // Find closest depot with sufficient GLP
+            // Find the closest depot with sufficient GLP
             Depot glpDepot = findNearestGLPDepot(environment.getAuxDepots(), vehicle.getCurrentPosition(), glpRequired,
                     environment.getMainDepot());
 
@@ -293,8 +289,7 @@ public class VehiclePlanCreator {
         availableDepots.add(mainDepot);
         return availableDepots.stream()
                 .filter(depot -> depot.getCurrentGlpM3() >= glpNeeded)
-                .min((d1, d2) -> Double.compare(currentPosition.distanceTo(d1.getPosition()),
-                        currentPosition.distanceTo(d2.getPosition())))
+                .min(Comparator.comparingDouble(d -> currentPosition.distanceTo(d.getPosition())))
                 .orElse(mainDepot);
     }
 }

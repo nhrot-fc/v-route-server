@@ -18,7 +18,6 @@ public class Constants {
     public static final int VEHICLE_GLP_TRANSFER_DURATION_MINUTES = 5;
     public static final int REFUEL_DURATION_MINUTES = 1;
     public static final int DEPOT_GLP_TRANSFER_TIME_MINUTES = 1;
-    public static final int ROUTINE_MAINTENANCE_MINUTES = 1;
 
     /*
      * =============================================
@@ -63,63 +62,11 @@ public class Constants {
      * PESOS Y MEDIDAS
      * =============================================
      */
-    // Pesos para vehículos tipo TA
     public static final double TA_GROSS_WEIGHT_TARA_TON = 2.5; // Ton
-    public static final double TA_GLP_WEIGHT_TON = 12.5; // Ton
-    public static final double TA_COMBINED_WEIGHT_TON = 15.0; // Ton
-
-    // Pesos para vehículos tipo TB
     public static final double TB_GROSS_WEIGHT_TARA_TON = 2.0; // Ton
-    public static final double TB_GLP_WEIGHT_TON = 7.5; // Ton
-    public static final double TB_COMBINED_WEIGHT_TON = 9.5; // Ton
-
-    // Pesos para vehículos tipo TC
     public static final double TC_GROSS_WEIGHT_TARA_TON = 1.5; // Ton
-    public static final double TC_GLP_WEIGHT_TON = 5.0; // Ton
-    public static final double TC_COMBINED_WEIGHT_TON = 6.5; // Ton
-
-    // Pesos para vehículos tipo TD
     public static final double TD_GROSS_WEIGHT_TARA_TON = 1.0; // Ton
-    public static final double TD_GLP_WEIGHT_TON = 2.5; // Ton
-    public static final double TD_COMBINED_WEIGHT_TON = 3.5; // Ton
-
-    /*
-     * =============================================
-     * FORMATOS Y CONFIGURACIÓN DE ARCHIVOS
-     * =============================================
-     */
-    // Archivos de mantenimiento
-    public static final String PREVENTIVE_MAINTENANCE_FILE_NAME = "mantpreventivo";
-    public static final String PREVENTIVE_MAINTENANCE_FILE_FORMAT = "aaaammdd:TTNN";
-
-    // Archivos de pedidos
-    public static final String ORDER_FILE_BASE_NAME = "ventas2025mm";
-    public static final String ORDER_FILE_FORMAT = "##d##h##m:posx,posY,c-idCliente, m3, hLímite";
-
-    // Archivos de incidentes
-    public static final String INCIDENT_FILE_NAME = "averias.txt";
-    public static final String INCIDENT_FILE_FORMAT = "tt_######_ti";
-
-    // Otros archivos
-    public static final String STREET_CLOSURE_FILE_BASE_NAME = "aaaamm.bloqueadas";
-
-    /*
-     * =============================================
-     * PARÁMETROS OPERACIONALES
-     * =============================================
-     */
-    // Parámetros de incidentes
-    public static final double INCIDENT_ROUTE_OCCURRENCE_MIN_PERCENTAGE = 0.05;
-    public static final double INCIDENT_ROUTE_OCCURRENCE_MAX_PERCENTAGE = 0.35;
-
-    /*
-     * =============================================
-     * IDENTIFICADORES Y CONSTANTES MATEMÁTICAS
-     * =============================================
-     */
-    // IDs
-    public static final String MAIN_PLANT_ID = "MAIN_PLANT"; // ID for the main plant
-
+    public static final double GLP_DENSITY_M3_TON = 0.5;
     // Constantes matemáticas
     public static final double EPSILON = 1e-9; // For floating-point comparisons
 

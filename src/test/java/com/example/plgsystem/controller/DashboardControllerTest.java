@@ -195,13 +195,13 @@ class DashboardControllerTest {
     void getUrgentOrders_shouldReturnOrdersDueWithinSpecifiedHours() {
         // Arrange
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime threehoursfromnow = now.plusHours(3);
-        LocalDateTime sixhoursfromnow = now.plusHours(6);
+        LocalDateTime threeHoursFromNow = now.plusHours(3);
+        LocalDateTime sixHoursFromNow = now.plusHours(6);
         
         Order urgentOrder1 = Order.builder()
                 .id("ORD-1")
                 .arrivalTime(now.minusHours(1))
-                .deadlineTime(threehoursfromnow)
+                .deadlineTime(threeHoursFromNow)
                 .glpRequestM3(20)
                 .position(new Position(20, 20))
                 .build();
@@ -217,7 +217,7 @@ class DashboardControllerTest {
         Order nonUrgentOrder = Order.builder()
                 .id("ORD-3")
                 .arrivalTime(now)
-                .deadlineTime(sixhoursfromnow)
+                .deadlineTime(sixHoursFromNow)
                 .glpRequestM3(25)
                 .position(new Position(40, 40))
                 .build();

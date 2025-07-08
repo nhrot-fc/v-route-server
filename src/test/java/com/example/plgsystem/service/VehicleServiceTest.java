@@ -286,9 +286,7 @@ public class VehicleServiceTest {
 
 		// Mock the repository to return the same vehicle that was passed to it
 		when(vehicleRepository.findById("V-001")).thenReturn(Optional.of(vehicle));
-		when(vehicleRepository.save(any(Vehicle.class))).thenAnswer(invocation -> {
-			return invocation.getArgument(0);
-		});
+		when(vehicleRepository.save(any(Vehicle.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
 		// Act
 		Optional<Vehicle> result = vehicleService.refillGlp("V-001", glpToAdd);
@@ -321,9 +319,7 @@ public class VehicleServiceTest {
 
 		// Mock repository to return the same vehicle that was passed to it
 		when(vehicleRepository.findById("V-001")).thenReturn(Optional.of(vehicle));
-		when(vehicleRepository.save(any(Vehicle.class))).thenAnswer(invocation -> {
-			return invocation.getArgument(0);
-		});
+		when(vehicleRepository.save(any(Vehicle.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
 		// Act
 		Optional<Vehicle> result = vehicleService.dispenseGlp("V-001", glpToDispense);
@@ -372,13 +368,9 @@ public class VehicleServiceTest {
 		when(orderService.findById("O-001")).thenReturn(Optional.of(order));
 
 		// Mock save methods to return the same objects that were passed to them
-		when(vehicleRepository.save(any(Vehicle.class))).thenAnswer(invocation -> {
-			return invocation.getArgument(0);
-		});
+		when(vehicleRepository.save(any(Vehicle.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-		when(orderService.save(any(Order.class))).thenAnswer(invocation -> {
-			return invocation.getArgument(0);
-		});
+		when(orderService.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
 		// Act
 		Optional<ServeRecord> result = vehicleService.serveOrder("V-001", "O-001", deliveryAmount, serveTime);

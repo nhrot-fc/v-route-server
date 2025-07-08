@@ -54,7 +54,7 @@ class RouteStopTest {
         int glpLoadM3 = 0;
         
         // Act
-        RouteStop stop = new RouteStop(isOrderStop, orderId, depotId, glpDeliverM3, glpLoadM3);
+        RouteStop stop = new RouteStop(isOrderStop, orderId, null, glpDeliverM3, glpLoadM3);
         
         // Assert
         assertTrue(stop.isOrderStop());

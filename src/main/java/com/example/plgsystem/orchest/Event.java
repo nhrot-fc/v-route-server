@@ -1,15 +1,21 @@
 package com.example.plgsystem.orchest;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.time.LocalDateTime;
 
 /**
  * Represents an event in the system that may trigger replanning.
  * Events are ordered by their scheduled time.
  */
+@Getter
 public class Event implements Comparable<Event> {
     private final EventType type;
     private final LocalDateTime time;
+    @Setter
     private String entityId;  // ID of related entity (vehicle, order, blockage, etc.)
+    @Setter
     private Object data;      // Additional event data
 
     public Event(EventType type, LocalDateTime time, String entityId, Object data) {
@@ -19,37 +25,8 @@ public class Event implements Comparable<Event> {
         this.data = data;
     }
 
-    public Event(EventType type, LocalDateTime time, String entityId) {
-        this(type, time, entityId, null);
-    }
-
     public Event(EventType type, LocalDateTime time) {
         this(type, time, null, null);
-    }
-
-    public EventType getType() {
-        return type;
-    }
-
-    public LocalDateTime getTime() {
-        return time;
-    }
-
-    public String getEntityId() {
-        return entityId;
-    }
-
-    public void setEntityId(String entityId) {
-        this.entityId = entityId;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T> T getData() {
-        return (T) data;
-    }
-    
-    public void setData(Object data) {
-        this.data = data;
     }
 
     @Override

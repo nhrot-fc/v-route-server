@@ -69,7 +69,7 @@ public class OrderTest {
         assertFalse(order.isDelivered());
         
         // Completar la entrega
-        record = order.recordDelivery(glpRequestM3 / 2, vehicle, serveDate.plusHours(1));
+        order.recordDelivery(glpRequestM3 / 2, vehicle, serveDate.plusHours(1));
         assertEquals(0, order.getRemainingGlpM3());
         assertTrue(order.isDelivered());
     }

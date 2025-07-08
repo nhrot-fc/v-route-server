@@ -23,9 +23,9 @@ class RouteTest {
         Route route = new Route(vehicleId, stops, startTime);
         
         // Assert
-        assertEquals(vehicleId, route.getVehicleId());
-        assertEquals(stops, route.getStops());
-        assertEquals(startTime, route.getStartTime());
-        assertEquals(2, route.getStops().size());
+        assertEquals(vehicleId, route.vehicleId());
+        assertEquals(stops, route.stops());
+        assertEquals(startTime, route.startTime());
+        assertEquals(2, route.stops().size());
     }
 } 

@@ -77,7 +77,7 @@ public class Vehicle implements Serializable {
 
     @Transient
     public double calculateFuelNeeded(double distanceKm) {
-        double combinedWeight = this.type.convertGlpM3ToTon(this.currentGlpM3)
+        double combinedWeight = (this.currentGlpM3 * Constants.GLP_DENSITY_M3_TON)
                 + this.type.getTareWeightTon();
         return (distanceKm * combinedWeight) / Constants.CONSUMPTION_FACTOR;
     }

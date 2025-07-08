@@ -21,27 +21,27 @@ public class PathFinder {
         }
 
         PriorityQueue<Node> openSet = new PriorityQueue<>();
-        Map<Position, Node> posicionANodo = new HashMap<>();
+        Map<Position, Node> positionToNodeMap = new HashMap<>();
         Set<Position> closedSet = new HashSet<>();
 
-        Node startNode = new Node(inicio, null, 0, heuristica(inicio, fin), horaSalida);
+        Node startNode = new Node(inicio, null, 0, heuristic(inicio, fin), horaSalida);
         openSet.add(startNode);
-        posicionANodo.put(inicio, startNode);
+        positionToNodeMap.put(inicio, startNode);
 
         int[][] direcciones = { { 0, 1 }, { 1, 0 }, { 0, -1 }, { -1, 0 } };
 
         while (!openSet.isEmpty()) {
             Node current = openSet.poll();
 
-            if (current.posicion.equals(fin)) {
+            if (current.position.equals(fin)) {
                 return construirResultado(current);
             }
 
-            closedSet.add(current.posicion);
+            closedSet.add(current.position);
 
             for (int[] dir : direcciones) {
-                int newX = current.posicion.getX() + dir[0];
-                int newY = current.posicion.getY() + dir[1];
+                int newX = current.position.getX() + dir[0];
+                int newY = current.position.getY() + dir[1];
 
                 if (newX < 0 || newX >= Constants.CITY_X ||
                         newY < 0 || newY >= Constants.CITY_Y) {
@@ -54,7 +54,7 @@ public class PathFinder {
                     continue;
                 }
 
-                LocalDateTime tiempoLlegada = calcularTiempoLlegada(current.horaDeLlegada, 1);
+                LocalDateTime tiempoLlegada = calcularTiempoLlegada(current.horaDeLlegada);
 
                 if (entorno.isPositionBlockedAt(vecino, tiempoLlegada)) {
                     continue;
@@ -62,9 +62,9 @@ public class PathFinder {
 
                 double newG = current.g + 1;
 
-                Node vecinoNode = posicionANodo.get(vecino);
+                Node vecinoNode = positionToNodeMap.get(vecino);
                 if (vecinoNode == null || newG < vecinoNode.g) {
-                    double h = heuristica(vecino, fin);
+                    double h = heuristic(vecino, fin);
                     Node newNode = new Node(vecino, current, newG, h, tiempoLlegada);
 
                     if (vecinoNode != null) {
@@ -72,7 +72,7 @@ public class PathFinder {
                     }
 
                     openSet.add(newNode);
-                    posicionANodo.put(vecino, newNode);
+                    positionToNodeMap.put(vecino, newNode);
                 }
             }
         }
@@ -80,12 +80,12 @@ public class PathFinder {
         return Collections.emptyList();
     }
 
-    private static LocalDateTime calcularTiempoLlegada(LocalDateTime horaSalida, double distanciaKm) {
-        long segundosViaje = (long) (distanciaKm / Constants.VEHICLE_AVG_SPEED * 3600);
+    private static LocalDateTime calcularTiempoLlegada(LocalDateTime horaSalida) {
+        long segundosViaje = (long) (Constants.NODE_DISTANCE / Constants.VEHICLE_AVG_SPEED * 3600);
         return horaSalida.plusSeconds(segundosViaje);
     }
 
-    private static double heuristica(Position a, Position b) {
+    private static double heuristic(Position a, Position b) {
         return a.distanceTo(b);
     }
 
@@ -96,7 +96,7 @@ public class PathFinder {
         Node current = destinoNode;
 
         while (current != null) {
-            camino.add(0, current.posicion);
+            camino.addFirst(current.position);
             current = current.parent;
         }
 
@@ -105,14 +105,14 @@ public class PathFinder {
 
     // Clase interna para los nodos de A*, ahora con tiempo
     private static class Node implements Comparable<Node> {
-        final Position posicion;
+        final Position position;
         final Node parent;
         final double g;
         final double f;
         final LocalDateTime horaDeLlegada;
 
-        Node(Position posicion, Node parent, double g, double h, LocalDateTime horaDeLlegada) {
-            this.posicion = posicion;
+        Node(Position position, Node parent, double g, double h, LocalDateTime horaDeLlegada) {
+            this.position = position;
             this.parent = parent;
             this.g = g;
             this.f = g + h;

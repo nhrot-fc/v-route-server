@@ -35,7 +35,7 @@ public class IncidentTest {
         assertEquals(vehicle, incident.getVehicle());
         assertEquals(incidentType, incident.getType());
         assertEquals(occurrenceTime, incident.getOccurrenceTime());
-        // Verificar que el turno se calcula correctamente en base a la hora (10 AM = T2)
+        // Verificar que el turno se calcula correctamente según la hora (10 AM = T2)
         assertEquals(Shift.T2, incident.getShift());
         assertFalse(incident.isResolved());
     }

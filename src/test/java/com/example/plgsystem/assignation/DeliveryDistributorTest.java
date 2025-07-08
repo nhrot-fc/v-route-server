@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -19,7 +20,7 @@ import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.simulation.SimulationState;
 
-class DeliveryDistribuitorTest {
+class DeliveryDistributorTest {
 
     @Mock
     private SimulationState mockEnvironment;
@@ -118,7 +119,7 @@ class DeliveryDistribuitorTest {
         // Create a large number of small packages to see the statistical distribution
         Order largeOrder = createOrder("ORD-1", 500); // Will create 100 packages of 5 GLP each
 
-        List<Order> pendingOrders = Arrays.asList(largeOrder);
+        List<Order> pendingOrders = Collections.singletonList(largeOrder);
 
         when(mockEnvironment.getVehicles()).thenReturn(availableVehicles);
         when(mockEnvironment.getOrders()).thenReturn(pendingOrders);
@@ -127,14 +128,13 @@ class DeliveryDistribuitorTest {
         Map<String, List<DeliveryPart>> solution = RandomDistributor.createInitialRandomAssignments(mockEnvironment);
 
         // Assert
-        Map<String, List<DeliveryPart>> assignments = solution;
 
         // The test might be probabilistic, but with such a large difference in
         // capacity,
         // we expect the larger vehicle to get significantly more packages
         // (approximately 10x more since capacity ratio is 10:1)
-        int largeVehiclePackages = assignments.get(largeVehicle.getId()).size();
-        int smallVehiclePackages = assignments.get(smallVehicle.getId()).size();
+        int largeVehiclePackages = solution.get(largeVehicle.getId()).size();
+        int smallVehiclePackages = solution.get(smallVehicle.getId()).size();
 
         // We can't assert exact counts due to randomness, but the larger vehicle should
         // get more
