@@ -62,7 +62,7 @@ public class SimulationTest {
         simulation.finish();
         assertEquals(SimulationStatus.FINISHED, simulation.getStatus());
         assertTrue(simulation.isFinished());
-        assertNotNull(simulation.getEndTime());
+        assertNotNull(simulation.getRealEndTime());
 
         // When & Then - Test error
         simulation.error();

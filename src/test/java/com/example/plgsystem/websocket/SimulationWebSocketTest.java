@@ -46,8 +46,8 @@ public class SimulationWebSocketTest {
         testSimulation = mock(Simulation.class);
         when(testSimulation.getId()).thenReturn(simulationId);
         when(testSimulation.getState()).thenReturn(state);
-        when(testSimulation.getStartTime()).thenReturn(LocalDateTime.now());
-        when(testSimulation.getEndTime()).thenReturn(null);
+        when(testSimulation.getRealStartTime()).thenReturn(LocalDateTime.now());
+        when(testSimulation.getRealEndTime()).thenReturn(null);
         when(testSimulation.getStatus()).thenReturn(SimulationStatus.RUNNING);
         when(testSimulation.getType()).thenReturn(SimulationType.CUSTOM);
 

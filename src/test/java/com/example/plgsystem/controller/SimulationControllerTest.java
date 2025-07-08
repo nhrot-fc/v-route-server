@@ -6,7 +6,6 @@ import com.example.plgsystem.enums.SimulationStatus;
 import com.example.plgsystem.enums.SimulationType;
 import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.model.Position;
-import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.service.DepotService;
 import com.example.plgsystem.service.SimulationService;
 import com.example.plgsystem.service.VehicleService;
@@ -70,9 +69,11 @@ public class SimulationControllerTest {
         testSimulation = mock(Simulation.class);
         when(testSimulation.getId()).thenReturn(simulationId);
         when(testSimulation.getState()).thenReturn(testState);
-        when(testSimulation.getStartTime()).thenReturn(LocalDateTime.now());
+        when(testSimulation.getRealStartTime()).thenReturn(LocalDateTime.now());
+        when(testSimulation.getRealEndTime()).thenReturn(null);
         when(testSimulation.getStatus()).thenReturn(SimulationStatus.RUNNING);
         when(testSimulation.getType()).thenReturn(SimulationType.CUSTOM);
+        when(testSimulation.getCreationTime()).thenReturn(LocalDateTime.now());
 
         // Mock simulation service methods
         when(simulationService.getSimulation(any(UUID.class))).thenReturn(testSimulation);
@@ -81,13 +82,15 @@ public class SimulationControllerTest {
         when(simulationService.pauseSimulation(any(UUID.class))).thenReturn(testSimulation);
         when(simulationService.finishSimulation(any(UUID.class))).thenReturn(testSimulation);
 
-        // Create simulation mock
-        when(simulationService.createTimeBasedSimulation(
+        // Mock createSimplifiedSimulation instead of createTimeBasedSimulation
+        when(simulationService.createSimplifiedSimulation(
                 any(SimulationType.class),
-                anyList(),
-                any(Depot.class),
-                anyList(),
-                any(LocalDateTime.class))).thenReturn(testSimulation);
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                anyInt())).thenReturn(testSimulation);
 
         // Setup MockMvc
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
@@ -117,21 +120,15 @@ public class SimulationControllerTest {
 
     @Test
     public void testCreateSimulation() throws Exception {
-        // Mock vehicle and depot service methods
-        Vehicle vehicle1 = mock(Vehicle.class);
-        Depot mainDepot = mock(Depot.class);
-        Depot auxDepot = mock(Depot.class);
-
-        when(vehicleService.findById("v1")).thenReturn(Optional.of(vehicle1));
-        when(depotService.findById("d1")).thenReturn(Optional.of(mainDepot));
-        when(depotService.findById("a1")).thenReturn(Optional.of(auxDepot));
-
-        // Create the request body
+        // Create the request body with the new format
         SimulationCreateDTO createDTO = new SimulationCreateDTO();
-        createDTO.setVehicleIds(List.of("v1"));
-        createDTO.setMainDepotId("d1");
-        createDTO.setAuxDepotIds(List.of("a1"));
+        createDTO.setTaVehicles(1);
+        createDTO.setTbVehicles(1);
+        createDTO.setTcVehicles(1);
+        createDTO.setTdVehicles(1);
         createDTO.setStartDateTime(LocalDateTime.now());
+        createDTO.setEndDateTime(LocalDateTime.now().plusDays(1));
+        createDTO.setType(SimulationType.CUSTOM);
 
         // Convert to JSON
         ObjectMapper objectMapper = new ObjectMapper();
@@ -141,18 +138,20 @@ public class SimulationControllerTest {
         // Perform POST request to create simulation
         mockMvc.perform(post("/api/simulation")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody)
-                .param("type", "CUSTOM"))
+                .content(requestBody))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        // Verify the service was called correctly
-        verify(simulationService).createTimeBasedSimulation(
+        // Verify the service was called correctly with new method
+        verify(simulationService).createSimplifiedSimulation(
                 eq(SimulationType.CUSTOM),
-                anyList(),
-                eq(mainDepot),
-                anyList(),
-                any(LocalDateTime.class));
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                eq(1), // taVehicles
+                eq(1), // tbVehicles
+                eq(1), // tcVehicles
+                eq(1)  // tdVehicles
+        );
     }
 
     @Test
