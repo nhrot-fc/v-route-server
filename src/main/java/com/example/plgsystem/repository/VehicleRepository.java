@@ -7,12 +7,24 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
 public interface VehicleRepository extends JpaRepository<Vehicle, String> {
+    /**
+     * Filtro para listar todos los vehículos ordenados por ID
+     */
+    @Query("SELECT v FROM Vehicle v ORDER BY v.id ASC")
+    @NonNull List<Vehicle> findAll();
+
+    /**
+     * Filtro para listar todos los vehículos ordenados por ID (paginado)
+     */
+    @Query("SELECT v FROM Vehicle v ORDER BY v.id ASC")
+    @NonNull Page<Vehicle> findAll(@NonNull Pageable pageable);
     
     /**
      * Busca vehículos por tipo

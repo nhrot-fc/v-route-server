@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -13,12 +14,23 @@ import java.util.List;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, String> {
-    
     /**
      * Filtro para verificar si existen pedidos por ID
      */
     @Query("SELECT COUNT(o) > 0 FROM Order o WHERE o.id IN :ids")
     boolean existsByIdIn(@Param("ids") List<String> ids);
+
+    /**
+     * Filtro para listar todos los pedidos ordenados por fecha de llegada
+     */
+    @Query("SELECT o FROM Order o ORDER BY o.arrivalTime ASC")
+    @NonNull List<Order> findAll();
+
+    /**
+     * Filtro para listar todos los pedidos ordenados por fecha de llegada (paginado)
+     */
+    @Query("SELECT o FROM Order o ORDER BY o.arrivalTime ASC")
+    @NonNull Page<Order> findAll(@NonNull Pageable pageable);
 
     /**
      * Filtro para listar pedidos por estado de entrega

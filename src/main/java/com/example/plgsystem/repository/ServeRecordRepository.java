@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -13,6 +14,18 @@ import java.util.UUID;
 
 @Repository
 public interface ServeRecordRepository extends JpaRepository<ServeRecord, UUID> {
+    
+    /**
+     * Filtro para listar todos los registros de entrega ordenados por fecha de entrega
+     */
+    @Query("SELECT s FROM ServeRecord s ORDER BY s.serveDate ASC")
+    @NonNull List<ServeRecord> findAll();
+    
+    /**
+     * Filtro para listar todos los registros de entrega ordenados por fecha de entrega (paginado)
+     */
+    @Query("SELECT s FROM ServeRecord s ORDER BY s.serveDate ASC")
+    @NonNull Page<ServeRecord> findAll(@NonNull Pageable pageable);
     
     /**
      * Busca registros de entrega por ID de pedido
