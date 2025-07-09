@@ -22,8 +22,8 @@ public enum EventType {
     /** A vehicle has ended maintenance */
     MAINTENANCE_END,
     
-    /** Auxiliary depots have been refilled with GLP */
-    GLP_DEPOT_REFILL,
+    /** New day has begun */
+    NEW_DAY_BEGIN,
     
     /** The simulation has reached its end time */
     SIMULATION_END

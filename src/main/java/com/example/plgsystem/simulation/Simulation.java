@@ -6,8 +6,6 @@ import lombok.Getter;
 import lombok.experimental.Delegate;
 import com.example.plgsystem.enums.SimulationStatus;
 import com.example.plgsystem.enums.SimulationType;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 /**
  * Representa una instancia de simulación gestionada como un bean prototipo de
@@ -17,8 +15,6 @@ import org.springframework.stereotype.Component;
  * manejar múltiples simulaciones en memoria.
  */
 @Getter
-@Component
-@Scope("prototype")
 public class Simulation {
 
     private final UUID id;

@@ -203,7 +203,7 @@ public class Orchestrator {
                 }
                 break;
 
-            case GLP_DEPOT_REFILL:
+            case NEW_DAY_BEGIN:
                 for (Depot depot : environment.getAuxDepots()) {
                     depot.refill();
                     logger.info("GLP depot refilled: " + depot.getId());
@@ -368,7 +368,7 @@ public class Orchestrator {
     public void initialize() {
         // Add a simulation end event based on config.getSimulationMaxDays()
         LocalDateTime endTime = this.simulationTime.plusDays(1);
-        Event endEvent = new Event(EventType.SIMULATION_END, endTime);
+        Event endEvent = new Event(EventType.SIMULATION_END, endTime, null, null);
         this.eventQueue.add(endEvent);
         this.eventQueue.sort(Comparator.comparing(Event::getTime));
 

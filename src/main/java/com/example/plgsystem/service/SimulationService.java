@@ -104,26 +104,6 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
     }
 
     /**
-     * Creates a new time-based simulation
-     */
-    public Simulation createTimeBasedSimulation(SimulationType type, SimulationState state) {
-        logger.info("Creating time-based simulation of type: {}", type);
-        if (type.isDailyOperation()) {
-            logger.error("Cannot create additional daily operation simulations");
-            throw new IllegalArgumentException("Cannot create additional daily operation simulations");
-        }
-
-        Simulation simulation = new Simulation(state, type);
-        simulations.put(simulation.getId(), simulation);
-        logger.info("Created time-based simulation with ID: {}", simulation.getId());
-
-        // Broadcast the initial state to create the channel
-        sendSimulationUpdate(simulation);
-        
-        return simulation;
-    }
-
-    /**
      * Creates a simplified simulation with automatic generation of vehicles
      * 
      * @param type Type of simulation (WEEKLY, INFINITE, CUSTOM)
@@ -226,17 +206,6 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         sendSimulationUpdate(simulation);
         
         return simulation;
-    }
-
-    /**
-     * Creates a new time-based simulation with specific vehicles and depots
-     */
-    public Simulation createTimeBasedSimulation(SimulationType type, List<Vehicle> vehicles,
-            Depot mainDepot, List<Depot> auxDepots,
-            LocalDateTime startTime) {
-        logger.info("Creating time-based simulation with {} vehicles, start time: {}", vehicles.size(), startTime);
-        SimulationState state = new SimulationState(vehicles, mainDepot, auxDepots, startTime);
-        return createTimeBasedSimulation(type, state);
     }
 
     /**
