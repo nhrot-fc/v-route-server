@@ -52,4 +52,16 @@ public interface BlockageRepository extends JpaRepository<Blockage, UUID> {
     @Query("SELECT b FROM Blockage b WHERE b.startTime >= :startTime AND b.endTime <= :endTime ORDER BY b.startTime ASC")
     Page<Blockage> findByStartTimeGreaterThanEqualAndEndTimeLessThanEqual(
             LocalDateTime startTime, LocalDateTime endTime, Pageable pageable);
+    
+    /**
+     * Encuentra bloqueos activos durante un período específico
+     * 
+     * @param start Fecha y hora de inicio del período
+     * @param end Fecha y hora de fin del período
+     * @return Lista de bloqueos activos en ese período
+     */
+    @Query("SELECT b FROM Blockage b WHERE " +
+           "NOT (b.endTime < :start OR b.startTime > :end) " +
+           "ORDER BY b.startTime ASC")
+    List<Blockage> findActiveBlockagesForPeriod(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 }

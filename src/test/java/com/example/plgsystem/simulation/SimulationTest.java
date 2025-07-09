@@ -1,6 +1,8 @@
 package com.example.plgsystem.simulation;
 
 import com.example.plgsystem.model.*;
+import com.example.plgsystem.orchest.DatabaseDataLoader;
+import com.example.plgsystem.orchest.FileDataLoader;
 import com.example.plgsystem.enums.DepotType;
 import com.example.plgsystem.enums.SimulationStatus;
 import com.example.plgsystem.enums.SimulationType;
@@ -21,7 +23,7 @@ public class SimulationTest {
         SimulationState state = createSampleSimulationState();
 
         // When
-        Simulation simulation = new Simulation(state);
+        Simulation simulation = new Simulation(state, SimulationType.CUSTOM, new FileDataLoader());
 
         // Then
         assertNotNull(simulation.getId());
@@ -36,7 +38,8 @@ public class SimulationTest {
         SimulationState state = createSampleSimulationState();
 
         // When
-        Simulation simulation = new Simulation(state, SimulationType.DAILY_OPERATIONS);
+        Simulation simulation = new Simulation(state, SimulationType.DAILY_OPERATIONS,
+                new DatabaseDataLoader(null, null));
 
         // Then
         assertEquals(SimulationType.DAILY_OPERATIONS, simulation.getType());
@@ -46,7 +49,7 @@ public class SimulationTest {
     public void testSimulationStatusManagement() {
         // Given
         SimulationState state = createSampleSimulationState();
-        Simulation simulation = new Simulation(state, SimulationType.CUSTOM);
+        Simulation simulation = new Simulation(state, SimulationType.CUSTOM, new FileDataLoader());
 
         // When & Then - Test start
         simulation.start();
@@ -74,7 +77,8 @@ public class SimulationTest {
     public void testDailyOperationSimulation() {
         // Given
         SimulationState state = createSampleSimulationState();
-        Simulation simulation = new Simulation(state, SimulationType.DAILY_OPERATIONS);
+        Simulation simulation = new Simulation(state, SimulationType.DAILY_OPERATIONS,
+                new DatabaseDataLoader(null, null));
 
         // Start and check that it's running
         simulation.start();
@@ -100,13 +104,13 @@ public class SimulationTest {
         // Given
         LocalDateTime initialTime = LocalDateTime.of(2025, 7, 5, 10, 0);
         SimulationState state = createSampleSimulationState(initialTime);
-        Simulation simulation = new Simulation(state);
+        Simulation simulation = new Simulation(state, SimulationType.CUSTOM, new FileDataLoader());
 
         // Then - Check delegation works for state properties
-        assertEquals(initialTime, simulation.getCurrentTime());
-        assertEquals(state.getVehicles(), simulation.getVehicles());
-        assertEquals(state.getMainDepot(), simulation.getMainDepot());
-        assertEquals(state.getAuxDepots(), simulation.getAuxDepots());
+        assertEquals(initialTime, simulation.getSimulationTime());
+        assertEquals(state.getVehicles(), simulation.getState().getVehicles());
+        assertEquals(state.getMainDepot(), simulation.getState().getMainDepot());
+        assertEquals(state.getAuxDepots(), simulation.getState().getAuxDepots());
     }
 
     private SimulationState createSampleSimulationState() {

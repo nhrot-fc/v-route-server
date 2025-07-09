@@ -1,43 +1,54 @@
 package com.example.plgsystem.simulation;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 import lombok.Getter;
-import lombok.experimental.Delegate;
 import com.example.plgsystem.enums.SimulationStatus;
 import com.example.plgsystem.enums.SimulationType;
+import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.operation.VehiclePlan;
+import com.example.plgsystem.orchest.DataLoader;
+import com.example.plgsystem.orchest.Orchestrator;
 
-/**
- * Representa una instancia de simulación gestionada como un bean prototipo de
- * Spring.
- * <p>
- * Cada instancia es única, con su propio estado y ciclo de vida, ideal para
- * manejar múltiples simulaciones en memoria.
- */
 @Getter
 public class Simulation {
 
     private final UUID id;
+    private final SimulationType type;
+    private final Orchestrator orchestrator;
+
+    // Real world attributes
     private SimulationStatus status;
-    private SimulationType type;
-    @Delegate
-    private final SimulationState state;
-
-    // Real world timestamps
-    private LocalDateTime creationTime;  // When the simulation was created in real-world
+    private LocalDateTime creationTime; // When the simulation was created in real-world
     private LocalDateTime realStartTime; // When the simulation was actually started running
-    private LocalDateTime realEndTime;   // When the simulation was finished in real-world
+    private LocalDateTime realEndTime; // When the simulation was finished in real-world
 
-    public Simulation(SimulationState state) {
-        this(state, SimulationType.CUSTOM);
-    }
-
-    public Simulation(SimulationState state, SimulationType type) {
+    public Simulation(SimulationState state, SimulationType type, DataLoader dataLoader) {
         this.id = UUID.randomUUID();
-        this.state = state;
+        Duration tickDuration = type.isDailyOperation() ? Duration.ofSeconds(1) : Duration.ofMinutes(1);
+        int minutesForReplan = type.isDailyOperation() ? 30 : 75;
+        this.orchestrator = new Orchestrator(state, tickDuration, minutesForReplan, dataLoader);
         this.status = SimulationStatus.PAUSED;
         this.creationTime = LocalDateTime.now();
         this.type = type;
+    }
+
+    public SimulationState getState() {
+        return orchestrator.getEnvironment();
+    }
+
+    public LocalDateTime getSimulationTime() {
+        return orchestrator.getSimulationTime();
+    }
+
+    public Map<Vehicle, VehiclePlan> getVehiclePlans() {
+        return orchestrator.getVehiclePlans();
+    }
+
+    public void advanceTick() {
+        orchestrator.advanceTick();
     }
 
     public void start() {
@@ -48,13 +59,13 @@ public class Simulation {
     }
 
     public void pause() {
-        if (!type.isDailyOperation()) { // Daily operations can't be paused
+        if (!type.isDailyOperation()) {
             this.status = SimulationStatus.PAUSED;
         }
     }
 
     public void finish() {
-        if (!type.isDailyOperation()) { // Daily operations can't be finished
+        if (!type.isDailyOperation()) {
             this.status = SimulationStatus.FINISHED;
             this.realEndTime = LocalDateTime.now();
         }

@@ -25,6 +25,7 @@ public class SimulationDTO {
     
     private SimulationType type;
     private SimulationStatus status;
+    private SimulationStateDTO state;
 
     public SimulationDTO(Simulation simulation) {
         this.id = simulation.getId();
@@ -34,5 +35,7 @@ public class SimulationDTO {
         this.creationTime = simulation.getCreationTime();
         this.realStartTime = simulation.getRealStartTime();
         this.realEndTime = simulation.getRealEndTime();
+        this.state = SimulationStateDTO.fromSimulationState(simulation.getId().toString(), simulation.getState(),
+                simulation.getStatus());
     }
 } 

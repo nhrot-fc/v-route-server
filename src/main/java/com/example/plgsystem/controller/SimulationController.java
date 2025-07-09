@@ -21,6 +21,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/simulation")
@@ -34,7 +37,7 @@ public class SimulationController {
         this.simulationService = simulationService;
         logger.info("SimulationController initialized");
     }
-    
+
     /**
      * WebSocket subscription handler for simulation updates
      * Client can subscribe to: /topic/simulation/{id}
@@ -50,7 +53,7 @@ public class SimulationController {
         logger.warn("WebSocket subscription failed: Simulation with ID {} not found", id);
         return null;
     }
-    
+
     /**
      * WebSocket subscription handler for detailed simulation state
      * Client can subscribe to: /topic/simulation/{id}/state
@@ -69,7 +72,7 @@ public class SimulationController {
         logger.warn("WebSocket subscription failed: Simulation state with ID {} not found", id);
         return null;
     }
-    
+
     /**
      * WebSocket message handler to force a simulation update
      * Client can send to: /app/simulation/{id}/update
@@ -86,75 +89,41 @@ public class SimulationController {
         }
     }
 
-    @GetMapping("/daily")
-    @Operation(summary = "Get daily operations simulation", 
-               description = "Returns the current status of the daily operations simulation")
-    public ResponseEntity<SimulationDTO> getDailyOperations() {
-        logger.info("Getting daily operations simulation");
-        Simulation simulation = simulationService.getDailyOperations();
-        if (simulation == null) {
-            logger.warn("Daily operations simulation not found");
-            return ResponseEntity.notFound().build();
-        }
-        logger.info("Returning daily operations simulation with ID: {}", simulation.getId());
-        return ResponseEntity.ok(new SimulationDTO(simulation));
-    }
-
-    @GetMapping("/daily/state")
-    @Operation(summary = "Get daily operations state", 
-               description = "Returns the current detailed state of the daily operations simulation")
-    public ResponseEntity<SimulationStateDTO> getDailyOperationsState() {
-        logger.info("Getting daily operations simulation state");
-        Simulation simulation = simulationService.getDailyOperations();
-        if (simulation == null) {
-            logger.warn("Daily operations simulation not found for state request");
-            return ResponseEntity.notFound().build();
-        }
-        
-        SimulationStateDTO stateDTO = SimulationStateDTO.fromSimulationState(
-                simulation.getId().toString(), 
-                simulation.getState(), 
-                simulation.getStatus());
-        
-        logger.info("Returning daily operations simulation state with ID: {}", simulation.getId());
-        return ResponseEntity.ok(stateDTO);
-    }
-
     @PostMapping
-    @Operation(summary = "Create a new simplified simulation", 
-               description = "Creates a new simulation with the specified parameters. For WEEKLY type, end date is automatically set to one week after start date. For INFINITE, no end date is used.")
+    @Operation(summary = "Create a new simplified simulation", description = "Creates a new simulation with the specified parameters. For WEEKLY type, end date is automatically set to one week after start date. For INFINITE, no end date is used.")
     @ApiResponse(responseCode = "201", description = "Simulation created successfully")
     public ResponseEntity<SimulationDTO> createSimulation(@RequestBody SimulationCreateDTO createDTO) {
         logger.info("Creating new simulation of type: {}, start time: {}, vehicles: TA={}, TB={}, TC={}, TD={}",
-                createDTO.getType(), createDTO.getStartDateTime(), 
-                createDTO.getTaVehicles(), createDTO.getTbVehicles(), 
+                createDTO.getType(), createDTO.getStartDateTime(),
+                createDTO.getTaVehicles(), createDTO.getTbVehicles(),
                 createDTO.getTcVehicles(), createDTO.getTdVehicles());
-        
+
         // Validate simulation type
         SimulationType type = createDTO.getType();
         if (type.isDailyOperation()) {
-            logger.warn("Cannot create daily operation simulation. Daily operations can only be accessed, not created.");
+            logger.warn(
+                    "Cannot create daily operation simulation. Daily operations can only be accessed, not created.");
             return ResponseEntity.badRequest().build();
         }
-        
+
         // Validate vehicle counts
-        if (createDTO.getTaVehicles() < 0 || createDTO.getTbVehicles() < 0 || 
-            createDTO.getTcVehicles() < 0 || createDTO.getTdVehicles() < 0) {
+        if (createDTO.getTaVehicles() < 0 || createDTO.getTbVehicles() < 0 ||
+                createDTO.getTcVehicles() < 0 || createDTO.getTdVehicles() < 0) {
             logger.warn("Invalid vehicle counts: all counts must be non-negative");
             return ResponseEntity.badRequest().build();
         }
-        
+
         // Validate dates based on simulation type
         if (createDTO.getStartDateTime() == null) {
             logger.warn("Start date is required");
             return ResponseEntity.badRequest().build();
         }
-        
+
         if (type == SimulationType.CUSTOM && createDTO.getEndDateTime() == null) {
             logger.warn("End date is required for CUSTOM simulation type");
             return ResponseEntity.badRequest().build();
         }
-        
+
         // Create the simulation
         Simulation simulation = simulationService.createSimplifiedSimulation(
                 createDTO.getType(),
@@ -164,63 +133,31 @@ public class SimulationController {
                 createDTO.getTbVehicles(),
                 createDTO.getTcVehicles(),
                 createDTO.getTdVehicles());
-        
+
         logger.info("Simulation created with ID: {}", simulation.getId());
         return new ResponseEntity<>(new SimulationDTO(simulation), HttpStatus.CREATED);
     }
-    
-    @GetMapping("/{id}")
-    @Operation(summary = "Get simulation status", 
-               description = "Returns the current status of a specific simulation")
-    public ResponseEntity<SimulationDTO> getSimulationStatus(@PathVariable UUID id) {
-        logger.info("Getting simulation status for ID: {}", id);
-        Simulation simulation = simulationService.getSimulation(id);
-        if (simulation == null) {
-            logger.warn("Simulation with ID {} not found", id);
-            return ResponseEntity.notFound().build();
-        }
-        logger.info("Returning simulation status for ID: {}", id);
-        return ResponseEntity.ok(new SimulationDTO(simulation));
-    }
-    
-    @GetMapping("/{id}/state")
-    @Operation(summary = "Get simulation state", 
-               description = "Returns the current detailed state of a specific simulation")
-    public ResponseEntity<SimulationStateDTO> getSimulationState(@PathVariable UUID id) {
-        logger.info("Getting simulation state for ID: {}", id);
-        Simulation simulation = simulationService.getSimulation(id);
-        if (simulation == null) {
-            logger.warn("Simulation with ID {} not found for state request", id);
-            return ResponseEntity.notFound().build();
-        }
-        
-        SimulationStateDTO stateDTO = SimulationStateDTO.fromSimulationState(
-                simulation.getId().toString(), 
-                simulation.getState(), 
-                simulation.getStatus());
-        
-        logger.info("Returning simulation state for ID: {}", id);
-        return ResponseEntity.ok(stateDTO);
-    }
-    
+
     @GetMapping
-    @Operation(summary = "List all simulations", 
-               description = "Returns a list of all active simulations")
+    @Operation(summary = "List all simulations", description = "Returns a list of all active simulations")
     public ResponseEntity<Map<UUID, SimulationDTO>> listSimulations() {
         logger.info("Listing all simulations");
         Map<UUID, Simulation> simulations = simulationService.getAllSimulations();
+        for (Simulation simulation : simulations.values()) {
+            logger.info("Simulation ID: {}, State: {}, Status: {}", simulation.getId(), simulation.getState(),
+                    simulation.getStatus());
+        }
+
         Map<UUID, SimulationDTO> simulationDTOList = simulations.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
-                        e -> new SimulationDTO(e.getValue())
-                ));
+                        e -> new SimulationDTO(e.getValue())));
         logger.info("Found {} active simulations", simulationDTOList.size());
         return ResponseEntity.ok(simulationDTOList);
     }
-    
+
     @PostMapping("/{id}/start")
-    @Operation(summary = "Start a simulation", 
-               description = "Starts or resumes a paused simulation")
+    @Operation(summary = "Start a simulation", description = "Starts or resumes a paused simulation")
     public ResponseEntity<SimulationDTO> startSimulation(@PathVariable UUID id) {
         logger.info("Starting/resuming simulation with ID: {}", id);
         Simulation simulation = simulationService.startSimulation(id);
@@ -231,10 +168,9 @@ public class SimulationController {
         logger.info("Simulation with ID: {} successfully started", id);
         return ResponseEntity.ok(new SimulationDTO(simulation));
     }
-    
+
     @PostMapping("/{id}/pause")
-    @Operation(summary = "Pause a simulation", 
-               description = "Pauses a running simulation")
+    @Operation(summary = "Pause a simulation", description = "Pauses a running simulation")
     public ResponseEntity<SimulationDTO> pauseSimulation(@PathVariable UUID id) {
         logger.info("Pausing simulation with ID: {}", id);
         Simulation simulation = simulationService.pauseSimulation(id);
@@ -245,10 +181,9 @@ public class SimulationController {
         logger.info("Simulation with ID: {} successfully paused", id);
         return ResponseEntity.ok(new SimulationDTO(simulation));
     }
-    
+
     @PostMapping("/{id}/stop")
-    @Operation(summary = "Stop a simulation", 
-               description = "Permanently stops a simulation")
+    @Operation(summary = "Stop a simulation", description = "Permanently stops a simulation")
     public ResponseEntity<SimulationDTO> stopSimulation(@PathVariable UUID id) {
         logger.info("Stopping simulation with ID: {}", id);
         Simulation simulation = simulationService.finishSimulation(id);
@@ -259,4 +194,83 @@ public class SimulationController {
         logger.info("Simulation with ID: {} successfully stopped", id);
         return ResponseEntity.ok(new SimulationDTO(simulation));
     }
-} 
+
+    @PostMapping("/{id}/replan")
+    public ResponseEntity<SimulationDTO> replanSimulation(@PathVariable UUID id) {
+        logger.info("Replanning simulation with ID: {}", id);
+        Simulation simulation = simulationService.getSimulation(id);
+        if (simulation == null) {
+            logger.warn("Cannot replan: Simulation with ID {} not found", id);
+            return ResponseEntity.notFound().build();
+        }
+        simulationService.replanSimulation(simulation);
+        logger.info("Simulation with ID: {} successfully replanned", id);
+        return ResponseEntity.ok(new SimulationDTO(simulation));
+    }
+
+    @PostMapping("/{id}/load-orders")
+    @Operation(summary = "Cargar órdenes para una simulación", description = "Carga un archivo de órdenes para un año y mes específico en una simulación")
+    public ResponseEntity<String> loadOrders(
+            @PathVariable UUID id,
+            @RequestParam int year,
+            @RequestParam int month,
+            @RequestParam MultipartFile file) {
+
+        logger.info("Loading orders for simulation with ID: {}, year: {}, month: {}", id, year, month);
+
+        try {
+            if (file.isEmpty()) {
+                logger.warn("Cannot load orders: The file is empty for simulation ID {}", id);
+                return ResponseEntity.badRequest().body("Error: El archivo no puede estar vacío.");
+            }
+
+            Simulation simulation = simulationService.getSimulation(id);
+            if (simulation == null) {
+                logger.warn("Cannot load orders: Simulation with ID {} not found", id);
+                return ResponseEntity.notFound().build();
+            }
+
+            simulationService.loadOrders(simulation, year, month, file);
+            logger.info("Orders loaded for simulation with ID: {}", id);
+            return ResponseEntity.ok("Órdenes cargadas exitosamente para la simulación con ID: " + id);
+        } catch (IllegalArgumentException e) {
+            logger.error("Invalid parameters for orders loading: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Error en los parámetros: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error loading orders: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error al cargar órdenes: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/load-blockages")
+    @Operation(summary = "Cargar bloqueos para una simulación", description = "Carga un archivo de bloqueos para un año y mes específico en una simulación")
+    public ResponseEntity<String> loadBlockages(
+            @PathVariable UUID id,
+            @RequestParam int year,
+            @RequestParam int month,
+            @RequestParam MultipartFile file) {
+
+        logger.info("Loading blockages for simulation with ID: {}, year: {}, month: {}", id, year, month);
+
+        try {
+            Simulation simulation = simulationService.getSimulation(id);
+            if (simulation == null) {
+                logger.warn("Cannot load blockages: Simulation with ID {} not found", id);
+                return ResponseEntity.notFound().build();
+            }
+
+            simulationService.loadBlockages(simulation, year, month, file);
+
+            logger.info("Blockages loaded for simulation with ID: {}", id);
+            return ResponseEntity.ok("Bloqueos cargados exitosamente para la simulación con ID: " + id);
+        } catch (IllegalArgumentException e) {
+            logger.error("Invalid parameters for blockages loading: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Error en los parámetros: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error loading blockages: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error al cargar bloqueos: " + e.getMessage());
+        }
+    }
+}

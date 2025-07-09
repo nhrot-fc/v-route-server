@@ -8,8 +8,15 @@ import com.example.plgsystem.enums.VehicleType;
 import com.example.plgsystem.model.Constants;
 import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.orchest.Event;
+import com.example.plgsystem.orchest.DatabaseDataLoader;
+import com.example.plgsystem.orchest.FileDataLoader;
+import com.example.plgsystem.orchest.DataLoader;
+import com.example.plgsystem.repository.BlockageRepository;
+import com.example.plgsystem.repository.OrderRepository;
 import com.example.plgsystem.simulation.Simulation;
 import com.example.plgsystem.simulation.SimulationState;
+import com.example.plgsystem.util.FileUtils;
 
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Lazy;
@@ -18,10 +25,13 @@ import org.springframework.lang.NonNull;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Duration;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,87 +44,66 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SimulationService implements ApplicationListener<ContextRefreshedEvent> {
 
     private static final Logger logger = LoggerFactory.getLogger(SimulationService.class);
-    
+
     private final Map<UUID, Simulation> simulations = new ConcurrentHashMap<>();
     private UUID dailyOperationsId;
 
     private final DepotService depotService;
     private final VehicleService vehicleService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final OrderRepository orderRepository;
+    private final BlockageRepository blockageRepository;
 
-    public SimulationService(DepotService depotService, VehicleService vehicleService,
-            @Lazy SimpMessagingTemplate messagingTemplate) {
+    public SimulationService(
+            DepotService depotService,
+            VehicleService vehicleService,
+            @Lazy SimpMessagingTemplate messagingTemplate,
+            OrderRepository orderRepository,
+            BlockageRepository blockageRepository) {
         this.depotService = depotService;
         this.vehicleService = vehicleService;
         this.messagingTemplate = messagingTemplate;
+        this.orderRepository = orderRepository;
+        this.blockageRepository = blockageRepository;
         logger.info("SimulationService initialized");
     }
 
     @Override
     public void onApplicationEvent(@NonNull ContextRefreshedEvent event) {
         logger.info("Application context refreshed, initializing daily operations");
-        // Initialize the daily operations simulation when the application starts
         initializeDailyOperations();
     }
 
-    /**
-     * Initializes the daily operations simulation using current database state
-     */
     private void initializeDailyOperations() {
         logger.info("Initializing daily operations simulation");
-        // Get main depot
         Depot mainDepot = depotService.findMainDepots().stream().findFirst().orElse(null);
         if (mainDepot == null) {
             mainDepot = new Depot("MAIN", Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
             depotService.save(mainDepot);
         }
-
-        // Get all vehicles
         List<Vehicle> vehicles = vehicleService.findAll();
         logger.info("Found {} vehicles for daily operations", vehicles.size());
-
-        // Get auxiliary depots
         List<Depot> auxDepots = depotService.findAuxiliaryDepots();
         if (auxDepots.isEmpty()) {
             auxDepots = Arrays.asList(
-                new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 500, DepotType.AUXILIARY),
-                new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 500, DepotType.AUXILIARY)
-            );
+                    new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 500, DepotType.AUXILIARY),
+                    new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 500, DepotType.AUXILIARY));
             for (Depot depot : auxDepots) {
                 depotService.save(depot);
             }
         }
 
         logger.info("Found {} auxiliary depots for daily operations", auxDepots.size());
-
-        // Create simulation state with current time
         SimulationState state = new SimulationState(vehicles, mainDepot, auxDepots, LocalDateTime.now());
-
-        // Create daily operations simulation
-        Simulation dailyOps = new Simulation(state, SimulationType.DAILY_OPERATIONS);
-        dailyOps.start(); // Start it immediately
-
-        // Store in simulations map
+        DataLoader dataLoader = new DatabaseDataLoader(orderRepository, blockageRepository);
+        Simulation dailyOps = new Simulation(state, SimulationType.DAILY_OPERATIONS, dataLoader);
+        dailyOps.start();
         dailyOperationsId = dailyOps.getId();
         simulations.put(dailyOperationsId, dailyOps);
         logger.info("Daily operations simulation created with ID: {}", dailyOperationsId);
-
-        // Send initial state to all WebSocket subscribers
         sendSimulationUpdate(dailyOps);
     }
 
-    /**
-     * Creates a simplified simulation with automatic generation of vehicles
-     * 
-     * @param type Type of simulation (WEEKLY, INFINITE, CUSTOM)
-     * @param startDateTime Starting date and time of the simulation
-     * @param endDateTime End date for CUSTOM simulations, ignored for other types
-     * @param taVehicleCount Number of TA vehicles to create
-     * @param tbVehicleCount Number of TB vehicles to create
-     * @param tcVehicleCount Number of TC vehicles to create
-     * @param tdVehicleCount Number of TD vehicles to create
-     * @return The created simulation
-     */
     public Simulation createSimplifiedSimulation(
             SimulationType type,
             LocalDateTime startDateTime,
@@ -123,31 +112,33 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
             int tbVehicleCount,
             int tcVehicleCount,
             int tdVehicleCount) {
-        
-        logger.info("Creating simplified simulation - type: {}, start: {}, end: {}, vehicles: TA={}, TB={}, TC={}, TD={}",
-            type, startDateTime, endDateTime, taVehicleCount, tbVehicleCount, tcVehicleCount, tdVehicleCount);
-        
+
+        logger.info(
+                "Creating simplified simulation - type: {}, start: {}, end: {}, vehicles: TA={}, TB={}, TC={}, TD={}",
+                type, startDateTime, endDateTime, taVehicleCount, tbVehicleCount, tcVehicleCount, tdVehicleCount);
+
         if (type.isDailyOperation()) {
             logger.error("Cannot create additional daily operation simulations");
             throw new IllegalArgumentException("Cannot create additional daily operation simulations");
         }
-        
+
         // For WEEKLY type, set end date automatically to one week after start
         if (type == SimulationType.WEEKLY) {
             endDateTime = startDateTime.plusWeeks(1);
             logger.info("Weekly simulation: auto-set end date to {}", endDateTime);
         }
-        
+
         // Get fixed depots from the database
         Depot mainDepot = new Depot("MAIN", Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
         Depot northDepot = new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 500, DepotType.AUXILIARY);
         Depot eastDepot = new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 500, DepotType.AUXILIARY);
         List<Depot> auxDepots = Arrays.asList(northDepot, eastDepot);
-        logger.info("Using fixed depots: Main={}, Aux=[{}, {}]", mainDepot.getId(), northDepot.getId(), eastDepot.getId());
-        
+        logger.info("Using fixed depots: Main={}, Aux=[{}, {}]", mainDepot.getId(), northDepot.getId(),
+                eastDepot.getId());
+
         // Create vehicles automatically
         List<Vehicle> vehicles = new ArrayList<>();
-        
+
         // Generate TA vehicles
         for (int i = 0; i < taVehicleCount; i++) {
             String id = "TA" + String.format("%02d", i + 1);
@@ -158,7 +149,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
                     .build();
             vehicles.add(vehicle);
         }
-        
+
         // Generate TB vehicles
         for (int i = 0; i < tbVehicleCount; i++) {
             String id = "TB" + String.format("%02d", i + 1);
@@ -169,7 +160,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
                     .build();
             vehicles.add(vehicle);
         }
-        
+
         // Generate TC vehicles
         for (int i = 0; i < tcVehicleCount; i++) {
             String id = "TC" + String.format("%02d", i + 1);
@@ -180,7 +171,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
                     .build();
             vehicles.add(vehicle);
         }
-        
+
         // Generate TD vehicles
         for (int i = 0; i < tdVehicleCount; i++) {
             String id = "TD" + String.format("%02d", i + 1);
@@ -191,42 +182,126 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
                     .build();
             vehicles.add(vehicle);
         }
-        
+
         logger.info("Created {} vehicles for simulation", vehicles.size());
-        
+
         // Create simulation state
         SimulationState state = new SimulationState(vehicles, mainDepot, auxDepots, startDateTime);
-        Simulation simulation = new Simulation(state, type);
-        
+        DataLoader dataLoader = new FileDataLoader();
+        Simulation simulation = new Simulation(state, type, dataLoader);
+
         // Store in simulations map
         simulations.put(simulation.getId(), simulation);
         logger.info("Created simulation with ID: {}", simulation.getId());
-        
+
         // Broadcast the initial state to create the channel
         sendSimulationUpdate(simulation);
-        
+
         return simulation;
     }
 
     /**
-     * Retrieves a simulation by its ID
+     * Carga órdenes para una simulación desde un archivo para un año/mes específico
+     * 
+     * @param simulation La simulación
+     * @param year       Año de los datos
+     * @param month      Mes de los datos
+     * @param file       Archivo con datos de órdenes
+     * @throws IOException Si hay problemas con el archivo
      */
+    public void loadOrders(Simulation simulation, int year, int month, MultipartFile file) throws IOException {
+        logger.info("Cargando órdenes para simulación: {}, año: {}, mes: {}",
+                simulation.getId(), year, month);
+
+        try {
+            // Obtener DataLoader y SimulationId
+            FileDataLoader fileDataLoader;
+
+            // Verificar si el DataLoader es una instancia de FileDataLoader
+            if (simulation.getOrchestrator().getDataLoader() instanceof FileDataLoader) {
+                fileDataLoader = (FileDataLoader) simulation.getOrchestrator().getDataLoader();
+            } else {
+                logger.warn("La simulación no usa un FileDataLoader. No se pueden cargar archivos.");
+                throw new IllegalStateException("Esta simulación no soporta carga de archivos");
+            }
+
+            String simulationId = simulation.getId().toString();
+
+            // Validar y guardar el archivo
+            LocalDate referenceDate = LocalDate.of(year, month, 1);
+            Path filePath = FileUtils.validateOrdersFile(file, referenceDate, simulationId);
+
+            // Registrar el archivo en DataLoader
+            fileDataLoader.registerOrdersFile(year, month, filePath);
+
+            // Cargar órdenes para la fecha actual de simulación
+            LocalDateTime simTime = simulation.getSimulationTime();
+            if (simTime.getYear() == year && simTime.getMonthValue() == month) {
+                List<Event> events = fileDataLoader.loadOrdersForDate(simTime.toLocalDate());
+                simulation.getOrchestrator().addEvents(events);
+                logger.info("Añadidos {} eventos de órdenes para la fecha {}",
+                        events.size(), simTime.toLocalDate());
+            }
+        } catch (Exception e) {
+            logger.error("Error al cargar órdenes: {}", e.getMessage());
+            throw new IOException("Error al cargar órdenes: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Carga bloqueos para una simulación desde un archivo para un año/mes
+     * específico
+     * 
+     * @param simulation La simulación
+     * @param year       Año de los datos
+     * @param month      Mes de los datos
+     * @param file       Archivo con datos de bloqueos
+     * @throws IOException Si hay problemas con el archivo
+     */
+    public void loadBlockages(Simulation simulation, int year, int month, MultipartFile file) throws IOException {
+        logger.info("Cargando bloqueos para simulación: {}, año: {}, mes: {}",
+                simulation.getId(), year, month);
+
+        try {
+            // Obtener DataLoader y SimulationId
+            FileDataLoader fileDataLoader;
+
+            // Verificar si el DataLoader es una instancia de FileDataLoader
+            if (simulation.getOrchestrator().getDataLoader() instanceof FileDataLoader) {
+                fileDataLoader = (FileDataLoader) simulation.getOrchestrator().getDataLoader();
+            } else {
+                logger.warn("La simulación no usa un FileDataLoader. No se pueden cargar archivos.");
+                throw new IllegalStateException("Esta simulación no soporta carga de archivos");
+            }
+
+            String simulationId = simulation.getId().toString();
+
+            // Validar y guardar el archivo
+            LocalDate referenceDate = LocalDate.of(year, month, 1);
+            Path filePath = FileUtils.validateBlockagesFile(file, referenceDate, simulationId);
+
+            // Registrar el archivo en DataLoader
+            fileDataLoader.registerBlockagesFile(year, month, filePath);
+
+            // Cargar bloqueos para la fecha actual de simulación
+            LocalDateTime simTime = simulation.getSimulationTime();
+            if (simTime.getYear() == year && simTime.getMonthValue() == month) {
+                List<Event> events = fileDataLoader.loadBlockagesForDate(simTime.toLocalDate());
+                simulation.getOrchestrator().addEvents(events);
+                logger.info("Añadidos {} eventos de bloqueos para la fecha {}",
+                        events.size(), simTime.toLocalDate());
+            }
+        } catch (Exception e) {
+            logger.error("Error al cargar bloqueos: {}", e.getMessage());
+            throw new IOException("Error al cargar bloqueos: " + e.getMessage(), e);
+        }
+    }
+
     public Simulation getSimulation(UUID id) {
         logger.debug("Getting simulation with ID: {}", id);
         return simulations.get(id);
     }
 
-    /**
-     * Gets the daily operations simulation
-     */
-    public Simulation getDailyOperations() {
-        logger.debug("Getting daily operations simulation with ID: {}", dailyOperationsId);
-        return simulations.get(dailyOperationsId);
-    }
-
-    /**
-     * Starts or resumes a simulation
-     */
     public Simulation startSimulation(UUID id) {
         logger.info("Starting/resuming simulation with ID: {}", id);
         Simulation simulation = simulations.get(id);
@@ -240,9 +315,6 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         return simulation;
     }
 
-    /**
-     * Pauses a running simulation
-     */
     public Simulation pauseSimulation(UUID id) {
         logger.info("Pausing simulation with ID: {}", id);
         Simulation simulation = simulations.get(id);
@@ -256,9 +328,6 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         return simulation;
     }
 
-    /**
-     * Finishes a simulation
-     */
     public Simulation finishSimulation(UUID id) {
         logger.info("Finishing simulation with ID: {}", id);
         Simulation simulation = simulations.get(id);
@@ -272,64 +341,44 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         return simulation;
     }
 
-    /**
-     * Retrieves all active simulations
-     */
     public Map<UUID, Simulation> getAllSimulations() {
         logger.debug("Getting all simulations, count: {}", simulations.size());
         return simulations;
     }
 
-    /**
-     * Updates simulation states and broadcasts updates to WebSocket channels
-     * Runs every 1 seconds for all active simulations
-     */
+    public void replanSimulation(Simulation simulation) {
+        logger.info("Replanning simulation with ID: {}", simulation.getId());
+        simulation.getOrchestrator().replan();
+    }
+
     @Scheduled(fixedRate = 1000)
     public void updateAndBroadcastSimulations() {
         logger.trace("Updating and broadcasting all running simulations");
-        
+
         int runningCount = 0;
         for (Simulation simulation : simulations.values()) {
-            // Only update running simulations
             if (simulation.isRunning()) {
                 runningCount++;
-                
-                // For daily operations, update to current time
-                if (simulation.isDailyOperation()) {
-                    // Update the simulation state with current time
-                    simulation.getState().setCurrentTime(LocalDateTime.now());
-                } else {
-                    // For time-based simulations, advance time by a specific interval
-                    // This could be configured based on simulation type
-                    Duration timeStep = Duration.ofMinutes(1);
-                    simulation.getState().advanceTime(timeStep);
-                }
-
-                // Broadcast updates to the WebSocket channel
+                simulation.advanceTick();
                 sendSimulationUpdate(simulation);
             }
         }
-        
+
         if (runningCount > 0) {
             logger.debug("Updated {} running simulations", runningCount);
         }
     }
 
-    /**
-     * Sends simulation updates to the WebSocket channels
-     */
     public void sendSimulationUpdate(Simulation simulation) {
         logger.trace("Sending WebSocket update for simulation ID: {}", simulation.getId());
-        
+
         UUID id = simulation.getId();
         String channelBasePath = "/topic/simulation/" + id;
 
-        // Send basic simulation data on the base channel
         messagingTemplate.convertAndSend(
                 channelBasePath,
                 new SimulationDTO(simulation));
 
-        // Send detailed state data on the state channel
         SimulationStateDTO stateDTO = SimulationStateDTO.fromSimulationState(
                 id.toString(),
                 simulation.getState(),
@@ -338,5 +387,13 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         messagingTemplate.convertAndSend(
                 channelBasePath + "/state",
                 stateDTO);
+    }
+
+    /**
+     * Limpia los recursos cuando se cierra la aplicación
+     */
+    public void cleanup() {
+        logger.info("Limpiando recursos de simulación");
+        FileUtils.cleanupTempFiles();
     }
 }

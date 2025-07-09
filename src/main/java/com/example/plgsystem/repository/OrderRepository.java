@@ -73,4 +73,13 @@ public interface OrderRepository extends JpaRepository<Order, String> {
      */
     @Query("SELECT o FROM Order o WHERE o.arrivalTime <= :dateTime ORDER BY o.arrivalTime ASC")
     Page<Order> findByArrivalTimeLessThanEqual(LocalDateTime dateTime, Pageable pageable);
+
+    /**
+     * Busca órdenes con hora de llegada entre dos fechas
+     * 
+     * @param start Fecha y hora de inicio
+     * @param end Fecha y hora de fin
+     * @return Lista de órdenes que llegan en el periodo especificado
+     */
+    List<Order> findByArrivalTimeBetween(LocalDateTime start, LocalDateTime end);
 }

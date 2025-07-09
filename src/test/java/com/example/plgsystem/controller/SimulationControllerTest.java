@@ -16,9 +16,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -78,12 +80,18 @@ public class SimulationControllerTest {
 
         // Mock simulation service methods
         when(simulationService.getSimulation(any(UUID.class))).thenReturn(testSimulation);
-        when(simulationService.getDailyOperations()).thenReturn(testSimulation);
         when(simulationService.startSimulation(any(UUID.class))).thenReturn(testSimulation);
         when(simulationService.pauseSimulation(any(UUID.class))).thenReturn(testSimulation);
         when(simulationService.finishSimulation(any(UUID.class))).thenReturn(testSimulation);
+        doNothing().when(simulationService).replanSimulation(any(Simulation.class));
+        try {
+            doNothing().when(simulationService).loadOrders(any(Simulation.class), anyInt(), anyInt(), any());
+            doNothing().when(simulationService).loadBlockages(any(Simulation.class), anyInt(), anyInt(), any());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
-        // Mock createSimplifiedSimulation instead of createTimeBasedSimulation
+        // Mock createSimplifiedSimulation
         when(simulationService.createSimplifiedSimulation(
                 any(SimulationType.class),
                 any(LocalDateTime.class),
@@ -95,18 +103,6 @@ public class SimulationControllerTest {
 
         // Setup MockMvc
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
-    }
-
-    @Test
-    public void testGetSimulationById() throws Exception {
-        // Perform GET request to retrieve simulation by ID
-        mockMvc.perform(get("/api/simulation/{id}", simulationId))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andReturn();
-
-        // Verify the service was called correctly
-        verify(simulationService).getSimulation(simulationId);
     }
 
     @Test
@@ -151,65 +147,136 @@ public class SimulationControllerTest {
                 eq(1), // taVehicles
                 eq(1), // tbVehicles
                 eq(1), // tcVehicles
-                eq(1)  // tdVehicles
+                eq(1) // tdVehicles
         );
     }
 
     @Test
-    public void testGetSimulationState() throws Exception {
-        // Perform GET request to retrieve simulation state
-        mockMvc.perform(get("/api/simulation/{id}/state", simulationId))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andReturn();
-
-        // Verify the service was called correctly
-        verify(simulationService).getSimulation(simulationId);
-    }
-
-    @Test
     public void testSimulationLifecycle() throws Exception {
-        // 1. Get the simulation
-        mockMvc.perform(get("/api/simulation/{id}", simulationId))
-                .andExpect(status().isOk());
-
-        // 2. Start simulation
+        // 1. Start simulation
         mockMvc.perform(post("/api/simulation/{id}/start", simulationId))
                 .andExpect(status().isOk());
-
         verify(simulationService).startSimulation(simulationId);
 
-        // 3. Pause simulation
+        // 2. Pause simulation
         mockMvc.perform(post("/api/simulation/{id}/pause", simulationId))
                 .andExpect(status().isOk());
-
         verify(simulationService).pauseSimulation(simulationId);
 
-        // 4. Stop simulation
+        // 3. Stop simulation
         mockMvc.perform(post("/api/simulation/{id}/stop", simulationId))
                 .andExpect(status().isOk());
-
         verify(simulationService).finishSimulation(simulationId);
     }
 
     @Test
-    public void testGetDailyOperations() throws Exception {
-        // Perform GET request for daily operations
-        mockMvc.perform(get("/api/simulation/daily"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+    public void testReplanSimulation() throws Exception {
+        // Test replan simulation
+        mockMvc.perform(post("/api/simulation/{id}/replan", simulationId))
+                .andExpect(status().isOk());
 
-        verify(simulationService).getDailyOperations();
+        verify(simulationService).getSimulation(simulationId);
+        verify(simulationService).replanSimulation(testSimulation);
     }
 
     @Test
-    public void testGetDailyOperationsState() throws Exception {
-        // Perform GET request for daily operations state
-        mockMvc.perform(get("/api/simulation/daily/state"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+    public void testReplanSimulation_NotFound() throws Exception {
+        // Mock the simulation service to return null for a non-existent simulation
+        when(simulationService.getSimulation(any(UUID.class))).thenReturn(null);
 
-        verify(simulationService).getDailyOperations();
+        // Test replan for non-existent simulation
+        mockMvc.perform(post("/api/simulation/{id}/replan", UUID.randomUUID()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    public void testLoadOrders() throws Exception {
+        // Create mock file
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "orders.txt",
+                MediaType.TEXT_PLAIN_VALUE,
+                "01d00h24m:16,13,c-198,3m3,4h\n01d00h48m:5,18,c-12,9m3,17h".getBytes());
+
+        // Test load orders
+        MockMultipartHttpServletRequestBuilder builder = multipart("/api/simulation/{id}/load-orders", simulationId);
+
+        mockMvc.perform(builder
+                .file(file)
+                .param("year", "2025")
+                .param("month", "1"))
+                .andExpect(status().isOk());
+
+        verify(simulationService).getSimulation(simulationId);
+        verify(simulationService).loadOrders(eq(testSimulation), eq(2025), eq(1), any());
+    }
+
+    @Test
+    public void testLoadOrders_NotFound() throws Exception {
+        // Mock the simulation service to return null for a non-existent simulation
+        when(simulationService.getSimulation(any(UUID.class))).thenReturn(null);
+
+        // Create mock file
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "orders.txt",
+                MediaType.TEXT_PLAIN_VALUE,
+                "01d00h24m:16,13,c-198,3m3,4h".getBytes());
+
+        // Test load orders for non-existent simulation
+        MockMultipartHttpServletRequestBuilder builder = multipart("/api/simulation/{id}/load-orders",
+                UUID.randomUUID());
+
+        mockMvc.perform(builder
+                .file(file)
+                .param("year", "2025")
+                .param("month", "1"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    public void testLoadBlockages() throws Exception {
+        // Create mock file
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "blockages.txt",
+                MediaType.TEXT_PLAIN_VALUE,
+                "01d00h31m-01d21h35m:15,10,30,10,30,18\n01d01h13m-01d20h38m:08,03,08,23,20,23".getBytes());
+
+        // Test load blockages
+        MockMultipartHttpServletRequestBuilder builder = multipart("/api/simulation/{id}/load-blockages", simulationId);
+
+        mockMvc.perform(builder
+                .file(file)
+                .param("year", "2025")
+                .param("month", "1"))
+                .andExpect(status().isOk());
+
+        verify(simulationService).getSimulation(simulationId);
+        verify(simulationService).loadBlockages(eq(testSimulation), eq(2025), eq(1), any());
+    }
+
+    @Test
+    public void testLoadBlockages_NotFound() throws Exception {
+        // Mock the simulation service to return null for a non-existent simulation
+        when(simulationService.getSimulation(any(UUID.class))).thenReturn(null);
+
+        // Create mock file
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "blockages.txt",
+                MediaType.TEXT_PLAIN_VALUE,
+                "01d00h31m-01d21h35m:15,10,30,10,30,18".getBytes());
+
+        // Test load blockages for non-existent simulation
+        MockMultipartHttpServletRequestBuilder builder = multipart("/api/simulation/{id}/load-blockages",
+                UUID.randomUUID());
+
+        mockMvc.perform(builder
+                .file(file)
+                .param("year", "2025")
+                .param("month", "1"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

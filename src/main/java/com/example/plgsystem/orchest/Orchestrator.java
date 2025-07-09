@@ -1,8 +1,5 @@
 package com.example.plgsystem.orchest;
 
-import com.example.plgsystem.assignation.DeliveryPart;
-import com.example.plgsystem.assignation.MetaheuristicSolver;
-import com.example.plgsystem.assignation.Solution;
 import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Blockage;
@@ -11,113 +8,84 @@ import com.example.plgsystem.model.Maintenance;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.operation.Action;
 import com.example.plgsystem.operation.VehiclePlan;
-import com.example.plgsystem.operation.VehiclePlanCreator;
 import com.example.plgsystem.simulation.SimulationState;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.logging.Logger;
+import lombok.Getter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+
+@Getter
 public class Orchestrator {
-    private static final Logger logger = Logger.getLogger(Orchestrator.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(Orchestrator.class);
 
     private final SimulationState environment;
     private final Map<Vehicle, VehiclePlan> vehiclePlans;
-    private final List<Event> eventQueue;
+    private final PriorityQueue<Event> eventQueue;
+    private final int minutesForReplan;
+    private final DataLoader dataLoader;
 
     private LocalDateTime simulationTime;
-    private boolean simulationRunning;
     private boolean needsReplanning;
+    private Duration tickDuration;
+    private LocalDateTime lastReplanningTime;
 
-    // Tick counter for replanning
-    private int tickCounter;
-    private int ticksPerReplan;
-
-    public Orchestrator(SimulationState environment) {
+    public Orchestrator(SimulationState environment, Duration tickDuration, int minutesForReplan, DataLoader dataLoader) {
         this.environment = environment;
-        this.vehiclePlans = new HashMap<>();
         this.simulationTime = environment.getCurrentTime();
-        this.simulationRunning = false;
-        this.eventQueue = new ArrayList<>();
+        this.tickDuration = tickDuration;
+        this.vehiclePlans = new HashMap<>();
+        this.eventQueue = new PriorityQueue<>(Comparator.comparing(Event::getTime));
         this.needsReplanning = false;
-        this.tickCounter = 0;
-        this.ticksPerReplan = 60;
+        this.lastReplanningTime = simulationTime;
+        this.minutesForReplan = minutesForReplan;
+        this.dataLoader = dataLoader;
+
+        // Schedule the first NEW_DAY_BEGIN event
+        LocalDateTime nextNewDay = LocalDateTime.of(
+                simulationTime.toLocalDate().plusDays(1),
+                LocalTime.of(0, 0));
+        this.eventQueue.add(new Event(EventType.NEW_DAY_BEGIN, nextNewDay, null, null));
     }
 
     public void addEvents(List<Event> events) {
         this.eventQueue.addAll(events);
-        this.eventQueue.sort(Comparator.comparing(Event::getTime));
     }
 
-    public void startSimulation() {
-        if (simulationRunning) {
-            logger.warning("Simulation is already running.");
-            return;
-        }
-        simulationRunning = true;
-        logger.info("Starting simulation at " + simulationTime);
+    public void addEvent(Event event) {
+        this.eventQueue.add(event);
     }
 
-    public void stopSimulation() {
-        if (!simulationRunning) {
-            logger.warning("Simulation is not running.");
-            return;
-        }
-        simulationRunning = false;
-        logger.info("Stopping simulation at " + simulationTime);
-    }
-
-    /**
-     * Main method that advances the simulation by one tick
-     */
-    public boolean advanceTick() {
-        // Update environment state and process events
-        updateEnvironment();
-
-        // Execute current vehicle plans
-        executeVehiclePlans();
-
-        // Increment tick counter
-        tickCounter++;
-
-        // Log environment state periodically
-        if (tickCounter % ticksPerReplan == 0) {
-            logger.info(environment.toString());
-        }
-
-        // Check if replanning is needed
-        boolean tickBasedReplanning = tickCounter >= ticksPerReplan;
-
-        // Perform replanning if needed and there are vehicles available
-        if ((needsReplanning || tickBasedReplanning)) {
-            replanVehicles();
-            needsReplanning = false;
-            tickCounter = 0; // Reset tick counter after replanning
-        }
-
-        // Advance simulation time
-        advanceSimulation();
-
-        return simulationRunning;
-    }
-
-    /**
-     * Updates the environment state and processes pending events
-     */
-    private void updateEnvironment() {
-        // Update environment time
-        environment.setCurrentTime(simulationTime);
-
-        // Process all events that have occurred up to the current time
-        processEvents();
-    }
-
-    private void processEvents() {
-        while (!eventQueue.isEmpty() && eventQueue.getFirst().getTime().isBefore(simulationTime)) {
-            Event event = eventQueue.removeFirst();
+    public void advanceTick() {
+        LocalDateTime nextTick = simulationTime.plus(tickDuration);
+        while (!eventQueue.isEmpty() && eventQueue.peek().getTime().isBefore(nextTick)) {
+            Event event = eventQueue.poll();
             processEvent(event);
         }
+
+        executeVehiclePlans(nextTick);
+        int minutesSinceLastReplanning = (int) Duration.between(lastReplanningTime, nextTick).toMinutes();
+        if ((needsReplanning || (minutesSinceLastReplanning >= minutesForReplan))) {
+            replan();
+            needsReplanning = false;
+            lastReplanningTime = nextTick;
+        }
+
+        environment.setCurrentTime(nextTick);
+        simulationTime = nextTick;
+    }
+
+    public void replan() {
+        // TODO: Implement replanning
     }
 
     private void processEvent(Event event) {
@@ -204,207 +172,65 @@ public class Orchestrator {
                 break;
 
             case NEW_DAY_BEGIN:
+                // Handle start of a new day
+                LocalDate today = simulationTime.toLocalDate();
+                logger.info("New day begins: " + today);
+
+                // Refill all auxiliary depots (previously handled by GLP_DEPOT_REFILL)
                 for (Depot depot : environment.getAuxDepots()) {
                     depot.refill();
                     logger.info("GLP depot refilled: " + depot.getId());
                 }
 
-                break;
+                // Schedule the next day event
+                LocalDateTime nextDay = LocalDateTime.of(
+                        today.plusDays(1),
+                        LocalTime.of(0, 0));
+                addEvent(new Event(EventType.NEW_DAY_BEGIN, nextDay, null, null));
+                logger.info("Scheduled next NEW_DAY_BEGIN event for " + nextDay);
 
-            case SIMULATION_END:
-                logger.info("Simulation end event received");
-                simulationRunning = false;
+                // Cargar datos del nuevo día
+                List<Event> todayOrdersEvents = dataLoader.loadOrdersForDate(today);
+                List<Event> todayBlockagesEvents = dataLoader.loadBlockagesForDate(today);
+
+                for (Event e : todayBlockagesEvents) {
+                    if (e.getType() != EventType.BLOCKAGE_START)
+                        continue;
+                    Blockage blockage = (Blockage) e.getData();
+                    environment.addBlockage(blockage);
+                }
+
+                addEvents(todayOrdersEvents);
+                addEvents(todayBlockagesEvents);
+                logger.info("Added {} events for the new day {}",
+                        todayOrdersEvents.size(), today);
                 break;
 
             default:
-                logger.warning("Unknown event type: " + event.getType());
+                logger.warn("Unknown event type: " + event.getType());
                 break;
         }
     }
 
-    private void executeVehiclePlans() {
+    private void executeVehiclePlans(LocalDateTime nextTick) {
         for (Map.Entry<Vehicle, VehiclePlan> entry : vehiclePlans.entrySet()) {
             Vehicle vehicle = entry.getKey();
             VehiclePlan plan = entry.getValue();
 
             if (vehicle.getStatus() == VehicleStatus.INCIDENT || plan == null) {
-                logger.fine("Skipping vehicle " + vehicle.getId() + " (unavailable or no plan)");
+                logger.debug("Skipping vehicle " + vehicle.getId() + " (unavailable or no plan)");
                 continue;
             }
 
             for (Action action : plan.getActions()) {
-                if (action.getExpectedStartTime().isBefore(simulationTime)) {
-                    action.execute(vehicle, environment, simulationTime);
-                    logger.fine("Executed action: " + action + " for vehicle: " + vehicle.getId());
+                if (action.getExpectedStartTime().isBefore(nextTick)) {
+                    action.execute(vehicle, environment, nextTick);
+                    logger.debug("Executed action: " + action + " for vehicle: " + vehicle.getId());
                 } else {
-                    logger.fine("Skipping action: " + action + " for vehicle: " + vehicle.getId()
+                    logger.debug("Skipping action: " + action + " for vehicle: " + vehicle.getId()
                             + " as it is scheduled for future time.");
                 }
             }
         }
-    }
-
-    /**
-     * Replans vehicle assignments based on current environment state
-     */
-    private void replanVehicles() {
-        logger.info(String.format("Replanning vehicles at [%s] | with %d/%d ticks per replan | needsReplanning: %b",
-                simulationTime, tickCounter, ticksPerReplan, needsReplanning));
-
-        // Check if there are any pending orders and available vehicles
-        List<Order> pendingOrders = environment.getOrders();
-        List<Vehicle> availableVehicles = environment.getVehicles();
-
-        if (pendingOrders.isEmpty()) {
-            logger.info("No pending orders to deliver. Skipping replanning.");
-            return;
-        }
-
-        if (availableVehicles.isEmpty()) {
-            logger.info("No available vehicles for delivery. Skipping replanning.");
-            return;
-        }
-
-        // Log statistics before replanning for comparison
-        int previousPlanCount = vehiclePlans.size();
-        int pendingOrdersCount = pendingOrders.size();
-
-        // Run the assignation algorithm
-        runAssignation();
-
-        // Log the results
-        logger.info(String.format("Replanning completed: %d plans (previously %d) for %d pending orders",
-                vehiclePlans.size(), previousPlanCount, pendingOrdersCount));
-    }
-
-    /**
-     * Runs the metaheuristic assignation algorithm and creates vehicle plans
-     */
-    private void runAssignation() {
-        // Check if there are any available vehicles
-        List<Vehicle> availableVehicles = environment.getVehicles();
-        if (availableVehicles.isEmpty()) {
-            logger.info("No available vehicles for assignation. Skipping assignation.");
-            return;
-        }
-
-        // Check if there are any pending orders
-        List<Order> pendingOrders = environment.getOrders();
-
-        if (pendingOrders.isEmpty()) {
-            logger.info("No pending orders to assign. Creating default plans to return to main depot.");
-
-            // Create default plans for all available vehicles to return to the main depot
-            for (Vehicle vehicle : availableVehicles) {
-                VehiclePlan defaultPlan = VehiclePlanCreator.createPlanToMainDepot(environment, vehicle);
-                if (defaultPlan != null) {
-                    vehiclePlans.put(vehicle, defaultPlan);
-                    logger.info("Created default plan for vehicle " + vehicle.getId() + " to return to main depot");
-                    logger.fine(defaultPlan.toString());
-                }
-            }
-
-            logger.info("Created " + vehiclePlans.size() + " default plans for vehicles to return to main depot");
-            return;
-        }
-
-        // Proceed with assignation when we have both orders and vehicles
-        Solution solution = MetaheuristicSolver.solve(environment);
-
-        // Create plans for vehicles with delivery instructions
-        for (Map.Entry<String, List<DeliveryPart>> entry : solution.getVehicleOrderAssignments().entrySet()) {
-            String vehicleId = entry.getKey();
-            Vehicle vehicle = environment.getVehicleById(vehicleId);
-            List<DeliveryPart> instructions = entry.getValue();
-
-            // Only create plans for vehicles with actual instructions
-            if (!instructions.isEmpty()) {
-                VehiclePlan plan = VehiclePlanCreator.createPlan(environment, vehicle, instructions);
-                if (plan != null) {
-                    vehiclePlans.put(vehicle, plan);
-                    logger.info(plan.toString());
-                } else {
-                    logger.warning("Failed to create plan for vehicle: " + vehicle.getId());
-                }
-            }
-        }
-
-        // Create default plans for vehicles without assignments
-        for (Vehicle vehicle : availableVehicles) {
-            // Skip unavailable vehicles
-            if (vehicle.getStatus() == VehicleStatus.INCIDENT) {
-                continue;
-            }
-
-            // This vehicle has no assigned deliveries, create a plan to return to the main
-            // depot
-            VehiclePlan defaultPlan = VehiclePlanCreator.createPlanToMainDepot(environment, vehicle);
-            if (defaultPlan != null) {
-                vehiclePlans.put(vehicle, defaultPlan);
-                logger.info(
-                        "Created default plan for unassigned vehicle " + vehicle.getId() + " to return to main depot");
-                logger.fine(defaultPlan.toString());
-            } else {
-                logger.warning("Failed to create default plan for vehicle: " + vehicle.getId());
-            }
-        }
-
-        logger.info("Assignation completed with " + vehiclePlans.size() + " vehicle plans created.");
-    }
-
-    /**
-     * Advances the simulation time by the configured step amount
-     */
-    private void advanceSimulation() {
-        simulationTime = simulationTime.plusMinutes(1);
-        environment.advanceTime(Duration.ofMinutes(1));
-        logger.fine("Advanced simulation to " + simulationTime);
-    }
-
-    public Map<Vehicle, VehiclePlan> getVehiclePlans() {
-        return Collections.unmodifiableMap(vehiclePlans);
-    }
-
-    public void initialize() {
-        // Add a simulation end event based on config.getSimulationMaxDays()
-        LocalDateTime endTime = this.simulationTime.plusDays(1);
-        Event endEvent = new Event(EventType.SIMULATION_END, endTime, null, null);
-        this.eventQueue.add(endEvent);
-        this.eventQueue.sort(Comparator.comparing(Event::getTime));
-
-        // Make sure environment time is synced with simulation time
-        environment.setCurrentTime(this.simulationTime);
-
-        logger.info("Orchestrator initialized with time: " + this.simulationTime);
-        logger.info("Simulation end scheduled for: " + endTime);
-    }
-
-    /**
-     * Replaces the startSimulation method since we're advancing ticks from the UI
-     * now.
-     * Just makes sure the simulation is ready to run.
-     */
-    public void prepareSimulation() {
-        if (simulationRunning) {
-            logger.warning("Simulation is already running.");
-            return;
-        }
-        simulationRunning = true;
-        logger.info("Simulation prepared to start at " + simulationTime);
-        environment.setCurrentTime(simulationTime);
-    }
-
-    /**
-     * Sets the number of ticks between replanning operations
-     * 
-     * @param ticks Number of ticks between replans
-     */
-    public void setTicksPerReplan(int ticks) {
-        if (ticks <= 0) {
-            logger.warning("Invalid ticks per replan: " + ticks + ". Using default value.");
-            return;
-        }
-        this.ticksPerReplan = ticks;
-        logger.info("Replanning frequency set to: " + ticks + " ticks");
     }
 }
