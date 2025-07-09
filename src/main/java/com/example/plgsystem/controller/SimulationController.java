@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -125,7 +126,7 @@ public class SimulationController {
         }
 
         // Create the simulation
-        Simulation simulation = simulationService.createSimplifiedSimulation(
+        Simulation simulation = simulationService.createSimulation(
                 createDTO.getType(),
                 createDTO.getStartDateTime(),
                 createDTO.getEndDateTime(),
@@ -154,6 +155,22 @@ public class SimulationController {
                         e -> new SimulationDTO(e.getValue())));
         logger.info("Found {} active simulations", simulationDTOList.size());
         return ResponseEntity.ok(simulationDTOList);
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Get simulation by ID", description = "Returns a specific simulation by its ID")
+    public ResponseEntity<SimulationDTO> getSimulation(@PathVariable UUID id) {
+        logger.info("Retrieving simulation with ID: {}", id);
+        Simulation simulation = simulationService.getSimulation(id);
+        
+        if (simulation == null) {
+            logger.warn("Simulation with ID {} not found", id);
+            return ResponseEntity.notFound().build();
+        }
+        
+        logger.info("Retrieved simulation with ID: {}, Type: {}, Status: {}", 
+                simulation.getId(), simulation.getType(), simulation.getStatus());
+        return ResponseEntity.ok(new SimulationDTO(simulation));
     }
 
     @PostMapping("/{id}/start")
@@ -208,7 +225,7 @@ public class SimulationController {
         return ResponseEntity.ok(new SimulationDTO(simulation));
     }
 
-    @PostMapping("/{id}/load-orders")
+    @PostMapping(value = "/{id}/load-orders", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cargar órdenes para una simulación", description = "Carga un archivo de órdenes para un año y mes específico en una simulación")
     public ResponseEntity<String> loadOrders(
             @PathVariable UUID id,
@@ -243,7 +260,7 @@ public class SimulationController {
         }
     }
 
-    @PostMapping("/{id}/load-blockages")
+    @PostMapping(value = "/{id}/load-blockages", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cargar bloqueos para una simulación", description = "Carga un archivo de bloqueos para un año y mes específico en una simulación")
     public ResponseEntity<String> loadBlockages(
             @PathVariable UUID id,

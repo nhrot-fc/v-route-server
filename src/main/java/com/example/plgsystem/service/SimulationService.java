@@ -104,7 +104,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         sendSimulationUpdate(dailyOps);
     }
 
-    public Simulation createSimplifiedSimulation(
+    public Simulation createSimulation(
             SimulationType type,
             LocalDateTime startDateTime,
             LocalDateTime endDateTime,

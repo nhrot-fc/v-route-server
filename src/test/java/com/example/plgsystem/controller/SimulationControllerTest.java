@@ -92,7 +92,7 @@ public class SimulationControllerTest {
         }
 
         // Mock createSimplifiedSimulation
-        when(simulationService.createSimplifiedSimulation(
+        when(simulationService.createSimulation(
                 any(SimulationType.class),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class),
@@ -140,7 +140,7 @@ public class SimulationControllerTest {
                 .andReturn();
 
         // Verify the service was called correctly with new method
-        verify(simulationService).createSimplifiedSimulation(
+        verify(simulationService).createSimulation(
                 eq(SimulationType.CUSTOM),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class),
@@ -292,5 +292,43 @@ public class SimulationControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON));
 
         verify(simulationService).getAllSimulations();
+    }
+
+    @Test
+    public void testGetSimulation() throws Exception {
+        // Setup a specific test UUID for clarity
+        UUID specificTestId = UUID.fromString("11111111-2222-3333-4444-555555555555");
+        
+        // Mock the simulation service to return our test simulation for this specific ID
+        when(simulationService.getSimulation(eq(specificTestId))).thenReturn(testSimulation);
+        
+        // Perform GET request and expect 200 OK with simulation data
+        mockMvc.perform(get("/api/simulation/{id}", specificTestId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(simulationId.toString()))
+                .andExpect(jsonPath("$.type").value(SimulationType.CUSTOM.toString()))
+                .andExpect(jsonPath("$.status").value(SimulationStatus.RUNNING.toString()));
+        
+        // Verify the service method was called with the correct ID
+        verify(simulationService, times(1)).getSimulation(specificTestId);
+    }
+    
+    @Test
+    public void testGetSimulation_WithStringId() throws Exception {
+        // This test specifically checks the conversion of string IDs to UUID
+        // which might be the source of the failure mentioned by the user
+        String stringId = "11111111-2222-3333-4444-555555555555";
+        UUID uuidFromString = UUID.fromString(stringId);
+        
+        // Mock the simulation service to return our test simulation for the parsed UUID
+        when(simulationService.getSimulation(eq(uuidFromString))).thenReturn(testSimulation);
+        
+        // Perform GET request using the string ID and expect 200 OK
+        mockMvc.perform(get("/api/simulation/{id}", stringId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(simulationId.toString()));
+        
+        // Verify the service method was called with the UUID parsed from the string
+        verify(simulationService, times(1)).getSimulation(uuidFromString);
     }
 }
