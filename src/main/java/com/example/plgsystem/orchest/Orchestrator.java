@@ -9,6 +9,10 @@ import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.operation.Action;
 import com.example.plgsystem.operation.VehiclePlan;
 import com.example.plgsystem.simulation.SimulationState;
+import com.example.plgsystem.assignation.Route;
+import com.example.plgsystem.assignation.Solution;
+import com.example.plgsystem.assignation.MetaheuristicSolver;
+import com.example.plgsystem.operation.VehiclePlanCreator;
 
 import lombok.Getter;
 import org.slf4j.Logger;
@@ -23,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import com.example.plgsystem.model.Position;
 
 @Getter
 public class Orchestrator {
@@ -39,7 +44,8 @@ public class Orchestrator {
     private Duration tickDuration;
     private LocalDateTime lastReplanningTime;
 
-    public Orchestrator(SimulationState environment, Duration tickDuration, int minutesForReplan, DataLoader dataLoader) {
+    public Orchestrator(SimulationState environment, Duration tickDuration, int minutesForReplan,
+            DataLoader dataLoader) {
         this.environment = environment;
         this.simulationTime = environment.getCurrentTime();
         this.tickDuration = tickDuration;
@@ -85,7 +91,32 @@ public class Orchestrator {
     }
 
     public void replan() {
-        // TODO: Implement replanning
+        logger.info("Starting replanning at {}", simulationTime);
+
+        Solution solution = MetaheuristicSolver.solve(environment);
+        // 5. Clear existing plans for all vehicles
+        vehiclePlans.clear();
+
+        for (Map.Entry<String, Route> entry : solution.getRoutes().entrySet()) {
+            String vehicleId = entry.getKey();
+            Route route = entry.getValue();
+            Vehicle vehicle = environment.getVehicleById(vehicleId);
+
+            if (vehicle == null) {
+                logger.error("Vehicle not found for ID: {}", vehicleId);
+                continue;
+            }
+
+            try {
+                VehiclePlan plan = VehiclePlanCreator.createPlanFromRoute(route, environment,
+                        lastReplanningTime);
+                vehiclePlans.put(vehicle, plan);
+            } catch (Exception e) {
+                logger.error("Error creating plan for vehicle {}: {}", vehicleId, e.getMessage());
+            }
+        }
+
+        logger.info("Replanning completed. Created {} new vehicle plans", vehiclePlans.size());
     }
 
     private void processEvent(Event event) {
@@ -222,15 +253,181 @@ public class Orchestrator {
                 continue;
             }
 
-            for (Action action : plan.getActions()) {
-                if (action.getExpectedStartTime().isBefore(nextTick)) {
-                    action.execute(vehicle, environment, nextTick);
-                    logger.debug("Executed action: " + action + " for vehicle: " + vehicle.getId());
-                } else {
-                    logger.debug("Skipping action: " + action + " for vehicle: " + vehicle.getId()
-                            + " as it is scheduled for future time.");
-                }
+            Action action = plan.getCurrentAction();
+            if (action != null && action.getStartTime().isBefore(nextTick)) {
+                executeAction(action, vehicle, environment, nextTick);
+                logger.debug("Executed action: " + action + " for vehicle: " + vehicle.getId());
+            } else {
+                logger.debug("Skipping action for vehicle: " + vehicle.getId()
+                        + " as it is scheduled for future time or no current action.");
             }
+        }
+    }
+
+    private void executeAction(Action action, Vehicle vehicle, SimulationState environment, LocalDateTime nextTick) {
+        // Skip if action is already completed
+        if (action.getCurrentProgress() >= 1.0) {
+            return;
+        }
+
+        // Calculate how much of the action should be executed based on time passed
+        LocalDateTime actionStart = action.getStartTime();
+        LocalDateTime actionEnd = action.getEndTime();
+        long totalDurationMinutes = Duration.between(actionStart, actionEnd).toMinutes();
+
+        // If total duration is zero, mark as complete and return
+        if (totalDurationMinutes <= 0) {
+            // Set progress to completed
+            updateActionProgress(action, 1.0);
+            return;
+        }
+
+        // Calculate elapsed time since action start, capped at action end time
+        LocalDateTime effectiveTime = nextTick.isBefore(actionEnd) ? nextTick : actionEnd;
+        long elapsedMinutes = Duration.between(actionStart, effectiveTime).toMinutes();
+
+        // Calculate new progress percentage
+        double progress = Math.min(1.0, (double) elapsedMinutes / totalDurationMinutes);
+
+        // Update the action's progress
+        updateActionProgress(action, progress);
+
+        // Apply action effects based on type and progress
+        applyActionEffects(action, vehicle, environment, progress);
+
+        // If action is now complete (progress = 1.0), advance to next action in plan
+        if (progress >= 1.0) {
+            VehiclePlan plan = vehiclePlans.get(vehicle);
+            if (plan != null) {
+                plan.advanceAction();
+            }
+        }
+    }
+
+    private void updateActionProgress(Action action, double progress) {
+        try {
+            // Using reflection to update the final field
+            java.lang.reflect.Field field = Action.class.getDeclaredField("currentProgress");
+            field.setAccessible(true);
+            field.set(action, progress);
+        } catch (Exception e) {
+            logger.error("Failed to update action progress: " + e.getMessage());
+        }
+    }
+
+    private void applyActionEffects(Action action, Vehicle vehicle, SimulationState environment, double progress) {
+        // Apply partial effects based on progress if not completed previously
+        double previousProgress = action.getCurrentProgress();
+        if (previousProgress >= progress) {
+            return; // No additional effects to apply
+        }
+
+        double effectMultiplier = progress - previousProgress;
+
+        // Apply effects based on action type
+        switch (action.getType()) {
+            case DRIVE:
+                // Update vehicle position based on path
+                updateVehiclePosition(vehicle, action, progress);
+
+                // Apply fuel consumption
+                double fuelToConsume = action.getFuelConsumedGal() * effectMultiplier;
+                vehicle.consumeFuel(fuelToConsume);
+                break;
+
+            case REFUEL:
+                if (progress >= 1.0) {
+                    // Only apply refueling at completion
+                    vehicle.refuel();
+                    logger.info("Vehicle {} refueled to capacity", vehicle.getId());
+                }
+                break;
+
+            case RELOAD:
+                if (progress >= 1.0) {
+                    // Only apply GLP loading at completion
+                    vehicle.refill(action.getGlpLoaded());
+                    logger.info("Vehicle {} loaded {} m³ of GLP", vehicle.getId(), action.getGlpLoaded());
+
+                    // Update depot GLP levels if this is a depot reload
+                    Depot depot = environment.getDepotById(action.getDepotId());
+                    if (depot != null) {
+                        depot.serve(action.getGlpLoaded());
+                    }
+                }
+                break;
+
+            case SERVE:
+                if (progress >= 1.0) {
+                    // Only apply GLP delivery at completion
+                    vehicle.dispense(action.getGlpDelivered());
+                    logger.info("Vehicle {} delivered {} m³ of GLP", vehicle.getId(), action.getGlpDelivered());
+
+                    // Find and update order status if needed
+                    Order order = environment.getOrderById(action.getOrderId());
+                    if (order != null && !order.isDelivered()) {
+                        order.recordDelivery(action.getGlpDelivered(), vehicle, action.getEndTime());
+                    }
+                }
+                break;
+
+            case MAINTENANCE:
+                // Vehicle is already in maintenance status, no additional effects
+                // but we update the position
+                if (action.getPath() != null && !action.getPath().isEmpty()) {
+                    vehicle.setCurrentPosition(action.getPath().get(0));
+                }
+                break;
+
+            case WAIT:
+                // No effects besides keeping the vehicle in place
+                if (action.getPath() != null && !action.getPath().isEmpty()) {
+                    vehicle.setCurrentPosition(action.getPath().get(0));
+                }
+                break;
+
+            default:
+                logger.warn("Unknown action type: {}", action.getType());
+                break;
+        }
+    }
+
+    private void updateVehiclePosition(Vehicle vehicle, Action action, double progress) {
+        List<Position> path = action.getPath();
+        if (path == null || path.isEmpty()) {
+            return;
+        }
+
+        // For simplicity, use linear interpolation between path points based on
+        // progress
+        // In a real system with a detailed path, more sophisticated interpolation would
+        // be used
+
+        if (path.size() == 1) {
+            // If only one position in path, just set vehicle to that position
+            vehicle.setCurrentPosition(path.get(0));
+            return;
+        }
+
+        // Calculate position along the path based on progress
+        if (progress <= 0) {
+            vehicle.setCurrentPosition(path.get(0));
+        } else if (progress >= 1.0) {
+            vehicle.setCurrentPosition(path.get(path.size() - 1));
+        } else {
+            // Find the appropriate segment in the path
+            double segmentLength = 1.0 / (path.size() - 1);
+            int segmentIndex = (int) Math.min(path.size() - 2, Math.floor(progress / segmentLength));
+            double segmentProgress = (progress - segmentIndex * segmentLength) / segmentLength;
+
+            Position start = path.get(segmentIndex);
+            Position end = path.get(segmentIndex + 1);
+
+            // Interpolate position and round to nearest integer
+            int newX = (int) Math.round(start.getX() + segmentProgress * (end.getX() - start.getX()));
+            int newY = (int) Math.round(start.getY() + segmentProgress * (end.getY() - start.getY()));
+
+            vehicle.setCurrentPosition(new Position(newX, newY));
         }
     }
 }

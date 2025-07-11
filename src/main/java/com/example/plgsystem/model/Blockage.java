@@ -106,4 +106,17 @@ public class Blockage implements Serializable {
         }
         return false;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("🚧 Blockage { 🕒 startTime: %s, 🕒 endTime: %s\n", startTime, endTime));
+
+        for (Position line : lines) {
+            sb.append("  └> ").append(line.toString()).append("\n");
+        }
+        sb.append("}\n");
+
+        return sb.toString();
+    }
 }

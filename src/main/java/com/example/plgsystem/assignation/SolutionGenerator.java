@@ -14,9 +14,7 @@ import com.example.plgsystem.simulation.SimulationState;
 import java.util.Comparator;
 
 public class SolutionGenerator {
-    // Safety factor for fuel consumption estimates
     private static final double FUEL_SAFETY_FACTOR = 1.5;
-    // Threshold to decide when to visit a depot for refill
     private static final double GLP_THRESHOLD_RATIO = 0.3;
     private static final double FUEL_THRESHOLD_RATIO = 0.3;
 
@@ -95,6 +93,7 @@ public class SolutionGenerator {
 
                             if (glpToLoad > 0) {
                                 stops.add(new RouteStop(
+                                        nearestDepot.getPosition(),
                                         nearestDepot.getId(),
                                         glpToLoad));
 
@@ -121,6 +120,7 @@ public class SolutionGenerator {
                 if (currentGlp >= delivery.getGlpDeliverM3() && currentFuel >= fuelToOrder) {
                     // Add delivery stop
                     stops.add(new RouteStop(
+                            order.getPosition(),
                             order.getId(),
                             order.getDeadlineTime(),
                             delivery.getGlpDeliverM3()

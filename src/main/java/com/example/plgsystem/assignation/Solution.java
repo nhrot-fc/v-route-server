@@ -51,4 +51,51 @@ public class Solution {
 
         return assignments;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("💡 Solution { 💰 cost: %.2f }\n", cost));
+        
+        // Orders state
+        sb.append("📦 Orders State: {\n");
+        if (ordersState.isEmpty()) {
+            sb.append("  Empty\n");
+        } else {
+            for (Map.Entry<String, Integer> entry : ordersState.entrySet()) {
+                sb.append(String.format("  🔖 %s: %d m³\n", entry.getKey(), entry.getValue()));
+            }
+        }
+        sb.append("}\n");
+        
+        // Depots state
+        sb.append("🏭 Depots State: {\n");
+        if (depotsState.isEmpty()) {
+            sb.append("  Empty\n");
+        } else {
+            for (Map.Entry<String, Integer> entry : depotsState.entrySet()) {
+                sb.append(String.format("  🏢 %s: %d m³\n", entry.getKey(), entry.getValue()));
+            }
+        }
+        sb.append("}\n");
+        
+        // Routes
+        sb.append("🛣️ Routes: {\n");
+        if (routes.isEmpty()) {
+            sb.append("  Empty\n");
+        } else {
+            for (Map.Entry<String, Route> entry : routes.entrySet()) {
+                sb.append(String.format("  🚚 %s:\n", entry.getKey()));
+                
+                // Indent each line of the route's toString
+                String[] routeLines = entry.getValue().toString().split("\n");
+                for (String line : routeLines) {
+                    sb.append("    ").append(line).append("\n");
+                }
+            }
+        }
+        sb.append("}\n");
+        
+        return sb.toString();
+    }
 }

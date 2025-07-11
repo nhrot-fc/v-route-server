@@ -86,7 +86,7 @@ class SolutionEvaluatorTest {
         
         Map<String, Route> routes = new HashMap<>();
         List<RouteStop> stops = List.of(
-                new RouteStop("ORD-1", currentTime.plusHours(1), 10)
+                new RouteStop(new Position(0, 0), "ORD-1", currentTime.plusHours(1), 10)
         );
         routes.put("V-001", new Route("V-001", stops, currentTime));
         
@@ -125,7 +125,7 @@ class SolutionEvaluatorTest {
         
         Map<String, Route> routes = new HashMap<>();
         List<RouteStop> stops = List.of(
-                new RouteStop("ORD-1", currentTime.plusHours(1), 5)
+                new RouteStop(new Position(0, 0), "ORD-1", currentTime.plusHours(1), 5)
         );
         routes.put("V-001", new Route("V-001", stops, currentTime));
         
@@ -163,7 +163,7 @@ class SolutionEvaluatorTest {
         
         Map<String, Route> routes = new HashMap<>();
         List<RouteStop> stops = List.of(
-                new RouteStop("ORD-1", currentTime.plusHours(1), 10)
+                new RouteStop(new Position(0, 0), "ORD-1", currentTime.plusHours(1), 10)
         );
         routes.put("V-001", new Route("V-001", stops, currentTime));
         
@@ -193,7 +193,7 @@ class SolutionEvaluatorTest {
         
         Map<String, Route> routes = new HashMap<>();
         List<RouteStop> stops = List.of(
-                new RouteStop("ORD-1", currentTime.plusHours(1), 10)
+                new RouteStop(new Position(0, 0), "ORD-1", currentTime.plusHours(1), 10)
         );
         routes.put("V-001", new Route("V-001", stops, currentTime));
         

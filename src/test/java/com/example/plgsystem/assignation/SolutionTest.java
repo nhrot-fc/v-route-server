@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.example.plgsystem.model.Position;
+
 class SolutionTest {
 
     @Test
@@ -24,9 +26,9 @@ class SolutionTest {
         
         Map<String, Route> routes = new HashMap<>();
         List<RouteStop> stops = Arrays.asList(
-            new RouteStop("ORD-1", LocalDateTime.now().plusHours(1), 10),
-            new RouteStop("DEP-1", 20),
-            new RouteStop("ORD-2", LocalDateTime.now().plusHours(2), 15)
+            new RouteStop(new Position(0, 0), "ORD-1", LocalDateTime.now().plusHours(1), 10),
+            new RouteStop(new Position(0, 0), "DEP-1", 20),
+            new RouteStop(new Position(0, 0), "ORD-2", LocalDateTime.now().plusHours(2), 15)
         );
         routes.put("V-001", new Route("V-001", stops, LocalDateTime.now()));
         
@@ -64,16 +66,16 @@ class SolutionTest {
         
         // Create route with mixed stops
         List<RouteStop> stops1 = Arrays.asList(
-            new RouteStop("ORD-1", LocalDateTime.now().plusHours(1), 5),
-            new RouteStop("DEP-1", 20),
-            new RouteStop("ORD-2", LocalDateTime.now().plusHours(2), 10)
+            new RouteStop(new Position(0, 0), "ORD-1", LocalDateTime.now().plusHours(1), 5),
+            new RouteStop(new Position(0, 0), "DEP-1", 20),
+            new RouteStop(new Position(0, 0), "ORD-2", LocalDateTime.now().plusHours(2), 10)
         );
         routes.put("V-001", new Route("V-001", stops1, LocalDateTime.now()));
         
         // Create another route with only order stops
         List<RouteStop> stops2 = Arrays.asList(
-            new RouteStop("ORD-3", LocalDateTime.now().plusHours(1), 7),
-            new RouteStop("ORD-4", LocalDateTime.now().plusHours(3), 3)
+            new RouteStop(new Position(0, 0), "ORD-3", LocalDateTime.now().plusHours(1), 7),
+            new RouteStop(new Position(0, 0), "ORD-4", LocalDateTime.now().plusHours(3), 3)
         );
         routes.put("V-002", new Route("V-002", stops2, LocalDateTime.now()));
         

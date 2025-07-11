@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 import jakarta.persistence.*;
 import java.io.Serializable;
 
@@ -14,6 +15,7 @@ import com.example.plgsystem.enums.DepotType;
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@ToString
 public class Depot implements Serializable {
     @Id
     private String id;

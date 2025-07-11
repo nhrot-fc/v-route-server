@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.LocalDateTime;
+import com.example.plgsystem.model.Position;
 
 class RouteStopTest {
 
@@ -13,12 +14,14 @@ class RouteStopTest {
         String orderId = "ORD-123";
         LocalDateTime deadlineTime = LocalDateTime.now().plusHours(2);
         int glpDeliverM3 = 5;
+        Position position = new Position(10, 20);
         
         // Act
-        RouteStop stop = new RouteStop(orderId, deadlineTime, glpDeliverM3);
+        RouteStop stop = new RouteStop(position, orderId, deadlineTime, glpDeliverM3);
         
         // Assert
         assertTrue(stop.isOrderStop());
+        assertEquals(position, stop.getPosition());
         assertEquals(orderId, stop.getOrderId());
         assertEquals(deadlineTime, stop.getOrderDeadlineTime());
         assertEquals(glpDeliverM3, stop.getGlpDeliverM3());
@@ -31,37 +34,18 @@ class RouteStopTest {
         // Arrange
         String depotId = "DEP-001";
         int glpLoadM3 = 10;
+        Position position = new Position(15, 25);
         
         // Act
-        RouteStop stop = new RouteStop(depotId, glpLoadM3);
+        RouteStop stop = new RouteStop(position, depotId, glpLoadM3);
         
         // Assert
         assertFalse(stop.isOrderStop());
+        assertEquals(position, stop.getPosition());
         assertEquals(depotId, stop.getDepotId());
         assertEquals(glpLoadM3, stop.getGlpLoadM3());
         assertEquals(0, stop.getGlpDeliverM3());
         assertNull(stop.getOrderId());
-        assertNull(stop.getOrderDeadlineTime());
-    }
-    
-    @Test
-    void testLegacyConstructor() {
-        // Arrange
-        boolean isOrderStop = true;
-        String orderId = "ORD-456";
-        String depotId = null;
-        int glpDeliverM3 = 7;
-        int glpLoadM3 = 0;
-        
-        // Act
-        RouteStop stop = new RouteStop(isOrderStop, orderId, null, glpDeliverM3, glpLoadM3);
-        
-        // Assert
-        assertTrue(stop.isOrderStop());
-        assertEquals(orderId, stop.getOrderId());
-        assertNull(stop.getDepotId());
-        assertEquals(glpDeliverM3, stop.getGlpDeliverM3());
-        assertEquals(glpLoadM3, stop.getGlpLoadM3());
         assertNull(stop.getOrderDeadlineTime());
     }
 } 

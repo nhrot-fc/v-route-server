@@ -76,7 +76,7 @@ public class SimulationState {
         currentTime = currentTime.plus(duration);
         processStateChanges();
     }
-    
+
     public boolean isPositionBlockedAt(Position position, LocalDateTime time) {
         return blockages.stream().filter(b -> b.isActiveAt(time)).anyMatch(b -> b.isPositionBlocked(position));
     }
@@ -103,12 +103,76 @@ public class SimulationState {
         // Process maintenances
         List<Maintenance> completedMaintenances = new ArrayList<>();
         maintenances.forEach(maintenance -> {
-            if (maintenance.getRealEnd() != null && 
-                maintenance.getRealEnd().isBefore(currentTime)) {
+            if (maintenance.getRealEnd() != null &&
+                    maintenance.getRealEnd().isBefore(currentTime)) {
                 maintenance.getVehicle().setAvailable();
                 completedMaintenances.add(maintenance);
             }
         });
         maintenances.removeAll(completedMaintenances);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        String separator = "==========================================\n";
+
+        sb.append(separator);
+        sb.append("📊          ESTADO DE LA SIMULACIÓN         📊\n");
+        sb.append(separator);
+        sb.append("🕒 Tiempo Actual: ").append(currentTime).append("\n\n");
+
+        // --- Infraestructura ---
+        sb.append("--- Infraestructura y Flota ---\n");
+        sb.append("🏢 Depósito Principal:\n");
+        sb.append("  └> ").append(mainDepot.toString()).append("\n");
+
+        sb.append("🏬 Depósitos Auxiliares (").append(auxDepots.size()).append("):\n");
+        if (auxDepots.isEmpty()) {
+            sb.append("  └> Ninguno\n");
+        } else {
+            auxDepots.forEach(depot -> sb.append("  └> ").append(depot.toString()).append("\n"));
+        }
+
+        sb.append("🚚 Vehículos (").append(vehicles.size()).append("):\n");
+        if (vehicles.isEmpty()) {
+            sb.append("  └> Ninguno\n");
+        } else {
+            vehicles.forEach(vehicle -> sb.append("  └> ").append(vehicle.toString()).append("\n"));
+        }
+        sb.append("\n");
+
+        // --- Eventos y Colas Dinámicas ---
+        sb.append("--- Eventos y Colas Dinámicas ---\n");
+        sb.append("📦 Órdenes Pendientes (").append(orders.size()).append("):\n");
+        if (orders.isEmpty()) {
+            sb.append("  └> Ninguna\n");
+        } else {
+            orders.forEach(order -> sb.append("  └> ").append(order.toString()).append("\n"));
+        }
+
+        sb.append("🚧 Bloqueos Activos (").append(blockages.size()).append("):\n");
+        if (blockages.isEmpty()) {
+            sb.append("  └> Ninguno\n");
+        } else {
+            blockages.forEach(blockage -> sb.append("  └> ").append(blockage.toString()).append("\n"));
+        }
+
+        sb.append("⚠️ Incidentes Activos (").append(incidents.size()).append("):\n");
+        if (incidents.isEmpty()) {
+            sb.append("  └> Ninguno\n");
+        } else {
+            incidents.forEach(incident -> sb.append("  └> ").append(incident.toString()).append("\n"));
+        }
+
+        sb.append("🔧 Mantenimientos en Curso (").append(maintenances.size()).append("):\n");
+        if (maintenances.isEmpty()) {
+            sb.append("  └> Ninguno\n");
+        } else {
+            maintenances.forEach(maintenance -> sb.append("  └> ").append(maintenance.toString()).append("\n"));
+        }
+        sb.append(separator);
+
+        return sb.toString();
     }
 }

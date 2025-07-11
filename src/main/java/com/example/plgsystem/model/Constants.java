@@ -1,5 +1,7 @@
 package com.example.plgsystem.model;
 
+import java.time.format.DateTimeFormatter;
+
 public class Constants {
     /*
      * =============================================
@@ -69,6 +71,8 @@ public class Constants {
     public static final double GLP_DENSITY_M3_TON = 0.5;
     // Constantes matemáticas
     public static final double EPSILON = 1e-9; // For floating-point comparisons
+
+    public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd - HH:mm:ss");
 
     private Constants() {
         // Avoid initialization

@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
+import com.example.plgsystem.model.Position;
+
 class RouteTest {
 
     @Test
@@ -15,8 +17,8 @@ class RouteTest {
         String vehicleId = "V-001";
         LocalDateTime startTime = LocalDateTime.now();
         
-        RouteStop stop1 = new RouteStop("ORD-1", LocalDateTime.now().plusHours(2), 5);
-        RouteStop stop2 = new RouteStop("ORD-2", LocalDateTime.now().plusHours(3), 10);
+        RouteStop stop1 = new RouteStop(new Position(0, 0), "ORD-1", LocalDateTime.now().plusHours(2), 5);
+        RouteStop stop2 = new RouteStop(new Position(0, 0), "ORD-2", LocalDateTime.now().plusHours(3), 10);
         List<RouteStop> stops = Arrays.asList(stop1, stop2);
         
         // Act

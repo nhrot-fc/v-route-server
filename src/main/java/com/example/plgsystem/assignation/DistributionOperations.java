@@ -491,7 +491,7 @@ public class DistributionOperations {
 
         return new Position(totalX / count, totalY / count);
     }
-    
+
     /**
      * Performs a random operation on the assignments, including operations that
      * require state information
