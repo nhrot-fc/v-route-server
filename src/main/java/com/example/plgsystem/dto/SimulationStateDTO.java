@@ -36,6 +36,7 @@ public class SimulationStateDTO {
     private List<Blockage> activeBlockages;
     private List<IncidentDTO> activeIncidents;
     private List<MaintenanceDTO> scheduledMaintenances;
+    private List<VehiclePlanDTO> currentVehiclePlans;
     
     // Estadísticas
     private int pendingOrdersCount;
@@ -105,6 +106,9 @@ public class SimulationStateDTO {
                 .overdueOrdersCount(overdueOrders.size())
                 .availableVehiclesCount((int)state.getVehicles().stream()
                         .filter(v -> v.getStatus() == VehicleStatus.AVAILABLE).count())
+                .currentVehiclePlans(state.getCurrentVehiclePlans().values().stream()
+                        .map(VehiclePlanDTO::fromEntity)
+                        .collect(Collectors.toList()))
                 .build();
     }
 } 

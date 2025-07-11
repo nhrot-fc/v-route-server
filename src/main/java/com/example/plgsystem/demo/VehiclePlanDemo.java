@@ -1,16 +1,11 @@
 package com.example.plgsystem.demo;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.example.plgsystem.assignation.DeliveryPart;
-import com.example.plgsystem.assignation.MetaheuristicSolver;
-import com.example.plgsystem.assignation.RandomDistributor;
-import com.example.plgsystem.assignation.Route;
-import com.example.plgsystem.assignation.Solution;
 import com.example.plgsystem.enums.DepotType;
 import com.example.plgsystem.enums.VehicleType;
 import com.example.plgsystem.model.Constants;
@@ -19,69 +14,204 @@ import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.operation.VehiclePlan;
-import com.example.plgsystem.operation.VehiclePlanCreator;
+import com.example.plgsystem.orchest.SimpleDataLoader;
+import com.example.plgsystem.orchest.Event;
+import com.example.plgsystem.orchest.EventType;
+import com.example.plgsystem.orchest.Orchestrator;
 import com.example.plgsystem.simulation.SimulationState;
 
 /**
  * Demo application to visualize vehicle planning in detail.
  * Run this class directly to see all the messages with complete details.
+ * 
+ * This demo now includes Orchestrator integration for advanced simulation.
  */
 public class VehiclePlanDemo {
 
+    private static final String SECTION_DIVIDER = "════════════════════════════════════════════════════════════";
+    private static final String SUB_DIVIDER = "--------------------------------------------------------";
+
     public static void main(String[] args) {
-        System.out.println("=== Vehicle Plan Demo ===\n");
+        printHeader("🚚 ENHANCED VEHICLE PLAN DEMO WITH ORCHESTRATOR 🚚");
 
         // Setup the test environment
-        LocalDateTime currentTime = LocalDateTime.now();
+        LocalDateTime currentTime = LocalDateTime.of(2025, 1, 1, 0, 0);
         List<Vehicle> vehicles = createTestVehicles();
         Depot mainDepot = createMainDepot();
         List<Depot> auxDepots = createAuxiliaryDepots();
         List<Order> orders = createTestOrders(currentTime);
 
-        System.out.println("1. Initializing simulation state...");
+        printSection("1️⃣ INITIALIZING SIMULATION STATE");
         SimulationState state = new SimulationState(vehicles, mainDepot, auxDepots, currentTime);
         for (Order order : orders) {
             state.addOrder(order);
         }
 
-        System.out.println("State:");
+        System.out.println("📊 Initial State:");
         System.out.println(state);
 
-        System.out.println("\n2. Creating initial random assignments...");
-        Map<String, List<DeliveryPart>> routes = RandomDistributor.createInitialRandomAssignments(state);
-        printDeliveryParts(routes);
-
-        System.out.println("\n3. Solving with metaheuristic solver...");
-        Solution solution = MetaheuristicSolver.solve(state);
-        System.out.println("\nFull solution:");
-        System.out.println(solution);
-
-        System.out.println("\n4. Creating vehicle plans from routes...");
-        Map<String, VehiclePlan> vehiclePlans = new HashMap<>();
-        for (Map.Entry<String, Route> entry : solution.getRoutes().entrySet()) {
-            String vehicleId = entry.getKey();
-            Route route = entry.getValue();
-            VehiclePlan vehiclePlan = VehiclePlanCreator.createPlanFromRoute(route, state, currentTime);
-            vehiclePlans.put(vehicleId, vehiclePlan);
+        printSection("2️⃣ CREATING ORCHESTRATOR");
+        // Create a simple in-memory data loader that returns our test orders as events
+        SimpleDataLoader dataLoader = new SimpleDataLoader();
+        for (Order order : orders) {
+            dataLoader.addEvent(new Event(EventType.ORDER_ARRIVAL, order.getArrivalTime(), order.getId(), order));
         }
+        
+        // Initialize the orchestrator with 15-minute ticks and replanning every 60 minutes
+        Duration tickDuration = Duration.ofMinutes(1);
+        int minutesForReplan = 60;
+        Orchestrator orchestrator = new Orchestrator(state, tickDuration, minutesForReplan, dataLoader);
+        
+        // Add additional future events if desired
+        addSampleEvents(orchestrator, currentTime);
+        
+        System.out.println("⏱️ Orchestrator initialized with:");
+        System.out.println("   - Tick duration: " + tickDuration.toMinutes() + " minutes");
+        System.out.println("   - Replan interval: " + minutesForReplan + " minutes");
+        System.out.println("   - Initial simulation time: " + state.getCurrentTime());
+        
+        printSection("4️⃣ RUNNING SIMULATION");
+        
+        // Define how many ticks to simulate
+        int totalTicks = 1000;
+        
+        for (int i = 1; i <= totalTicks; i++) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            orchestrator.advanceTick();
 
-        System.out.println("\nVehicle Plans:");
-        for (Map.Entry<String, VehiclePlan> entry : vehiclePlans.entrySet()) {
-            System.out.println("\nPlan for vehicle " + entry.getKey() + ":");
-            System.out.println("----------------------------------");
-            System.out.println(entry.getValue());
-        }
-    }
+            if (i % 10 != 0) {
+                continue;
+            }
 
-    private static void printDeliveryParts(Map<String, List<DeliveryPart>> routes) {
-        for (Map.Entry<String, List<DeliveryPart>> entry : routes.entrySet()) {
-            String vehicleId = entry.getKey();
-            List<DeliveryPart> deliveryParts = entry.getValue();
-            System.out.println("Vehicle " + vehicleId + ": ");
-            for (DeliveryPart deliveryPart : deliveryParts) {
-                System.out.println("\t" + deliveryPart.toString());
+            printSubsection("TICK " + i + " OF " + totalTicks + " - Current time: " + state.getCurrentTime());
+            
+            System.out.println("Advancing simulation by " + tickDuration.toMinutes() + " minutes...");
+            // Advance one tick
+            
+            System.out.println("\n📊 Updated State at " + orchestrator.getEnvironment().getCurrentTime() + ":");
+            displayStateSnapshot(orchestrator.getEnvironment());
+            
+            System.out.println("\n🚚 Vehicle Positions:");
+            displayVehiclePositions(orchestrator.getEnvironment());
+
+            if (i % 60 == 0) {
+                System.out.println("📝 Replanned vehicle plans:");
+                displayVehiclePlans(orchestrator);
             }
         }
+        
+        printSection("5️⃣ FINAL SIMULATION STATE");
+        System.out.println("📊 Final State at " + orchestrator.getEnvironment().getCurrentTime() + ":");
+        System.out.println(orchestrator.getEnvironment());
+        
+        printSubsection("📋 Final Vehicle Plans");
+        displayVehiclePlans(orchestrator);
+        
+        printSection("✅ SIMULATION DEMO COMPLETED");
+    }
+    
+    private static void displayStateSnapshot(SimulationState state) {
+        System.out.println("- Time: " + state.getCurrentTime());
+        System.out.println("- Orders: " + state.getOrders().size());
+        System.out.println("- Blockages: " + state.getBlockages().size());
+        System.out.println("- Incidents: " + state.getIncidents().size());
+        System.out.println("- Maintenance Tasks: " + state.getMaintenances().size());
+    }
+    
+    private static void displayVehiclePositions(SimulationState state) {
+        for (Vehicle vehicle : state.getVehicles()) {
+            Position pos = vehicle.getCurrentPosition();
+            System.out.printf("- %s (%s): Position (%d, %d), Status: %s, Fuel: %.2f gal, GLP: %d m³%n", 
+                    vehicle.getId(), 
+                    vehicle.getType(),
+                    pos.getX(), 
+                    pos.getY(),
+                    vehicle.getStatus(),
+                    vehicle.getCurrentFuelGal(),
+                    vehicle.getCurrentGlpM3());
+        }
+    }
+    
+    private static void displayVehiclePlans(Orchestrator orchestrator) {
+        Map<String, VehiclePlan> vehiclePlans = orchestrator.getVehiclePlans();
+        
+        if (vehiclePlans.isEmpty()) {
+            System.out.println("❌ No vehicle plans currently active");
+        } else {
+            for (Map.Entry<String, VehiclePlan> entry : vehiclePlans.entrySet()) {
+                String vehicleId = entry.getKey();
+                Vehicle vehicle = orchestrator.getEnvironment().getVehicleById(vehicleId);
+                VehiclePlan plan = entry.getValue();
+                
+                System.out.println("\n📋 Plan for vehicle " + vehicle.getId() + ":");
+                System.out.println("   Status: " + vehicle.getStatus());
+                System.out.println("   Current Position: " + vehicle.getCurrentPosition());
+                System.out.println(SUB_DIVIDER);
+                System.out.println(plan);
+                
+                if (plan.getCurrentAction() != null) {
+                    System.out.println("   Current Action Progress: " + 
+                            String.format("%.1f%%", plan.getCurrentAction().getCurrentProgress() * 100));
+                }
+            }
+        }
+    }
+    
+    private static void addSampleEvents(Orchestrator orchestrator, LocalDateTime currentTime) {
+        // Example: Add a future order
+        Order futureOrder = Order.builder()
+                .id("ORD-FUTURE")
+                .arrivalTime(currentTime.plusMinutes(45))  // Will arrive during simulation
+                .deadlineTime(currentTime.plusHours(8))
+                .glpRequestM3(12)
+                .position(new Position(25, 25))
+                .build();
+                
+        orchestrator.addEvent(new Event(
+                EventType.ORDER_ARRIVAL,
+                futureOrder.getArrivalTime(),
+                futureOrder.getId(),
+                futureOrder));
+                
+        // Example: Schedule a vehicle breakdown
+        orchestrator.addEvent(new Event(
+                EventType.VEHICLE_BREAKDOWN,
+                currentTime.plusMinutes(60), // After 1 hour
+                "TC-01",  // The TC vehicle will break down
+                null));
+                
+        System.out.println("🗓️ Added sample events:");
+        System.out.println("   - Future order arrival at " + futureOrder.getArrivalTime());
+        System.out.println("   - Vehicle TC-01 breakdown at " + currentTime.plusMinutes(60));
+    }
+
+    private static void printHeader(String text) {
+        System.out.println("\n" + SECTION_DIVIDER);
+        System.out.println(centerText(text, SECTION_DIVIDER.length()));
+        System.out.println(SECTION_DIVIDER + "\n");
+    }
+
+    private static void printSection(String title) {
+        System.out.println("\n" + SECTION_DIVIDER);
+        System.out.println(" " + title);
+        System.out.println(SECTION_DIVIDER);
+    }
+
+    private static void printSubsection(String title) {
+        System.out.println("\n" + SUB_DIVIDER);
+        System.out.println(" " + title);
+        System.out.println(SUB_DIVIDER);
+    }
+
+    private static String centerText(String text, int width) {
+        int padding = (width - text.length()) / 2;
+        if (padding <= 0)
+            return text;
+        return " ".repeat(padding) + text;
     }
 
     private static List<Vehicle> createTestVehicles() {
@@ -157,7 +287,7 @@ public class VehiclePlanDemo {
         Order order1 = Order.builder()
                 .id("ORD-001")
                 .arrivalTime(currentTime.minusHours(2))
-                .deadlineTime(currentTime.plusHours(6))
+                .deadlineTime(currentTime.plusMinutes(1))
                 .glpRequestM3(10)
                 .position(new Position(20, 15))
                 .build();
@@ -167,7 +297,7 @@ public class VehiclePlanDemo {
         Order order2 = Order.builder()
                 .id("ORD-002")
                 .arrivalTime(currentTime.minusHours(1))
-                .deadlineTime(currentTime.plusHours(8))
+                .deadlineTime(currentTime.plusMinutes(2))
                 .glpRequestM3(5)
                 .position(new Position(30, 5))
                 .build();
@@ -177,7 +307,7 @@ public class VehiclePlanDemo {
         Order order3 = Order.builder()
                 .id("ORD-003")
                 .arrivalTime(currentTime.minusMinutes(30))
-                .deadlineTime(currentTime.plusHours(4))
+                .deadlineTime(currentTime.plusMinutes(3))
                 .glpRequestM3(15)
                 .position(new Position(45, 40))
                 .build();
@@ -187,7 +317,7 @@ public class VehiclePlanDemo {
         Order order4 = Order.builder()
                 .id("ORD-004")
                 .arrivalTime(currentTime)
-                .deadlineTime(currentTime.plusHours(10))
+                .deadlineTime(currentTime.plusMinutes(3))
                 .glpRequestM3(8)
                 .position(new Position(60, 10))
                 .build();

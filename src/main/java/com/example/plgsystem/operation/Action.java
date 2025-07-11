@@ -8,6 +8,7 @@ import com.example.plgsystem.model.Position;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Represents an action that a vehicle can execute during the simulation.
@@ -32,6 +33,7 @@ public class Action {
     private final String orderId; // ID of the order being served, null for non-SERVE actions
     private final String depotId; // ID of the depot being used, null for non-REFUEL/RELOAD actions
 
+    @Setter
     private double currentProgress; // 0 to 1 for execution progress monitoring
     
     @Override

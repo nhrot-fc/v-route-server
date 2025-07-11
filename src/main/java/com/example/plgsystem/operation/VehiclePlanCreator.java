@@ -14,8 +14,7 @@ import java.util.List;
 public class VehiclePlanCreator {
     public static VehiclePlan createPlanFromRoute(
             Route route,
-            SimulationState state,
-            LocalDateTime startTime) {
+            SimulationState state) {
 
         // Validate input parameters
         if (route == null) {
@@ -24,7 +23,7 @@ public class VehiclePlanCreator {
 
         // Generate empty plan for routes with no stops
         if (route.stops().isEmpty()) {
-            return new VehiclePlan(route.vehicleId(), new ArrayList<>(), startTime, -1);
+            return new VehiclePlan(route.vehicleId(), new ArrayList<>(), state.getCurrentTime(), -1);
         }
 
         // Validate vehicle exists
@@ -35,7 +34,7 @@ public class VehiclePlanCreator {
         Position currentPosition = vehicle.getCurrentPosition();
         double currentFuel = vehicle.getCurrentFuelGal();
         // int currentGlp = vehicle.getCurrentGlpM3();
-        LocalDateTime currentTime = startTime;
+        LocalDateTime currentTime = state.getCurrentTime();
 
         for (RouteStop stop : route.stops()) {
             // Plan loop instructions
@@ -49,22 +48,25 @@ public class VehiclePlanCreator {
                 return null;
             }
 
-            // Find path
-            List<Position> path = PathFinder.findPath(state, currentPosition, endPosition, currentTime);
-            if (path == null) {
-                return null;
+            if (!currentPosition.equals(endPosition)) {
+                // Find path
+                List<Position> path = PathFinder.findPath(state, currentPosition, endPosition, currentTime);
+                if (path == null) {
+                    return null;
+                }
+
+                // Calculate fuel and time
+                double distanceKm = path.size() - 1;
+                double fuelNeeded = calculateFuelFromDistance(distanceKm, vehicle.getGlpCapacityM3(),
+                        vehicle.getType());
+                int driveTimeMinutes = (int) (distanceKm / Constants.VEHICLE_AVG_SPEED * 60);
+                Action driveAction = ActionFactory.createDrivingAction(path, fuelNeeded, currentTime,
+                        currentTime.plusMinutes(driveTimeMinutes));
+                actions.add(driveAction);
+
+                currentFuel -= fuelNeeded;
+                currentTime = driveAction.getEndTime();
             }
-
-            // Calculate fuel and time
-            double distanceKm = path.size() - 1;
-            double fuelNeeded = calculateFuelFromDistance(distanceKm, vehicle.getGlpCapacityM3(), vehicle.getType());
-            int driveTimeMinutes = (int) (distanceKm / Constants.VEHICLE_AVG_SPEED * 60);
-            Action driveAction = ActionFactory.createDrivingAction(path, fuelNeeded, currentTime,
-                    currentTime.plusMinutes(driveTimeMinutes));
-            actions.add(driveAction);
-
-            currentFuel -= fuelNeeded;
-            currentTime = driveAction.getEndTime();
 
             if (stop.isOrderStop()) {
                 // Validate order exists if order stop
@@ -102,7 +104,7 @@ public class VehiclePlanCreator {
 
             currentPosition = endPosition;
         }
-        return new VehiclePlan(route.vehicleId(), actions, startTime, 0);
+        return new VehiclePlan(route.vehicleId(), actions, state.getCurrentTime(), 0);
     }
 
     private static double calculateFuelFromDistance(double distanceKm, int glpCapacityM3, VehicleType vehicleType) {

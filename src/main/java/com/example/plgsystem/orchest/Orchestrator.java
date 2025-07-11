@@ -23,7 +23,6 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -34,7 +33,6 @@ public class Orchestrator {
     private static final Logger logger = LoggerFactory.getLogger(Orchestrator.class);
 
     private final SimulationState environment;
-    private final Map<Vehicle, VehiclePlan> vehiclePlans;
     private final PriorityQueue<Event> eventQueue;
     private final int minutesForReplan;
     private final DataLoader dataLoader;
@@ -49,7 +47,6 @@ public class Orchestrator {
         this.environment = environment;
         this.simulationTime = environment.getCurrentTime();
         this.tickDuration = tickDuration;
-        this.vehiclePlans = new HashMap<>();
         this.eventQueue = new PriorityQueue<>(Comparator.comparing(Event::getTime));
         this.needsReplanning = false;
         this.lastReplanningTime = simulationTime;
@@ -61,6 +58,10 @@ public class Orchestrator {
                 simulationTime.toLocalDate().plusDays(1),
                 LocalTime.of(0, 0));
         this.eventQueue.add(new Event(EventType.NEW_DAY_BEGIN, nextNewDay, null, null));
+    }
+
+    public Map<String, VehiclePlan> getVehiclePlans() {
+        return environment.getCurrentVehiclePlans();
     }
 
     public void addEvents(List<Event> events) {
@@ -95,7 +96,7 @@ public class Orchestrator {
 
         Solution solution = MetaheuristicSolver.solve(environment);
         // 5. Clear existing plans for all vehicles
-        vehiclePlans.clear();
+        environment.getCurrentVehiclePlans().clear();
 
         for (Map.Entry<String, Route> entry : solution.getRoutes().entrySet()) {
             String vehicleId = entry.getKey();
@@ -108,15 +109,14 @@ public class Orchestrator {
             }
 
             try {
-                VehiclePlan plan = VehiclePlanCreator.createPlanFromRoute(route, environment,
-                        lastReplanningTime);
-                vehiclePlans.put(vehicle, plan);
+                VehiclePlan plan = VehiclePlanCreator.createPlanFromRoute(route, environment);
+                environment.getCurrentVehiclePlans().put(vehicleId, plan);
             } catch (Exception e) {
                 logger.error("Error creating plan for vehicle {}: {}", vehicleId, e.getMessage());
             }
         }
 
-        logger.info("Replanning completed. Created {} new vehicle plans", vehiclePlans.size());
+        logger.info("Replanning completed. Created {} new vehicle plans", environment.getCurrentVehiclePlans().size());
     }
 
     private void processEvent(Event event) {
@@ -157,7 +157,7 @@ public class Orchestrator {
                             logger.info("Vehicle breakdown: " + vehicleId);
 
                             // Remove any plans for this vehicle
-                            vehiclePlans.remove(vehicle);
+                            environment.getCurrentVehiclePlans().remove(vehicle.getId());
 
                             needsReplanning = true;
                             break;
@@ -177,7 +177,7 @@ public class Orchestrator {
                             vehicle.setStatus(VehicleStatus.MAINTENANCE);
 
                             // Remove any plans for this vehicle
-                            vehiclePlans.remove(vehicle);
+                            environment.getCurrentVehiclePlans().remove(vehicle.getId());
                             break;
                         }
                     }
@@ -233,8 +233,7 @@ public class Orchestrator {
 
                 addEvents(todayOrdersEvents);
                 addEvents(todayBlockagesEvents);
-                logger.info("Added {} events for the new day {}",
-                        todayOrdersEvents.size(), today);
+                logger.info("Added {} events for the new day {}", todayOrdersEvents.size(), today);
                 break;
 
             default:
@@ -244,9 +243,10 @@ public class Orchestrator {
     }
 
     private void executeVehiclePlans(LocalDateTime nextTick) {
-        for (Map.Entry<Vehicle, VehiclePlan> entry : vehiclePlans.entrySet()) {
-            Vehicle vehicle = entry.getKey();
+        for (Map.Entry<String, VehiclePlan> entry : environment.getCurrentVehiclePlans().entrySet()) {
+            String vehicleId = entry.getKey();
             VehiclePlan plan = entry.getValue();
+            Vehicle vehicle = environment.getVehicleById(vehicleId);
 
             if (vehicle.getStatus() == VehicleStatus.INCIDENT || plan == null) {
                 logger.debug("Skipping vehicle " + vehicle.getId() + " (unavailable or no plan)");
@@ -258,8 +258,7 @@ public class Orchestrator {
                 executeAction(action, vehicle, environment, nextTick);
                 logger.debug("Executed action: " + action + " for vehicle: " + vehicle.getId());
             } else {
-                logger.debug("Skipping action for vehicle: " + vehicle.getId()
-                        + " as it is scheduled for future time or no current action.");
+                logger.debug("Skipping action for vehicle: " + vehicle.getId() + " as it is scheduled for future time or no current action.");
             }
         }
     }
@@ -270,54 +269,51 @@ public class Orchestrator {
             return;
         }
 
+        // Store the previous progress for effect calculations
+        double previousProgress = action.getCurrentProgress();
+
         // Calculate how much of the action should be executed based on time passed
         LocalDateTime actionStart = action.getStartTime();
         LocalDateTime actionEnd = action.getEndTime();
-        long totalDurationMinutes = Duration.between(actionStart, actionEnd).toMinutes();
+        long totalDurationSeconds = Duration.between(actionStart, actionEnd).toSeconds();
 
         // If total duration is zero, mark as complete and return
-        if (totalDurationMinutes <= 0) {
-            // Set progress to completed
-            updateActionProgress(action, 1.0);
+        if (totalDurationSeconds <= 0) {
+            action.setCurrentProgress(1.0);
+            applyActionEffects(action, vehicle, environment, 1.0, previousProgress);
             return;
         }
 
         // Calculate elapsed time since action start, capped at action end time
         LocalDateTime effectiveTime = nextTick.isBefore(actionEnd) ? nextTick : actionEnd;
-        long elapsedMinutes = Duration.between(actionStart, effectiveTime).toMinutes();
+        long elapsedSeconds = Duration.between(actionStart, effectiveTime).toSeconds();
 
         // Calculate new progress percentage
-        double progress = Math.min(1.0, (double) elapsedMinutes / totalDurationMinutes);
+        double progress = Math.min(1.0, (double) elapsedSeconds / totalDurationSeconds);
 
         // Update the action's progress
-        updateActionProgress(action, progress);
+        action.setCurrentProgress(progress);
 
         // Apply action effects based on type and progress
-        applyActionEffects(action, vehicle, environment, progress);
+        applyActionEffects(action, vehicle, environment, progress, previousProgress);
+        
+        //System.out.println("Executed action " + action.getType() + " progress: " + progress + 
+        //                   " [Vehicle: " + vehicle.getId() + 
+        //                   ", Position: " + vehicle.getCurrentPosition() + 
+        //                   ", Fuel: " + vehicle.getCurrentFuelGal() + 
+        //                   ", GLP: " + vehicle.getCurrentGlpM3() + "]");
 
         // If action is now complete (progress = 1.0), advance to next action in plan
         if (progress >= 1.0) {
-            VehiclePlan plan = vehiclePlans.get(vehicle);
+            VehiclePlan plan = environment.getCurrentVehiclePlans().get(vehicle.getId());
             if (plan != null) {
                 plan.advanceAction();
             }
         }
     }
 
-    private void updateActionProgress(Action action, double progress) {
-        try {
-            // Using reflection to update the final field
-            java.lang.reflect.Field field = Action.class.getDeclaredField("currentProgress");
-            field.setAccessible(true);
-            field.set(action, progress);
-        } catch (Exception e) {
-            logger.error("Failed to update action progress: " + e.getMessage());
-        }
-    }
-
-    private void applyActionEffects(Action action, Vehicle vehicle, SimulationState environment, double progress) {
+    private void applyActionEffects(Action action, Vehicle vehicle, SimulationState environment, double progress, double previousProgress) {
         // Apply partial effects based on progress if not completed previously
-        double previousProgress = action.getCurrentProgress();
         if (previousProgress >= progress) {
             return; // No additional effects to apply
         }
@@ -398,24 +394,16 @@ public class Orchestrator {
             return;
         }
 
-        // For simplicity, use linear interpolation between path points based on
-        // progress
-        // In a real system with a detailed path, more sophisticated interpolation would
-        // be used
-
         if (path.size() == 1) {
-            // If only one position in path, just set vehicle to that position
             vehicle.setCurrentPosition(path.get(0));
             return;
         }
 
-        // Calculate position along the path based on progress
         if (progress <= 0) {
             vehicle.setCurrentPosition(path.get(0));
         } else if (progress >= 1.0) {
             vehicle.setCurrentPosition(path.get(path.size() - 1));
         } else {
-            // Find the appropriate segment in the path
             double segmentLength = 1.0 / (path.size() - 1);
             int segmentIndex = (int) Math.min(path.size() - 2, Math.floor(progress / segmentLength));
             double segmentProgress = (progress - segmentIndex * segmentLength) / segmentLength;
@@ -423,7 +411,6 @@ public class Orchestrator {
             Position start = path.get(segmentIndex);
             Position end = path.get(segmentIndex + 1);
 
-            // Interpolate position and round to nearest integer
             int newX = (int) Math.round(start.getX() + segmentProgress * (end.getX() - start.getX()));
             int newY = (int) Math.round(start.getY() + segmentProgress * (end.getY() - start.getY()));
 

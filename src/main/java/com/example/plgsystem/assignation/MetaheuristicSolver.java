@@ -6,14 +6,14 @@ import java.util.*;
 
 public class MetaheuristicSolver {
     // Parámetros del algoritmo Tabú Search
-    private static final int DEFAULT_MAX_ITERATIONS = 1500;
-    private static final int DEFAULT_TABU_LIST_SIZE = 50;
-    private static final int DEFAULT_NUM_NEIGHBORS = 50;
+    private static final int DEFAULT_MAX_ITERATIONS = 3000;
+    private static final int DEFAULT_TABU_LIST_SIZE = 20;
+    private static final int DEFAULT_NUM_NEIGHBORS = 25;
 
     // Parámetros del Simulated Annealing
-    private static final double INITIAL_TEMPERATURE = 1000.0;
-    private static final double COOLING_RATE = 0.97;
-    private static final double FINAL_TEMPERATURE = 0.1;
+    private static final double INITIAL_TEMPERATURE = 100.0;
+    private static final double COOLING_RATE = 0.997;
+    private static final double FINAL_TEMPERATURE = 0.01;
 
     // Parámetros de optimización
     private static final int MAX_ITERATIONS_WITHOUT_IMPROVEMENT = 200;
@@ -24,7 +24,6 @@ public class MetaheuristicSolver {
         Map<String, List<DeliveryPart>> initialAssignments = RandomDistributor.createInitialRandomAssignments(state);
 
         Solution currentSolution = SolutionGenerator.generateSolution(state, initialAssignments);
-        currentSolution = SolutionEvaluator.evaluate(currentSolution, state);
 
         Solution bestSolution = currentSolution;
 
@@ -54,7 +53,6 @@ public class MetaheuristicSolver {
 
             for (Map<String, List<DeliveryPart>> assignments : neighborAssignments) {
                 Solution neighbor = SolutionGenerator.generateSolution(state, assignments);
-                neighbor = SolutionEvaluator.evaluate(neighbor, state);
 
                 // Verificar si es tabú basado en su costo (simplificación)
                 double neighborCost = neighbor.getCost();
@@ -75,7 +73,6 @@ public class MetaheuristicSolver {
                 Map<String, List<DeliveryPart>> randomAssignments = RandomDistributor
                         .createInitialRandomAssignments(state);
                 bestNeighbor = SolutionGenerator.generateSolution(state, randomAssignments);
-                bestNeighbor = SolutionEvaluator.evaluate(bestNeighbor, state);
                 bestNeighborCost = bestNeighbor.getCost();
             }
 

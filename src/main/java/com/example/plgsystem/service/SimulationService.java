@@ -352,20 +352,36 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
     }
 
     @Scheduled(fixedRate = 1000)
-    public void updateAndBroadcastSimulations() {
-        logger.trace("Updating and broadcasting all running simulations");
+    public void updateSimulations() {
+        logger.trace("Updating all running simulations");
 
         int runningCount = 0;
         for (Simulation simulation : simulations.values()) {
             if (simulation.isRunning()) {
                 runningCount++;
                 simulation.advanceTick();
-                sendSimulationUpdate(simulation);
             }
         }
 
         if (runningCount > 0) {
-            logger.debug("Updated {} running simulations", runningCount);
+            logger.debug("Advanced {} running simulations", runningCount);
+        }
+    }
+
+    @Scheduled(fixedRate = 500)
+    public void broadcastSimulationUpdates() {
+        logger.trace("Broadcasting all running simulations");
+
+        int broadcastCount = 0;
+        for (Simulation simulation : simulations.values()) {
+            if (simulation.isRunning()) {
+                broadcastCount++;
+                sendSimulationUpdate(simulation);
+            }
+        }
+
+        if (broadcastCount > 0) {
+            logger.debug("Broadcasted {} running simulations", broadcastCount);
         }
     }
 

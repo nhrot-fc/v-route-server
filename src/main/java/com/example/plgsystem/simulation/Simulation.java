@@ -7,7 +7,6 @@ import java.util.UUID;
 import lombok.Getter;
 import com.example.plgsystem.enums.SimulationStatus;
 import com.example.plgsystem.enums.SimulationType;
-import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.operation.VehiclePlan;
 import com.example.plgsystem.orchest.DataLoader;
 import com.example.plgsystem.orchest.Orchestrator;
@@ -43,8 +42,8 @@ public class Simulation {
         return orchestrator.getSimulationTime();
     }
 
-    public Map<Vehicle, VehiclePlan> getVehiclePlans() {
-        return orchestrator.getVehiclePlans();
+    public Map<String, VehiclePlan> getCurrentVehiclePlans() {
+        return orchestrator.getEnvironment().getCurrentVehiclePlans();
     }
 
     public void advanceTick() {

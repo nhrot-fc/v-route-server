@@ -22,7 +22,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@ToString
+@ToString(exclude = { "incidents", "serveRecords", "maintenances" })
 public class Vehicle implements Serializable {
     @Id
     private String id;

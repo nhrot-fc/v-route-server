@@ -101,6 +101,7 @@ class VehiclePlanCreatorTest {
         when(auxiliaryDepot.canServe(anyInt())).thenReturn(true);
 
         // Configure simulation state
+        when(mockState.getCurrentTime()).thenReturn(startTime);
         when(mockState.getVehicleById("V001")).thenReturn(testVehicle);
         when(mockState.getOrderById("ORD001")).thenReturn(testOrder1);
         when(mockState.getOrderById("ORD002")).thenReturn(testOrder2);
@@ -140,7 +141,7 @@ class VehiclePlanCreatorTest {
                 .thenReturn(pathToOrder);
 
         // Act
-        VehiclePlan plan = VehiclePlanCreator.createPlanFromRoute(route, mockState, startTime);
+        VehiclePlan plan = VehiclePlanCreator.createPlanFromRoute(route, mockState);
 
         // Assert
         assertNotNull(plan);
