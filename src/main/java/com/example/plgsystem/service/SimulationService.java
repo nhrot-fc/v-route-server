@@ -348,7 +348,36 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
     public void replanSimulation(Simulation simulation) {
         logger.info("Replanning simulation with ID: {}", simulation.getId());
+        if (simulation.isReplanning()) {
+            logger.info("Simulation {} is already in the process of replanning", simulation.getId());
+            return;
+        }
+        
+        // Set up completion callback
+        UUID id = simulation.getId();
+        String channelBasePath = "/topic/simulation/" + id;
+        
+        simulation.getOrchestrator().setOnReplanningComplete(() -> {
+            logger.info("Replanning completed for simulation {}", id);
+            messagingTemplate.convertAndSend(
+                    channelBasePath + "/replanning",
+                    Map.of("status", "completed", 
+                           "message", "Replanning completed successfully.",
+                           "timestamp", LocalDateTime.now().toString()));
+            
+            // Send an updated state after replanning
+            sendSimulationUpdate(simulation);
+        });
+        
+        // Start replanning
         simulation.getOrchestrator().replan();
+        
+        // Send a notification that replanning has started
+        messagingTemplate.convertAndSend(
+                channelBasePath + "/replanning",
+                Map.of("status", "started", 
+                       "message", "Replanning started. This may take a few seconds.",
+                       "timestamp", LocalDateTime.now().toString()));
     }
 
     @Scheduled(fixedRate = 1000)
@@ -356,15 +385,22 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         logger.trace("Updating all running simulations");
 
         int runningCount = 0;
+        int skippedCount = 0;
+        
         for (Simulation simulation : simulations.values()) {
             if (simulation.isRunning()) {
-                runningCount++;
-                simulation.advanceTick();
+                if (!simulation.isReplanning()) {
+                    runningCount++;
+                    simulation.advanceTick();
+                } else {
+                    skippedCount++;
+                }
             }
         }
 
         if (runningCount > 0) {
-            logger.debug("Advanced {} running simulations", runningCount);
+            logger.debug("Advanced {} running simulations, skipped {} replanning simulations", 
+                        runningCount, skippedCount);
         }
     }
 
@@ -374,7 +410,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
         int broadcastCount = 0;
         for (Simulation simulation : simulations.values()) {
-            if (simulation.isRunning()) {
+            if (simulation.isRunning() && !simulation.isReplanning()) {
                 broadcastCount++;
                 sendSimulationUpdate(simulation);
             }

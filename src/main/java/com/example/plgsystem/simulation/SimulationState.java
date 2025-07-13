@@ -120,6 +120,46 @@ public class SimulationState {
         maintenances.removeAll(completedMaintenances);
     }
 
+    /**
+     * Creates a lightweight snapshot of the current simulation state for planning purposes.
+     * Note: This is not a deep clone, it reuses most objects but creates new collections
+     * to avoid concurrent modification issues.
+     * 
+     * @return A new SimulationState object representing the current state
+     */
+    public SimulationState createSnapshot() {
+        SimulationState snapshot = new SimulationState(
+            new ArrayList<>(vehicles),  // Create new list but reuse the same Vehicle objects
+            mainDepot,                  // Reuse the same Depot object
+            new ArrayList<>(auxDepots), // Create new list but reuse the same Depot objects
+            currentTime                 // Copy the current time
+        );
+        
+        // Add current orders, blockages, incidents, maintenances
+        for (Order order : orders) {
+            snapshot.addOrder(order); // Reuse the same Order objects
+        }
+        
+        for (Blockage blockage : blockages) {
+            snapshot.addBlockage(blockage); // Reuse the same Blockage objects
+        }
+        
+        for (Incident incident : incidents) {
+            snapshot.addIncident(incident); // Reuse the same Incident objects
+        }
+        
+        for (Maintenance maintenance : maintenances) {
+            snapshot.addMaintenance(maintenance); // Reuse the same Maintenance objects
+        }
+        
+        // Copy vehicle plans
+        for (Map.Entry<String, VehiclePlan> entry : currentVehiclePlans.entrySet()) {
+            snapshot.currentVehiclePlans.put(entry.getKey(), entry.getValue());
+        }
+        
+        return snapshot;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

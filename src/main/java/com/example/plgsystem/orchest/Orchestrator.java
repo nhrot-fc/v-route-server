@@ -22,10 +22,13 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.UUID;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Set;
 import com.example.plgsystem.model.Position;
 
 @Getter
@@ -41,6 +44,13 @@ public class Orchestrator {
     private boolean needsReplanning;
     private Duration tickDuration;
     private LocalDateTime lastReplanningTime;
+    private LocalDateTime lastEventsCheckTime;
+    private int eventsCheckFrequency; // How often to check for new events (in ticks)
+    private int ticksSinceLastCheck;
+
+    private boolean isReplanning;
+    private Thread replanningThread;
+    private Runnable onReplanningComplete;
 
     public Orchestrator(SimulationState environment, Duration tickDuration, int minutesForReplan,
             DataLoader dataLoader) {
@@ -52,6 +62,13 @@ public class Orchestrator {
         this.lastReplanningTime = simulationTime;
         this.minutesForReplan = minutesForReplan;
         this.dataLoader = dataLoader;
+        this.replanningThread = null;
+
+        // Initialize event checking variables
+        this.lastEventsCheckTime = simulationTime;
+        // Check for new events every 120 ticks (adjustable)
+        this.eventsCheckFrequency = 120;
+        this.ticksSinceLastCheck = 0;
 
         // Schedule the first NEW_DAY_BEGIN event
         LocalDateTime nextNewDay = LocalDateTime.of(
@@ -72,11 +89,55 @@ public class Orchestrator {
         this.eventQueue.add(event);
     }
 
+    /**
+     * Sets a callback to be executed when replanning completes.
+     * This is useful for notifying other components about the completion of
+     * replanning.
+     * 
+     * @param callback A Runnable to be executed when replanning completes
+     */
+    public void setOnReplanningComplete(Runnable callback) {
+        this.onReplanningComplete = callback;
+    }
+
+    /**
+     * Gets the frequency at which the system checks for new events.
+     * 
+     * @return The number of ticks between event checks
+     */
+    public int getEventsCheckFrequency() {
+        return eventsCheckFrequency;
+    }
+
+    /**
+     * Sets the frequency at which the system checks for new events.
+     * 
+     * @param frequency The number of ticks between event checks
+     */
+    public void setEventsCheckFrequency(int frequency) {
+        if (frequency < 1) {
+            throw new IllegalArgumentException("Event check frequency must be at least 1");
+        }
+        this.eventsCheckFrequency = frequency;
+    }
+
     public void advanceTick() {
+        if (isReplanning) {
+            return;
+        }
+
         LocalDateTime nextTick = simulationTime.plus(tickDuration);
+
+        // Process events scheduled before the next tick
         while (!eventQueue.isEmpty() && eventQueue.peek().getTime().isBefore(nextTick)) {
             Event event = eventQueue.poll();
             processEvent(event);
+        }
+
+        // Check for new events periodically
+        ticksSinceLastCheck++;
+        if (ticksSinceLastCheck >= eventsCheckFrequency) {
+            checkAndLoadNewEvents();
         }
 
         executeVehiclePlans(nextTick);
@@ -92,31 +153,150 @@ public class Orchestrator {
     }
 
     public void replan() {
+        // If already replanning, don't start another thread
+        if (isReplanning) {
+            logger.info("Replanning already in progress, skipping new replan request");
+            return;
+        }
+
         logger.info("Starting replanning at {}", simulationTime);
+        isReplanning = true;
 
-        Solution solution = MetaheuristicSolver.solve(environment);
-        // 5. Clear existing plans for all vehicles
-        environment.getCurrentVehiclePlans().clear();
+        // Cancel any existing replanning thread
+        if (replanningThread != null && replanningThread.isAlive()) {
+            replanningThread.interrupt();
+        }
 
-        for (Map.Entry<String, Route> entry : solution.getRoutes().entrySet()) {
-            String vehicleId = entry.getKey();
-            Route route = entry.getValue();
-            Vehicle vehicle = environment.getVehicleById(vehicleId);
+        // Create a snapshot of the environment for replanning
+        final SimulationState environmentSnapshot = environment.createSnapshot();
 
-            if (vehicle == null) {
-                logger.error("Vehicle not found for ID: {}", vehicleId);
-                continue;
-            }
-
+        // Create a new thread for replanning
+        replanningThread = new Thread(() -> {
             try {
-                VehiclePlan plan = VehiclePlanCreator.createPlanFromRoute(route, environment);
-                environment.getCurrentVehiclePlans().put(vehicleId, plan);
+                logger.info("Replanning thread started");
+                Solution solution = MetaheuristicSolver.solve(environmentSnapshot);
+
+                // Apply the solution to the actual environment
+                synchronized (environment) {
+                    // Clear existing plans for all vehicles
+                    environment.getCurrentVehiclePlans().clear();
+
+                    for (Map.Entry<String, Route> entry : solution.getRoutes().entrySet()) {
+                        String vehicleId = entry.getKey();
+                        Route route = entry.getValue();
+                        Vehicle vehicle = environment.getVehicleById(vehicleId);
+
+                        if (vehicle == null) {
+                            logger.error("Vehicle not found for ID: {}", vehicleId);
+                            continue;
+                        }
+
+                        try {
+                            VehiclePlan plan = VehiclePlanCreator.createPlanFromRoute(route, environment);
+                            environment.getCurrentVehiclePlans().put(vehicleId, plan);
+                        } catch (Exception e) {
+                            logger.error("Error creating plan for vehicle {}: {}", vehicleId, e.getMessage());
+                        }
+                    }
+
+                    logger.info("Replanning completed. Created {} new vehicle plans",
+                            environment.getCurrentVehiclePlans().size());
+                }
+
+                // Notify listeners that replanning is complete
+                if (onReplanningComplete != null) {
+                    onReplanningComplete.run();
+                }
             } catch (Exception e) {
-                logger.error("Error creating plan for vehicle {}: {}", vehicleId, e.getMessage());
+                logger.error("Error during replanning: {}", e.getMessage(), e);
+            } finally {
+                isReplanning = false;
+            }
+        });
+
+        replanningThread.setName("ReplanningThread-" + simulationTime);
+        replanningThread.start();
+    }
+
+    private void checkAndLoadNewEvents() {
+        LocalDate today = simulationTime.toLocalDate();
+        logger.debug("Checking for new events for date: {}", today);
+
+        // Load all events for the current day
+        List<Event> todayOrdersEvents = dataLoader.loadOrdersForDate(today);
+        List<Event> todayBlockagesEvents = dataLoader.loadBlockagesForDate(today);
+
+        // Track stats
+        int newOrdersAdded = 0;
+        int newBlockagesAdded = 0;
+
+        // Create sets to track existing event IDs
+        Set<String> existingOrderIds = new HashSet<>();
+        Set<UUID> existingBlockageIds = new HashSet<>();
+
+        // Collect IDs from current orders and blockages in environment
+        for (Order order : environment.getOrders()) {
+            existingOrderIds.add(order.getId());
+        }
+        for (Blockage blockage : environment.getBlockages()) {
+            existingBlockageIds.add(blockage.getId());
+        }
+
+        // Process new orders, avoiding duplicates
+        for (Event event : todayOrdersEvents) {
+            if (event.getType() == EventType.ORDER_ARRIVAL && event.getData() != null) {
+                Order order = (Order) event.getData();
+
+                // Skip if this order already exists or if it's scheduled for a time we've
+                // already passed
+                if (!existingOrderIds.contains(order.getId()) && !event.getTime().isBefore(simulationTime)) {
+                    eventQueue.add(event);
+                    newOrdersAdded++;
+                }
             }
         }
 
-        logger.info("Replanning completed. Created {} new vehicle plans", environment.getCurrentVehiclePlans().size());
+        // Process new blockages, avoiding duplicates and adding to environment if
+        // already active
+        for (Event event : todayBlockagesEvents) {
+            if (event.getType() == EventType.BLOCKAGE_START && event.getData() != null) {
+                Blockage blockage = (Blockage) event.getData();
+
+                // Skip if this blockage already exists
+                if (!existingBlockageIds.contains(blockage.getId())) {
+                    // If the blockage start time is in the past but it's still active, add it
+                    // directly to the environment
+                    if (event.getTime().isBefore(simulationTime) && !blockage.getEndTime().isBefore(simulationTime)) {
+                        environment.addBlockage(blockage);
+                        newBlockagesAdded++;
+                    }
+                    // Otherwise, if it starts in the future, add it to the event queue
+                    else if (!event.getTime().isBefore(simulationTime)) {
+                        eventQueue.add(event);
+                        newBlockagesAdded++;
+                    }
+                }
+            } else if (event.getType() == EventType.BLOCKAGE_END) {
+                // Add end events that are still in the future
+                if (!event.getTime().isBefore(simulationTime)) {
+                    eventQueue.add(event);
+                }
+            }
+        }
+
+        if (newOrdersAdded > 0 || newBlockagesAdded > 0) {
+            logger.info("Added {} new orders and {} new blockages for date {}",
+                    newOrdersAdded, newBlockagesAdded, today);
+
+            // Trigger replanning if we found new events
+            if (newOrdersAdded > 0 || newBlockagesAdded > 0) {
+                needsReplanning = true;
+            }
+        }
+
+        // Update last check time
+        lastEventsCheckTime = simulationTime;
+        ticksSinceLastCheck = 0;
     }
 
     private void processEvent(Event event) {
@@ -220,20 +400,8 @@ public class Orchestrator {
                 addEvent(new Event(EventType.NEW_DAY_BEGIN, nextDay, null, null));
                 logger.info("Scheduled next NEW_DAY_BEGIN event for " + nextDay);
 
-                // Cargar datos del nuevo día
-                List<Event> todayOrdersEvents = dataLoader.loadOrdersForDate(today);
-                List<Event> todayBlockagesEvents = dataLoader.loadBlockagesForDate(today);
-
-                for (Event e : todayBlockagesEvents) {
-                    if (e.getType() != EventType.BLOCKAGE_START)
-                        continue;
-                    Blockage blockage = (Blockage) e.getData();
-                    environment.addBlockage(blockage);
-                }
-
-                addEvents(todayOrdersEvents);
-                addEvents(todayBlockagesEvents);
-                logger.info("Added {} events for the new day {}", todayOrdersEvents.size(), today);
+                // Force an immediate check for new events to load the day's initial data
+                checkAndLoadNewEvents();
                 break;
 
             default:
@@ -258,7 +426,8 @@ public class Orchestrator {
                 executeAction(action, vehicle, environment, nextTick);
                 logger.debug("Executed action: " + action + " for vehicle: " + vehicle.getId());
             } else {
-                logger.debug("Skipping action for vehicle: " + vehicle.getId() + " as it is scheduled for future time or no current action.");
+                logger.debug("Skipping action for vehicle: " + vehicle.getId()
+                        + " as it is scheduled for future time or no current action.");
             }
         }
     }
@@ -296,12 +465,13 @@ public class Orchestrator {
 
         // Apply action effects based on type and progress
         applyActionEffects(action, vehicle, environment, progress, previousProgress);
-        
-        //System.out.println("Executed action " + action.getType() + " progress: " + progress + 
-        //                   " [Vehicle: " + vehicle.getId() + 
-        //                   ", Position: " + vehicle.getCurrentPosition() + 
-        //                   ", Fuel: " + vehicle.getCurrentFuelGal() + 
-        //                   ", GLP: " + vehicle.getCurrentGlpM3() + "]");
+
+        // System.out.println("Executed action " + action.getType() + " progress: " +
+        // progress +
+        // " [Vehicle: " + vehicle.getId() +
+        // ", Position: " + vehicle.getCurrentPosition() +
+        // ", Fuel: " + vehicle.getCurrentFuelGal() +
+        // ", GLP: " + vehicle.getCurrentGlpM3() + "]");
 
         // If action is now complete (progress = 1.0), advance to next action in plan
         if (progress >= 1.0) {
@@ -312,7 +482,8 @@ public class Orchestrator {
         }
     }
 
-    private void applyActionEffects(Action action, Vehicle vehicle, SimulationState environment, double progress, double previousProgress) {
+    private void applyActionEffects(Action action, Vehicle vehicle, SimulationState environment, double progress,
+            double previousProgress) {
         // Apply partial effects based on progress if not completed previously
         if (previousProgress >= progress) {
             return; // No additional effects to apply

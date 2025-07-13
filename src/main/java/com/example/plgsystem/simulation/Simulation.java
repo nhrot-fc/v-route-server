@@ -97,4 +97,12 @@ public class Simulation {
     public boolean isError() {
         return status.equals(SimulationStatus.ERROR);
     }
+    
+    /**
+     * Checks if the simulation is currently replanning.
+     * @return true if the simulation is in the middle of a replanning operation
+     */
+    public boolean isReplanning() {
+        return orchestrator.isReplanning();
+    }
 }

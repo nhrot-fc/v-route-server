@@ -56,7 +56,7 @@ public class Depot implements Serializable {
         if (isMain()) {
             return;
         }
-        currentGlpM3 = Math.max(0, currentGlpM3 - glpVolumeM3);
+        currentGlpM3 = Math.max(0, currentGlpM3 - Math.abs(glpVolumeM3));
     }
 
     public void refill() {
