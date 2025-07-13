@@ -8,20 +8,21 @@ import lombok.RequiredArgsConstructor;
 public enum SimulationType {
     // Daily operations - affects database
     DAILY_OPERATIONS("📋", "Daily Operations"),
-    
+
     // Simulation types (memory only)
     WEEKLY("🔄", "Weekly Simulation"),
     INFINITE("♾️", "Infinite Simulation"),
-    CUSTOM("⚙️", "Custom Simulation");
+    CUSTOM("⚙️", "Custom Simulation"),
+    BENCHMARK("🚀", "Benchmark Simulation");
 
     private final String icon;
     private final String description;
-    
+
     public boolean isDailyOperation() {
         return this == DAILY_OPERATIONS;
     }
-    
+
     public boolean isTimeBasedSimulation() {
-        return this == WEEKLY || this == INFINITE || this == CUSTOM;
+        return this == WEEKLY || this == INFINITE || this == CUSTOM || this == BENCHMARK;
     }
 }

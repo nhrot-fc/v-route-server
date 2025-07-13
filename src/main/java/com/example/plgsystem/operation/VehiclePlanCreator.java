@@ -111,4 +111,62 @@ public class VehiclePlanCreator {
         return (Constants.GLP_DENSITY_M3_TON * glpCapacityM3 + vehicleType.getTareWeightTon())
                 * (distanceKm / Constants.VEHICLE_AVG_SPEED);
     }
+
+    public static VehiclePlan createPlanToMainDepot(
+            Vehicle vehicle,
+            SimulationState state) {
+
+        // Validate input parameters
+        if (vehicle == null || state == null) {
+            return null;
+        }
+
+        // Get main depot position
+        Depot mainDepot = state.getMainDepot();
+        if (mainDepot == null) {
+            return null;
+        }
+
+        Position depotPosition = mainDepot.getPosition();
+        if (depotPosition == null) {
+            return null;
+        }
+
+        List<Action> actions = new ArrayList<>();
+        Position currentPosition = vehicle.getCurrentPosition();
+        double currentFuel = vehicle.getCurrentFuelGal();
+        LocalDateTime currentTime = state.getCurrentTime();
+        if (!currentPosition.equals(depotPosition)) {
+            // Find path to main depot
+            List<Position> path = PathFinder.findPath(state, currentPosition, depotPosition, currentTime);
+            if (path == null) {
+                return null;
+            }
+
+            // Calculate fuel and time
+            double distanceKm = path.size() - 1;
+            double fuelNeeded = calculateFuelFromDistance(distanceKm, vehicle.getGlpCapacityM3(), vehicle.getType());
+            int driveTimeMinutes = (int) (distanceKm / Constants.VEHICLE_AVG_SPEED * 60);
+            Action driveAction = ActionFactory.createDrivingAction(path, fuelNeeded, currentTime,
+                    currentTime.plusMinutes(driveTimeMinutes));
+            actions.add(driveAction);
+
+            currentFuel -= fuelNeeded;
+            currentTime = driveAction.getEndTime();
+        }
+        // Create refueling action at depot
+        Action refuelAction = ActionFactory.createRefuelingAction(mainDepot.getId(), depotPosition, currentTime,
+                vehicle.getFuelCapacityGal() - currentFuel);
+        actions.add(refuelAction);
+        currentFuel = vehicle.getFuelCapacityGal();
+        currentTime = refuelAction.getEndTime();
+
+        // Create refilling action at depot
+        Action refillAction = ActionFactory.createRefillingAction(mainDepot.getId(), depotPosition, currentTime,
+                vehicle.getGlpCapacityM3() - vehicle.getCurrentGlpM3());
+        actions.add(refillAction);
+        currentTime = refillAction.getEndTime();
+
+        return new VehiclePlan(vehicle.getId(), actions, state.getCurrentTime(), 0);
+    }
 }

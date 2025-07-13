@@ -1,127 +1,223 @@
 package com.example.plgsystem.assignation;
 
-import com.example.plgsystem.simulation.SimulationState;
-
 import java.util.*;
 
+import com.example.plgsystem.model.Constants;
+import com.example.plgsystem.simulation.SimulationState;
+
 public class MetaheuristicSolver {
-    // Parámetros del algoritmo Tabú Search
-    private static final int DEFAULT_MAX_ITERATIONS = 3000;
-    private static final int DEFAULT_TABU_LIST_SIZE = 20;
-    private static final int DEFAULT_NUM_NEIGHBORS = 25;
+    private static final Random random = new Random();
 
-    // Parámetros del Simulated Annealing
-    private static final double INITIAL_TEMPERATURE = 100.0;
-    private static final double COOLING_RATE = 0.997;
-    private static final double FINAL_TEMPERATURE = 0.01;
+    /**
+     * Represents a tabu move in the search space
+     */
+    private static class TabuMove {
+        private final String moveId;
+        private int remainingTenure;
 
-    // Parámetros de optimización
-    private static final int MAX_ITERATIONS_WITHOUT_IMPROVEMENT = 200;
-    private static final double ACCEPTANCE_PROBABILITY_THRESHOLD = 0.01;
+        public TabuMove(String moveId, int tenure) {
+            this.moveId = moveId;
+            this.remainingTenure = tenure;
+        }
 
-    public static Solution solve(SimulationState state) {
-        // Generar solución inicial usando el distribuidor aleatorio
-        Map<String, List<DeliveryPart>> initialAssignments = RandomDistributor.createInitialRandomAssignments(state);
+        public boolean decrementTenure() {
+            return --remainingTenure <= 0;
+        }
 
-        Solution currentSolution = SolutionGenerator.generateSolution(state, initialAssignments);
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            TabuMove tabuMove = (TabuMove) o;
+            return moveId.equals(tabuMove.moveId);
+        }
 
-        Solution bestSolution = currentSolution;
+        @Override
+        public int hashCode() {
+            return Objects.hash(moveId);
+        }
+    }
 
-        // Inicializar lista tabú como una cola FIFO
-        Queue<Double> tabuList = new LinkedList<>();
+    /**
+     * Generate a set of neighboring solutions by applying different operations to
+     * the current solution
+     */
+    private static List<Map<String, List<DeliveryPart>>> generateNeighbors(
+            Map<String, List<DeliveryPart>> currentAssignment,
+            SimulationState state,
+            int numNeighbors) {
+        List<Map<String, List<DeliveryPart>>> neighbors = new ArrayList<>();
 
-        // Inicialización de variables para Simulated Annealing
-        double temperature = INITIAL_TEMPERATURE;
-        Random random = new Random();
-        int iterationsWithoutImprovement = 0;
+        for (int i = 0; i < numNeighbors; i++) {
+            Map<String, List<DeliveryPart>> neighbor;
+            double rand = random.nextDouble();
 
-        // Iteración principal
-        for (int iteration = 0; iteration < DEFAULT_MAX_ITERATIONS && temperature > FINAL_TEMPERATURE; iteration++) {
-            // Generar vecinos aplicando operaciones aleatorias
-            List<Map<String, List<DeliveryPart>>> neighborAssignments = new ArrayList<>();
-            for (int i = 0; i < DEFAULT_NUM_NEIGHBORS; i++) {
-                neighborAssignments.add(
-                        DistributionOperations.randomOperationWithState(
-                                currentSolution.getRoutes().isEmpty() ? initialAssignments
-                                        : currentSolution.getVehicleOrderAssignments(),
-                                state));
+            // Apply different operations with different probabilities
+            if (rand < 0.2) {
+                neighbor = DistributionOperations.shuffleSegment(currentAssignment);
+            } else if (rand < 0.4) {
+                neighbor = DistributionOperations.moveDelivery(currentAssignment);
+            } else if (rand < 0.6) {
+                neighbor = DistributionOperations.swapDeliveries(currentAssignment);
+            } else if (rand < 0.8) {
+                neighbor = DistributionOperations.moveDeliveryBetweenVehicles(currentAssignment);
+            } else if (rand < 0.9) {
+                neighbor = DistributionOperations.randomOperationWithState(currentAssignment, state);
+            } else {
+                neighbor = DistributionOperations.swapVehicles(currentAssignment);
             }
 
-            // Evaluar vecinos y encontrar el mejor no tabú
-            Solution bestNeighbor = null;
-            double bestNeighborCost = Double.POSITIVE_INFINITY;
+            neighbors.add(neighbor);
+        }
 
-            for (Map<String, List<DeliveryPart>> assignments : neighborAssignments) {
-                Solution neighbor = SolutionGenerator.generateSolution(state, assignments);
+        return neighbors;
+    }
 
-                // Verificar si es tabú basado en su costo (simplificación)
-                double neighborCost = neighbor.getCost();
-                boolean isTabu = tabuList.contains(neighborCost);
+    /**
+     * Generate a unique identifier for a move between two solutions.
+     * This is used to track moves for the tabu list.
+     */
+    private static String generateMoveId(Map<String, List<DeliveryPart>> fromSolution,
+            Map<String, List<DeliveryPart>> toSolution) {
+        StringBuilder sb = new StringBuilder();
 
-                // Criterio de aspiración: aceptar soluciones tabú si son mejores que la mejor
-                // global
-                if (!isTabu || neighborCost < bestSolution.getCost()) {
-                    if (neighborCost < bestNeighborCost) {
-                        bestNeighbor = neighbor;
-                        bestNeighborCost = neighborCost;
+        // Compare the two solutions and create a digest of the differences
+        for (String vehicleId : fromSolution.keySet()) {
+            List<DeliveryPart> fromDeliveries = fromSolution.get(vehicleId);
+            List<DeliveryPart> toDeliveries = toSolution.get(vehicleId);
+
+            // Skip if either is null (should not happen)
+            if (fromDeliveries == null || toDeliveries == null)
+                continue;
+
+            // Count orders in each solution
+            Map<String, Integer> fromOrderCounts = new HashMap<>();
+            for (DeliveryPart part : fromDeliveries) {
+                fromOrderCounts.put(part.getOrderId(),
+                        fromOrderCounts.getOrDefault(part.getOrderId(), 0) + part.getGlpDeliverM3());
+            }
+
+            Map<String, Integer> toOrderCounts = new HashMap<>();
+            for (DeliveryPart part : toDeliveries) {
+                toOrderCounts.put(part.getOrderId(),
+                        toOrderCounts.getOrDefault(part.getOrderId(), 0) + part.getGlpDeliverM3());
+            }
+
+            // Record differences
+            for (String orderId : fromOrderCounts.keySet()) {
+                int fromCount = fromOrderCounts.get(orderId);
+                int toCount = toOrderCounts.getOrDefault(orderId, 0);
+                if (fromCount != toCount) {
+                    sb.append(vehicleId).append(":")
+                            .append(orderId).append(":")
+                            .append(fromCount).append("->")
+                            .append(toCount).append(";");
+                }
+            }
+
+            // Check for orders in toSolution that aren't in fromSolution
+            for (String orderId : toOrderCounts.keySet()) {
+                if (!fromOrderCounts.containsKey(orderId)) {
+                    sb.append(vehicleId).append(":")
+                            .append(orderId).append(":")
+                            .append("0->")
+                            .append(toOrderCounts.get(orderId)).append(";");
+                }
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Check if a move is in the tabu list
+     */
+    private static boolean isTabuMove(String moveId, List<TabuMove> tabuList) {
+        return tabuList.stream().anyMatch(tabu -> tabu.moveId.equals(moveId));
+    }
+
+    /**
+     * Update the tabu list, reducing tenure and removing expired entries
+     */
+    private static void updateTabuList(List<TabuMove> tabuList) {
+        Iterator<TabuMove> iterator = tabuList.iterator();
+        while (iterator.hasNext()) {
+            TabuMove move = iterator.next();
+            if (move.decrementTenure()) {
+                iterator.remove();
+            }
+        }
+    }
+
+    /**
+     * Solves the vehicle routing problem using Tabu Search metaheuristic
+     */
+    public static Solution solve(SimulationState state) {
+        // 1. INITIALIZATION
+        Map<String, List<DeliveryPart>> currentAssignment = RandomDistributor.createInitialRandomAssignments(state);
+        Solution currentSolution = SolutionGenerator.generateSolution(state, currentAssignment);
+        Solution bestSolution = currentSolution;
+        List<TabuMove> tabuList = new ArrayList<>();
+
+        // 2. MAIN SEARCH LOOP
+        for (int iteration = 0; iteration < Constants.MAX_ITERATIONS; iteration++) {
+            // a. Generate and evaluate the neighborhood of the current solution
+            List<Map<String, List<DeliveryPart>>> neighbors = generateNeighbors(currentAssignment, state,
+                    Constants.NUM_NEIGHBORS);
+            Map<String, List<DeliveryPart>> bestCandidate = null;
+            Solution bestCandidateSolution = null;
+
+            // b. Find the best non-tabu neighbor
+            for (Map<String, List<DeliveryPart>> neighbor : neighbors) {
+                Solution neighborSolution = SolutionGenerator.generateSolution(state, neighbor);
+
+                // Skip invalid solutions
+                if (neighborSolution.getCost() == Double.POSITIVE_INFINITY) {
+                    continue;
+                }
+
+                // Generate move ID for tabu checking
+                String moveId = generateMoveId(currentAssignment, neighbor);
+                boolean isTabu = isTabuMove(moveId, tabuList);
+
+                // Aspiration criterion: accept tabu move if it's better than the best solution
+                // so far
+                boolean isAspirated = neighborSolution.getCost() < bestSolution.getCost();
+
+                // Select the best permitted candidate
+                if (!isTabu || isAspirated) {
+                    if (bestCandidate == null ||
+                            (bestCandidateSolution != null
+                                    && neighborSolution.getCost() < bestCandidateSolution.getCost())) {
+                        bestCandidate = neighbor;
+                        bestCandidateSolution = neighborSolution;
                     }
                 }
             }
 
-            // Si no encontramos un vecino válido, generamos uno aleatorio
-            if (bestNeighbor == null) {
-                Map<String, List<DeliveryPart>> randomAssignments = RandomDistributor
-                        .createInitialRandomAssignments(state);
-                bestNeighbor = SolutionGenerator.generateSolution(state, randomAssignments);
-                bestNeighborCost = bestNeighbor.getCost();
-            }
+            // c. Make the move if a candidate was found
+            if (bestCandidate != null && bestCandidateSolution != null) {
+                // Move to the new solution
+                currentAssignment = bestCandidate;
+                currentSolution = bestCandidateSolution;
 
-            // Criterio de aceptación de Simulated Annealing
-            boolean acceptMove = false;
+                // Update tabu memory: add the inverse move to the tabu list
+                String moveId = generateMoveId(bestCandidate, currentAssignment);
+                tabuList.add(new TabuMove(moveId, Constants.TABU_TENURE));
 
-            if (bestNeighborCost <= currentSolution.getCost()) {
-                // Siempre aceptar mejoras
-                acceptMove = true;
-            } else {
-                // Aceptar empeoramientos con una probabilidad que disminuye con la temperatura
-                double delta = bestNeighborCost - currentSolution.getCost();
-                double acceptanceProbability = Math.exp(-delta / temperature);
-
-                if (acceptanceProbability > ACCEPTANCE_PROBABILITY_THRESHOLD &&
-                        random.nextDouble() < acceptanceProbability) {
-                    acceptMove = true;
+                // d. Update the best global solution
+                if (currentSolution != null && currentSolution.getCost() < bestSolution.getCost()) {
+                    bestSolution = currentSolution;
                 }
             }
 
-            if (acceptMove) {
-                currentSolution = bestNeighbor;
-
-                // Añadir a lista tabú
-                tabuList.offer(bestNeighborCost);
-                while (tabuList.size() > DEFAULT_TABU_LIST_SIZE) {
-                    tabuList.poll();
-                }
-
-                // Actualizar mejor solución global
-                if (bestNeighborCost < bestSolution.getCost()) {
-                    bestSolution = bestNeighbor;
-                    iterationsWithoutImprovement = 0;
-                } else {
-                    iterationsWithoutImprovement++;
-                }
-            } else {
-                iterationsWithoutImprovement++;
-            }
-
-            // Criterio de parada anticipada
-            if (iterationsWithoutImprovement >= MAX_ITERATIONS_WITHOUT_IMPROVEMENT) {
-                break;
-            }
-
-            // Esquema de enfriamiento
-            temperature *= COOLING_RATE;
+            // Update tabu tenures and remove expired entries
+            updateTabuList(tabuList);
         }
 
+        // 3. RETURN RESULT
         return bestSolution;
     }
 }

@@ -16,6 +16,10 @@ public class SimpleDataLoader implements DataLoader {
         events.add(event);
     }
 
+    public void addEvents(List<Event> newEvents) {
+        events.addAll(newEvents);
+    }
+
     @Override
     public List<Event> loadOrdersForDate(LocalDate date) {
         return events.stream().filter(event -> event.getType() == EventType.ORDER_ARRIVAL)

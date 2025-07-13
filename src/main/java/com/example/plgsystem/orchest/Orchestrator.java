@@ -141,6 +141,10 @@ public class Orchestrator {
         }
 
         executeVehiclePlans(nextTick);
+
+        // Assign return-to-depot plans for available vehicles without any plan
+        createReturnToDepotPlansForIdleVehicles();
+
         int minutesSinceLastReplanning = (int) Duration.between(lastReplanningTime, nextTick).toMinutes();
         if ((needsReplanning || (minutesSinceLastReplanning >= minutesForReplan))) {
             replan();
@@ -198,6 +202,10 @@ public class Orchestrator {
                             logger.error("Error creating plan for vehicle {}: {}", vehicleId, e.getMessage());
                         }
                     }
+
+                    // Create return-to-depot plans for any available vehicles without assigned
+                    // routes
+                    createReturnToDepotPlansForIdleVehicles();
 
                     logger.info("Replanning completed. Created {} new vehicle plans",
                             environment.getCurrentVehiclePlans().size());
@@ -503,39 +511,33 @@ public class Orchestrator {
                 break;
 
             case REFUEL:
-                if (progress >= 1.0) {
-                    // Only apply refueling at completion
-                    vehicle.refuel();
-                    logger.info("Vehicle {} refueled to capacity", vehicle.getId());
-                }
+                vehicle.refuel();
+                logger.info("Vehicle {} refueled to capacity", vehicle.getId());
                 break;
 
             case RELOAD:
-                if (progress >= 1.0) {
-                    // Only apply GLP loading at completion
-                    vehicle.refill(action.getGlpLoaded());
-                    logger.info("Vehicle {} loaded {} m³ of GLP", vehicle.getId(), action.getGlpLoaded());
+                // Only apply GLP loading at completion
+                vehicle.refill(action.getGlpLoaded());
+                logger.info("Vehicle {} loaded {} m³ of GLP", vehicle.getId(), action.getGlpLoaded());
 
-                    // Update depot GLP levels if this is a depot reload
-                    Depot depot = environment.getDepotById(action.getDepotId());
-                    if (depot != null) {
-                        depot.serve(action.getGlpLoaded());
-                    }
+                // Update depot GLP levels if this is a depot reload
+                Depot depot = environment.getDepotById(action.getDepotId());
+                if (depot != null) {
+                    depot.serve(action.getGlpLoaded());
                 }
                 break;
 
             case SERVE:
-                if (progress >= 1.0) {
-                    // Only apply GLP delivery at completion
-                    vehicle.dispense(action.getGlpDelivered());
-                    logger.info("Vehicle {} delivered {} m³ of GLP", vehicle.getId(), action.getGlpDelivered());
+                // Only apply GLP delivery at completion
+                vehicle.dispense(action.getGlpDelivered());
+                logger.info("Vehicle {} delivered {} m³ of GLP", vehicle.getId(), action.getGlpDelivered());
 
-                    // Find and update order status if needed
-                    Order order = environment.getOrderById(action.getOrderId());
-                    if (order != null && !order.isDelivered()) {
-                        order.recordDelivery(action.getGlpDelivered(), vehicle, action.getEndTime());
-                    }
+                // Find and update order status if needed
+                Order order = environment.getOrderById(action.getOrderId());
+                if (order != null && !order.isDelivered()) {
+                    order.recordDelivery(action.getGlpDelivered(), vehicle, action.getEndTime());
                 }
+
                 break;
 
             case MAINTENANCE:
@@ -586,6 +588,50 @@ public class Orchestrator {
             int newY = (int) Math.round(start.getY() + segmentProgress * (end.getY() - start.getY()));
 
             vehicle.setCurrentPosition(new Position(newX, newY));
+        }
+    }
+
+    /**
+     * Creates a plan for available vehicles without an assigned plan to return to
+     * the main depot.
+     * This ensures that idle vehicles are productive and return to the main depot
+     * for refueling and refilling.
+     */
+    private void createReturnToDepotPlansForIdleVehicles() {
+        logger.info("Checking for available vehicles without plans...");
+        int plansCreated = 0;
+
+        for (Vehicle vehicle : environment.getVehicles()) {
+            // Only consider vehicles that are available and don't already have a plan
+            if (vehicle.getStatus() == VehicleStatus.AVAILABLE &&
+                    !environment.getCurrentVehiclePlans().containsKey(vehicle.getId())) {
+
+                // Don't create plans for vehicles already at the main depot
+                Depot mainDepot = environment.getMainDepot();
+                if (mainDepot != null && vehicle.getCurrentPosition().equals(mainDepot.getPosition())) {
+                    logger.debug("Vehicle {} is already at the main depot, no plan needed", vehicle.getId());
+                    continue;
+                }
+
+                try {
+                    VehiclePlan depotPlan = VehiclePlanCreator.createPlanToMainDepot(vehicle, environment);
+
+                    if (depotPlan != null) {
+                        environment.getCurrentVehiclePlans().put(vehicle.getId(), depotPlan);
+                        plansCreated++;
+                        logger.info("Created return-to-depot plan for idle vehicle: {}", vehicle.getId());
+                    } else {
+                        logger.warn("Failed to create return-to-depot plan for vehicle: {}", vehicle.getId());
+                    }
+                } catch (Exception e) {
+                    logger.error("Error creating return-to-depot plan for vehicle {}: {}",
+                            vehicle.getId(), e.getMessage());
+                }
+            }
+        }
+
+        if (plansCreated > 0) {
+            logger.info("Created {} return-to-depot plans for idle vehicles", plansCreated);
         }
     }
 }

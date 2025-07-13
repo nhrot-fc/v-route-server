@@ -56,7 +56,7 @@ public class PathFinder {
 
                 LocalDateTime tiempoLlegada = calcularTiempoLlegada(current.horaDeLlegada);
 
-                if (entorno.isPositionBlockedAt(vecino, tiempoLlegada)) {
+                if (entorno.isPositionBlockedAt(vecino, tiempoLlegada) && !vecino.equals(fin)) {
                     continue;
                 }
 

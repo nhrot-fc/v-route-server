@@ -74,6 +74,12 @@ public class Constants {
 
     public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd - HH:mm:ss");
 
+
+    // Metaheuristic Solver Constants
+    public static final int MAX_ITERATIONS = 3000;
+    public static final int TABU_TENURE = 20;
+    public static final int NUM_NEIGHBORS = 25;
+
     private Constants() {
         // Avoid initialization
     }

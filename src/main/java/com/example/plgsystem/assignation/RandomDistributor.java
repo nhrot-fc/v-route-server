@@ -19,8 +19,7 @@ public class RandomDistributor {
         Map<String, List<DeliveryPart>> assignments = new HashMap<>();
         List<Vehicle> availableVehicles = environment.getVehicles().stream()
                 .filter(Vehicle::isAvailable).toList();
-        List<Order> pendingOrders = environment.getOrders().stream()
-                .filter(o -> !o.isDelivered()).toList();
+        List<Order> pendingOrders = environment.getOrders();
 
         for (Vehicle vehicle : availableVehicles) {
             assignments.put(vehicle.getId(), new ArrayList<>());
@@ -45,7 +44,7 @@ public class RandomDistributor {
                 remainingGlpToAssign -= packageSize;
             }
         }
-        
+
         allPackages.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
         for (DeliveryPart deliveryPart : allPackages) {
             Vehicle selectedVehicle = selectVehicleByCapacityWeight(availableVehicles);
