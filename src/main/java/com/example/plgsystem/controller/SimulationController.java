@@ -22,8 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
@@ -290,4 +289,21 @@ public class SimulationController {
                     .body("Error al cargar bloqueos: " + e.getMessage());
         }
     }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Eliminar una simulación", description = "Elimina una simulación por su ID")
+    public ResponseEntity<Void> deleteSimulation(@PathVariable UUID id) {
+        logger.info("Eliminando simulación con ID: {}", id);
+
+        Simulation simulation = simulationService.getSimulation(id);
+        if (simulation == null) {
+            logger.warn("No se encontró la simulación con ID: {}", id);
+            return ResponseEntity.notFound().build();
+        }
+
+        simulationService.deleteSimulation(id);
+        logger.info("Simulación con ID: {} eliminada exitosamente", id);
+        return ResponseEntity.noContent().build();
+    }
+
 }

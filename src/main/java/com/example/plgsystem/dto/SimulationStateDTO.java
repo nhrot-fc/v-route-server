@@ -28,7 +28,7 @@ public class SimulationStateDTO {
     
     // Entidades principales
     private List<VehicleDTO> vehicles;
-    private DepotDTO mainDepot;
+    private DepotDTO mainDepot; 
     private List<DepotDTO> auxDepots;
     
     // Listas de entidades
