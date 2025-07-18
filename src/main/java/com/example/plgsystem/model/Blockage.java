@@ -44,7 +44,7 @@ public class Blockage implements Serializable {
 
     public static String serializePositions(List<Position> positions) {
         return positions.stream()
-                .map(pos -> pos.getX() + "," + pos.getY())
+                .map(pos -> (int) pos.getX() + "," + (int) pos.getY())
                 .collect(Collectors.joining(","));
     }
 

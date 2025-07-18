@@ -141,13 +141,7 @@ public class SimulationController {
     @GetMapping
     @Operation(summary = "List all simulations", description = "Returns a list of all active simulations")
     public ResponseEntity<Map<UUID, SimulationDTO>> listSimulations() {
-        logger.info("Listing all simulations");
         Map<UUID, Simulation> simulations = simulationService.getAllSimulations();
-        for (Simulation simulation : simulations.values()) {
-            logger.info("Simulation ID: {}, State: {}, Status: {}", simulation.getId(), simulation.getState(),
-                    simulation.getStatus());
-        }
-
         Map<UUID, SimulationDTO> simulationDTOList = simulations.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,

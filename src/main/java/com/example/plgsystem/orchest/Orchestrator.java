@@ -232,10 +232,23 @@ public class Orchestrator {
         Set<String> currentOrders = new HashSet<>();
         Set<String> currentBlockages = new HashSet<>();
 
+        for (Event event : eventQueue) {
+            if (event.getType() == EventType.ORDER_ARRIVAL) {
+                currentOrders.add(event.getEntityId());
+            }
+            if (event.getType() == EventType.BLOCKAGE_START) {
+                Blockage blockage = (Blockage) event.getData();
+                String blockageCustomId = String.format("%03d-%03d-%03d-%03d-%s-%s",
+                        (int) blockage.getLines().get(0).getX(), (int) blockage.getLines().get(0).getY(),
+                        (int) blockage.getLines().get(1).getX(), (int) blockage.getLines().get(1).getY(),
+                        blockage.getStartTime(), blockage.getEndTime());
+                currentBlockages.add(blockageCustomId);
+            }
+        }
+
         for (Order order : environment.getOrders()) {
             currentOrders.add(order.getId());
         }
-
         for (Blockage blockage : environment.getBlockages()) {
             String blockageCustomId = String.format("%03d-%03d-%03d-%03d-%s-%s",
                     (int) blockage.getLines().get(0).getX(), (int) blockage.getLines().get(0).getY(),
@@ -252,7 +265,7 @@ public class Orchestrator {
             if (event.getType() == EventType.ORDER_ARRIVAL) {
                 Order order = (Order) event.getData();
 
-                if (!currentOrders.contains(order.getId())) {
+                if (!currentOrders.contains(order.getId()) && event.getTime().isAfter(simulationTime)) {
                     filteredEvents.add(event);
                 }
             }
@@ -266,7 +279,8 @@ public class Orchestrator {
                         (int) blockage.getLines().get(0).getX(), (int) blockage.getLines().get(0).getY(),
                         (int) blockage.getLines().get(1).getX(), (int) blockage.getLines().get(1).getY(),
                         blockage.getStartTime(), blockage.getEndTime());
-                if (!currentBlockages.contains(blockageCustomId)) {
+
+                if (!currentBlockages.contains(blockageCustomId) && event.getTime().isAfter(simulationTime)) {
                     filteredEvents.add(event);
                 }
             }
