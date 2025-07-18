@@ -448,4 +448,10 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         logger.info("Limpiando recursos de simulación");
         FileUtils.cleanupTempFiles();
     }
+
+    public void deleteSimulation(UUID id) {
+    simulations.remove(id);
+    // Opcional: también podrías cancelar tareas, limpiar recursos, etc.
+}
+
 }
