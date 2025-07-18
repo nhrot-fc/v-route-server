@@ -153,4 +153,12 @@ public class Vehicle implements Serializable {
     public boolean isAvailable() {
         return this.status != VehicleStatus.MAINTENANCE && this.status != VehicleStatus.INCIDENT;
     }
+    
+    public Vehicle copy() {
+        Vehicle copy = new Vehicle(this.id, this.type, this.currentPosition);
+        copy.currentGlpM3 = this.currentGlpM3;
+        copy.currentFuelGal = this.currentFuelGal;
+        copy.status = this.status;
+        return copy;
+    }
 }

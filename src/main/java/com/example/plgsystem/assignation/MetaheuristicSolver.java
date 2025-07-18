@@ -1,13 +1,16 @@
 package com.example.plgsystem.assignation;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import com.example.plgsystem.model.Constants;
 import com.example.plgsystem.simulation.SimulationState;
 
 public class MetaheuristicSolver {
-    private static final Random random = new Random();
-
     /**
      * Represents a tabu move in the search space
      */
@@ -52,23 +55,7 @@ public class MetaheuristicSolver {
 
         for (int i = 0; i < numNeighbors; i++) {
             Map<String, List<DeliveryPart>> neighbor;
-            double rand = random.nextDouble();
-
-            // Apply different operations with different probabilities
-            if (rand < 0.2) {
-                neighbor = DistributionOperations.shuffleSegment(currentAssignment);
-            } else if (rand < 0.4) {
-                neighbor = DistributionOperations.moveDelivery(currentAssignment);
-            } else if (rand < 0.6) {
-                neighbor = DistributionOperations.swapDeliveries(currentAssignment);
-            } else if (rand < 0.8) {
-                neighbor = DistributionOperations.moveDeliveryBetweenVehicles(currentAssignment);
-            } else if (rand < 0.9) {
-                neighbor = DistributionOperations.randomOperationWithState(currentAssignment, state);
-            } else {
-                neighbor = DistributionOperations.swapVehicles(currentAssignment);
-            }
-
+            neighbor = DistributionOperations.randomOperationWithState(currentAssignment, state);
             neighbors.add(neighbor);
         }
 
@@ -152,6 +139,16 @@ public class MetaheuristicSolver {
     }
 
     /**
+     * Apply specific operations to periodically rebalance and optimize the solution
+     */
+    private static Map<String, List<DeliveryPart>> applyPeriodicRebalancing(
+            Map<String, List<DeliveryPart>> currentAssignment, SimulationState state) {
+        
+        // Use the more sophisticated strategic rebalancing
+        return DistributionOperations.performStrategicRebalancing(currentAssignment, state);
+    }
+
+    /**
      * Solves the vehicle routing problem using Tabu Search metaheuristic
      */
     public static Solution solve(SimulationState state) {
@@ -160,9 +157,38 @@ public class MetaheuristicSolver {
         Solution currentSolution = SolutionGenerator.generateSolution(state, currentAssignment);
         Solution bestSolution = currentSolution;
         List<TabuMove> tabuList = new ArrayList<>();
-
+        
+        // Configuration for periodic rebalancing
+        final int REBALANCE_INTERVAL = Constants.MAX_ITERATIONS / 5; // Apply rebalancing 5 times during the search
+        final int REBALANCE_PERIOD = 3; // Apply rebalancing for this many consecutive iterations
+        
         // 2. MAIN SEARCH LOOP
         for (int iteration = 0; iteration < Constants.MAX_ITERATIONS; iteration++) {
+            // Periodically apply rebalancing operations to escape local optima
+            boolean isRebalancingIteration = (iteration % REBALANCE_INTERVAL < REBALANCE_PERIOD);
+            
+            if (isRebalancingIteration) {
+                // Apply special operations to rebalance and escape local optima
+                currentAssignment = applyPeriodicRebalancing(currentAssignment, state);
+                currentSolution = SolutionGenerator.generateSolution(state, currentAssignment);
+                
+                // If this rebalanced solution is better than our best, update it
+                if (currentSolution != null && 
+                    currentSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
+                    bestSolution = currentSolution;
+                }
+                
+                // Clear part of the tabu list to allow exploring the new area
+                if (!tabuList.isEmpty()) {
+                    int removeCount = Math.max(1, tabuList.size() / 2);
+                    for (int i = 0; i < removeCount; i++) {
+                        if (!tabuList.isEmpty()) {
+                            tabuList.remove(0);
+                        }
+                    }
+                }
+            }
+            
             // a. Generate and evaluate the neighborhood of the current solution
             List<Map<String, List<DeliveryPart>>> neighbors = generateNeighbors(currentAssignment, state,
                     Constants.NUM_NEIGHBORS);
@@ -174,7 +200,7 @@ public class MetaheuristicSolver {
                 Solution neighborSolution = SolutionGenerator.generateSolution(state, neighbor);
 
                 // Skip invalid solutions
-                if (neighborSolution.getCost() == Double.POSITIVE_INFINITY) {
+                if (neighborSolution == null || neighborSolution.getCost().totalCost() == Double.POSITIVE_INFINITY) {
                     continue;
                 }
 
@@ -184,13 +210,14 @@ public class MetaheuristicSolver {
 
                 // Aspiration criterion: accept tabu move if it's better than the best solution
                 // so far
-                boolean isAspirated = neighborSolution.getCost() < bestSolution.getCost();
+                boolean isAspirated = neighborSolution.getCost().totalCost() < bestSolution.getCost().totalCost();
 
                 // Select the best permitted candidate
                 if (!isTabu || isAspirated) {
                     if (bestCandidate == null ||
                             (bestCandidateSolution != null
-                                    && neighborSolution.getCost() < bestCandidateSolution.getCost())) {
+                                    && neighborSolution.getCost().totalCost() < bestCandidateSolution.getCost()
+                                            .totalCost())) {
                         bestCandidate = neighbor;
                         bestCandidateSolution = neighborSolution;
                     }
@@ -208,7 +235,8 @@ public class MetaheuristicSolver {
                 tabuList.add(new TabuMove(moveId, Constants.TABU_TENURE));
 
                 // d. Update the best global solution
-                if (currentSolution != null && currentSolution.getCost() < bestSolution.getCost()) {
+                if (currentSolution != null
+                        && currentSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
                     bestSolution = currentSolution;
                 }
             }

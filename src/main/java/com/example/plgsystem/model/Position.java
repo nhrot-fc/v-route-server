@@ -13,12 +13,18 @@ import java.util.Objects;
 @AllArgsConstructor
 @Embeddable
 public class Position implements Serializable {
-    private int x;
-    private int y;
+    private double x;
+    private double y;
+
+    // Compatibility constructor
+    public Position(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
 
     @Override
     public String toString() {
-        return String.format("📍(%03d,%03d)", this.x, this.y);
+        return String.format("📍(%03.2f,%03.2f)", this.x, this.y);
     }
 
     public Position clone() {

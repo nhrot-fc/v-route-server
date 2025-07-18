@@ -46,4 +46,12 @@ public class Maintenance implements Serializable {
         LocalDate nextDate = this.realEnd.toLocalDate().plusMonths(2);
         return new Maintenance(this.vehicle, nextDate);
     }
+
+    public Maintenance copy() {
+        Maintenance copy = new Maintenance(this.vehicle, this.assignedDate);
+        copy.id = this.id;
+        copy.realStart = this.realStart;
+        copy.realEnd = this.realEnd;
+        return copy;
+    }
 }

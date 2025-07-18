@@ -12,7 +12,7 @@ import lombok.Getter;
 @Getter
 public class Solution {
     private final Map<String, Route> routes;
-    private final double cost;
+    private final SolutionCost cost;
 
     public Solution(Map<String, Route> routes, SimulationState state) {
         this.routes = routes;
@@ -45,16 +45,23 @@ public class Solution {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("💡 Solution { 💰 cost: %.2f }\n", cost));
-        
+        sb.append("💡 Solution\n");
+        sb.append("\t💰 Cost:");
+        sb.append(cost).append("\n");
+
         // Routes
         sb.append("🛣️ Routes: {\n");
         if (routes.isEmpty()) {
             sb.append("  Empty\n");
         } else {
             for (Map.Entry<String, Route> entry : routes.entrySet()) {
+                if (entry.getValue() == null) {
+                    sb.append(String.format("No route found for vehicle %s\n", entry.getKey()));
+                    continue;
+                }
+
                 sb.append(String.format("  🚚 %s:\n", entry.getKey()));
-                
+
                 // Indent each line of the route's toString
                 String[] routeLines = entry.getValue().toString().split("\n");
                 for (String line : routeLines) {
@@ -63,7 +70,7 @@ public class Solution {
             }
         }
         sb.append("}\n");
-        
+
         return sb.toString();
     }
 }

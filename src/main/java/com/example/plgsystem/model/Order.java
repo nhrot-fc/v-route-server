@@ -57,7 +57,7 @@ public class Order implements Serializable {
     public ServeRecord recordDelivery(int deliveredVolumeM3, Vehicle vehicle, LocalDateTime serveDate) {
         ServeRecord record = new ServeRecord(vehicle, this, Math.abs(deliveredVolumeM3), serveDate);
         serveRecords.add(record);
-        remainingGlpM3 = Math.max(0, remainingGlpM3 - deliveredVolumeM3);
+        remainingGlpM3 = Math.max(0, remainingGlpM3 - Math.abs(deliveredVolumeM3));
         return record;
     }
 
@@ -69,5 +69,12 @@ public class Order implements Serializable {
     @Transient
     public boolean isOverdue(LocalDateTime referenceDateTime) {
         return referenceDateTime.isAfter(deadlineTime);
+    }
+
+    public Order copy() {
+        Order copy = new Order(this.id, this.arrivalTime, this.deadlineTime, this.glpRequestM3, this.position);
+        copy.remainingGlpM3 = this.remainingGlpM3;
+        copy.serveRecords = new ArrayList<>(this.serveRecords);
+        return copy;
     }
 }

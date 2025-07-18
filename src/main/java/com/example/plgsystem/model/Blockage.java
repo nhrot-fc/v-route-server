@@ -89,16 +89,16 @@ public class Blockage implements Serializable {
 
             // Vertical segment (same X)
             if (p1.getX() == p2.getX() && p1.getX() == position.getX()) {
-                int minY = Math.min(p1.getY(), p2.getY());
-                int maxY = Math.max(p1.getY(), p2.getY());
+                double minY = Math.min(p1.getY(), p2.getY());
+                double maxY = Math.max(p1.getY(), p2.getY());
                 if (minY <= position.getY() && position.getY() <= maxY) {
                     return true;
                 }
             }
             // Horizontal segment (same Y)
             else if (p1.getY() == p2.getY() && p1.getY() == position.getY()) {
-                int minX = Math.min(p1.getX(), p2.getX());
-                int maxX = Math.max(p1.getX(), p2.getX());
+                double minX = Math.min(p1.getX(), p2.getX());
+                double maxX = Math.max(p1.getX(), p2.getX());
                 if (minX <= position.getX() && position.getX() <= maxX) {
                     return true;
                 }
@@ -118,5 +118,15 @@ public class Blockage implements Serializable {
         sb.append("}\n");
 
         return sb.toString();
+    }
+
+    public Blockage copy() {
+        Blockage copy = new Blockage();
+        copy.setId(this.id);
+        copy.setStartTime(this.startTime);
+        copy.setEndTime(this.endTime);
+        copy.setLinePoints(this.linePoints);
+        copy.setLines(new ArrayList<>(this.lines));
+        return copy;
     }
 }

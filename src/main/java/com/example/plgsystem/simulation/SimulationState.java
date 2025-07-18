@@ -120,50 +120,10 @@ public class SimulationState {
         maintenances.removeAll(completedMaintenances);
     }
 
-    /**
-     * Creates a lightweight snapshot of the current simulation state for planning purposes.
-     * Note: This is not a deep clone, it reuses most objects but creates new collections
-     * to avoid concurrent modification issues.
-     * 
-     * @return A new SimulationState object representing the current state
-     */
-    public SimulationState createSnapshot() {
-        SimulationState snapshot = new SimulationState(
-            new ArrayList<>(vehicles),  // Create new list but reuse the same Vehicle objects
-            mainDepot,                  // Reuse the same Depot object
-            new ArrayList<>(auxDepots), // Create new list but reuse the same Depot objects
-            currentTime                 // Copy the current time
-        );
-        
-        // Add current orders, blockages, incidents, maintenances
-        for (Order order : orders) {
-            snapshot.addOrder(order); // Reuse the same Order objects
-        }
-        
-        for (Blockage blockage : blockages) {
-            snapshot.addBlockage(blockage); // Reuse the same Blockage objects
-        }
-        
-        for (Incident incident : incidents) {
-            snapshot.addIncident(incident); // Reuse the same Incident objects
-        }
-        
-        for (Maintenance maintenance : maintenances) {
-            snapshot.addMaintenance(maintenance); // Reuse the same Maintenance objects
-        }
-        
-        // Copy vehicle plans
-        for (Map.Entry<String, VehiclePlan> entry : currentVehiclePlans.entrySet()) {
-            snapshot.currentVehiclePlans.put(entry.getKey(), entry.getValue());
-        }
-        
-        return snapshot;
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        String topDivider =    "══════════════════════════════════════════════════════════\n";
+        String topDivider = "══════════════════════════════════════════════════════════\n";
         String sectionDivider = "------------------------------------------------------\n";
 
         sb.append(topDivider);
@@ -174,7 +134,7 @@ public class SimulationState {
         // --- Infrastructure ---
         sb.append("🏢 INFRASTRUCTURE & FLEET 🚚\n");
         sb.append(sectionDivider);
-        
+
         sb.append("🏭 Main Depot:\n");
         sb.append("  └─ ").append(mainDepot.toString()).append("\n\n");
 
@@ -197,7 +157,7 @@ public class SimulationState {
         // --- Events and Dynamic Queues ---
         sb.append("📋 EVENTS & DYNAMIC QUEUES 🔄\n");
         sb.append(sectionDivider);
-        
+
         sb.append("📦 Pending Orders (").append(orders.size()).append("):\n");
         if (orders.isEmpty()) {
             sb.append("  └─ None\n");
@@ -228,8 +188,45 @@ public class SimulationState {
         } else {
             maintenances.forEach(maintenance -> sb.append("  └─ ").append(maintenance.toString()).append("\n"));
         }
-        
+
         sb.append(topDivider);
         return sb.toString();
+    }
+
+    /**
+     * Creates a lightweight snapshot of the current simulation state for planning
+     * purposes.
+     * Note: This is not a deep clone, it reuses most objects but creates new
+     * collections
+     * to avoid concurrent modification issues.
+     * 
+     * @return A new SimulationState object representing the current state
+     */
+    public SimulationState createSnapshot() {
+        List<Vehicle> vehicleCopies = new ArrayList<>();
+        for (Vehicle vehicle : vehicles) {
+            vehicleCopies.add(vehicle.copy());
+        }
+        List<Depot> auxDepotCopies = new ArrayList<>();
+        for (Depot depot : auxDepots) {
+            auxDepotCopies.add(depot.copy());
+        }
+        SimulationState copy = new SimulationState(vehicleCopies, mainDepot.copy(), auxDepotCopies, currentTime);
+        for (Order order : orders) {
+            copy.addOrder(order.copy()); // Reuse the same Order objects
+        }
+        for (Blockage blockage : blockages) {
+            copy.addBlockage(blockage.copy()); // Reuse the same Blockage objects
+        }
+        for (Incident incident : incidents) {
+            copy.addIncident(incident.copy()); // Reuse the same Incident objects
+        }
+        for (Maintenance maintenance : maintenances) {
+            copy.addMaintenance(maintenance.copy()); // Reuse the same Maintenance objects
+        }
+        for (Map.Entry<String, VehiclePlan> entry : currentVehiclePlans.entrySet()) {
+            copy.currentVehiclePlans.put(entry.getKey(), entry.getValue().copy());
+        }
+        return copy;
     }
 }

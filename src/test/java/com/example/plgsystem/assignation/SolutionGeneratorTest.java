@@ -109,4 +109,83 @@ class SolutionGeneratorTest {
             assertTrue(routes.isEmpty());
         }
     }
+    
+    @Test
+    void generateSolution_shouldReintegrateLostDeliveryParts() {
+        // Setup a scenario with one vehicle that can't complete its route
+        SimulationState state = createMockStateForReintegrationTest();
+        
+        // Create assignments with a vehicle that will fail route generation
+        Map<String, List<DeliveryPart>> testAssignments = new HashMap<>();
+        
+        // Vehicle 1 gets a normal delivery
+        List<DeliveryPart> v1Parts = new ArrayList<>();
+        v1Parts.add(new DeliveryPart("ORD-1", 5, state.getOrderById("ORD-1").getDeadlineTime()));
+        testAssignments.put("V-001", v1Parts);
+        
+        // Vehicle 2 gets a delivery that will cause route failure (not enough fuel)
+        List<DeliveryPart> v2Parts = new ArrayList<>();
+        v2Parts.add(new DeliveryPart("ORD-2", 10, state.getOrderById("ORD-2").getDeadlineTime()));
+        testAssignments.put("V-002", v2Parts);
+        
+        // Setup static mock for PathFinder if needed
+        try (MockedStatic<PathFinder> pathFinderMock = mockStatic(PathFinder.class, withSettings())) {
+            pathFinderMock.when(() -> PathFinder.findPath(any(), any(), any(), any())).thenReturn(mockPath);
+            
+            // Act
+            Solution solution = SolutionGenerator.generateSolution(state, testAssignments);
+            
+            // Assert
+            assertNotNull(solution, "Solution should not be null after reintegration");
+            
+            // Check that all orders are assigned in routes
+            boolean order1Found = false;
+            boolean order2Found = false;
+            
+            for (Route route : solution.getRoutes().values()) {
+                for (RouteStop stop : route.stops()) {
+                    if (stop.isOrderStop() && "ORD-1".equals(stop.getOrderId())) {
+                        order1Found = true;
+                    }
+                    if (stop.isOrderStop() && "ORD-2".equals(stop.getOrderId())) {
+                        order2Found = true;
+                    }
+                }
+            }
+            
+            assertTrue(order1Found, "Order 1 should be in routes");
+            assertTrue(order2Found, "Order 2 should be reintegrated into routes");
+        }
+    }
+    
+    private SimulationState createMockStateForReintegrationTest() {
+        // Create vehicles with different fuel states
+        Vehicle v1 = new Vehicle("V-001", VehicleType.TA, new Position(0, 0));
+        v1.setCurrentFuelGal(100); // Plenty of fuel
+        
+        Vehicle v2 = new Vehicle("V-002", VehicleType.TA, new Position(0, 0));
+        v2.setCurrentFuelGal(1);   // Almost no fuel
+        
+        List<Vehicle> vehicles = new ArrayList<>();
+        vehicles.add(v1);
+        vehicles.add(v2);
+        
+        // Create orders
+        Order order1 = new Order("ORD-1", LocalDateTime.now(), LocalDateTime.now().plusHours(2), 
+                5, new Position(10, 10));  // Close location
+        
+        Order order2 = new Order("ORD-2", LocalDateTime.now(), LocalDateTime.now().plusHours(3), 
+                10, new Position(500, 500)); // Far location requiring more fuel
+        
+        // Create depots
+        Depot mainDepot = new Depot("DEP-1", new Position(0, 0), 100, DepotType.MAIN);
+        List<Depot> auxDepots = new ArrayList<>();
+        
+        // Create simulation state
+        SimulationState state = new SimulationState(vehicles, mainDepot, auxDepots, LocalDateTime.now());
+        state.addOrder(order1);
+        state.addOrder(order2);
+        
+        return state;
+    }
 } 

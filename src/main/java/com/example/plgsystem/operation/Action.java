@@ -35,6 +35,8 @@ public class Action {
 
     @Setter
     private double currentProgress; // 0 to 1 for execution progress monitoring
+    @Setter
+    private boolean effectApplied; // True if the action has been applied to the environment
     
     @Override
     public String toString() {
@@ -86,5 +88,10 @@ public class Action {
             case WAIT: return "⏳";
             default: return "❓";
         }
+    }
+
+    public Action copy() {
+        return new Action(type, startTime, endTime, path, glpDelivered, glpLoaded,
+                fuelConsumedGal, fuelRefueledGal, orderId, depotId, currentProgress, effectApplied);
     }
 }

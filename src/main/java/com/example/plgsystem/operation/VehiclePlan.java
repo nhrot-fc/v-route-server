@@ -41,11 +41,11 @@ public class VehiclePlan {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("📝 VehiclePlan { 🚚 vehicleId: %s, 🕒 startTime: %s }\n", 
+        sb.append(String.format("📝 VehiclePlan { 🚚 vehicleId: %s, 🕒 startTime: %s }\n",
                 vehicleId, startTime.format(Constants.DATE_TIME_FORMATTER)));
         sb.append(String.format("🔄 Current Action: %d/%d\n", currentActionIndex + 1, actions.size()));
         sb.append("🗒️ Actions: [");
-        
+
         if (actions.isEmpty()) {
             sb.append(" Empty ]");
         } else {
@@ -56,7 +56,14 @@ public class VehiclePlan {
             }
             sb.append("\n]");
         }
-        
+
         return sb.toString();
+    }
+
+    public VehiclePlan copy() {
+        List<Action> copiedActions = actions.stream()
+                .map(Action::copy)
+                .toList();
+        return new VehiclePlan(vehicleId, copiedActions, startTime, currentActionIndex);
     }
 }

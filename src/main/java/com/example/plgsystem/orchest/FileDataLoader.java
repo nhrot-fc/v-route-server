@@ -109,8 +109,6 @@ public class FileDataLoader implements DataLoader {
                 }
 
                 logger.info("Creados {} eventos de bloqueos para la fecha {}", blockages.size() * 2, date);
-            } else {
-                logger.info("No hay bloqueos para la fecha: {}", date);
             }
         } catch (IOException e) {
             logger.error("Error al cargar bloqueos para la fecha {}: {}", date, e.getMessage());

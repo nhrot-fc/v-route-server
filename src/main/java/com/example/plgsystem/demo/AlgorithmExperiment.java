@@ -15,7 +15,6 @@ import com.example.plgsystem.assignation.MetaheuristicSolver;
 import com.example.plgsystem.assignation.Solution;
 import com.example.plgsystem.enums.DepotType;
 import com.example.plgsystem.enums.VehicleType;
-import com.example.plgsystem.model.Blockage;
 import com.example.plgsystem.model.Constants;
 import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.model.Order;
@@ -24,24 +23,23 @@ import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.simulation.SimulationState;
 
 /**
- * Experimento para evaluar el rendimiento del algoritmo de optimización
- * con diferentes cantidades de órdenes y bloqueos.
+ * Experimento simplificado para evaluar el rendimiento del algoritmo de
+ * optimización
+ * con diferentes cantidades de órdenes.
  */
 public class AlgorithmExperiment {
     // Parámetros para el experimento
-    private static final int[] ORDER_COUNTS = { 5, 10, 20, 30, 50, 75, 100 };
-    private static final int[] BLOCKAGE_COUNTS = { 10, 25, 50 };
-    private static final int REPETITIONS = 3;
+    private static final int[] ORDER_COUNTS = { 10, 25, 50, 100, 200 };
+    private static final int REPETITIONS = 2;
     private static final long RANDOM_SEED = 42L; // Seed fija para reproducibilidad
 
     // Formato para el archivo de resultados
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
     private static final String RESULTS_DIRECTORY = "experiment_results";
-    private static final String CSV_HEADER = "orders,blockages,iterations,execution_time_ms,solution_cost,run\n";
+    private static final String CSV_HEADER = "orders,execution_time_ms,solution_cost,run\n";
 
     public static void main(String[] args) {
         LocalDateTime startTime = LocalDateTime.of(2025, 1, 1, 0, 0);
-        LocalDateTime endTime = startTime.plusMonths(1);
 
         // Crear directorio para resultados si no existe
         try {
@@ -54,47 +52,48 @@ public class AlgorithmExperiment {
         String resultsFilePath = RESULTS_DIRECTORY + "/algorithm_results_" +
                 LocalDateTime.now().format(DATE_FORMATTER) + ".csv";
 
+        String solutionsFilePath = RESULTS_DIRECTORY + "/algorithm_solutions_" +
+                LocalDateTime.now().format(DATE_FORMATTER) + ".txt";
+
         System.out.println("Iniciando experimentos...");
         System.out.println("Los resultados se guardarán en: " + resultsFilePath);
+        System.out.println("Las soluciones se guardarán en: " + solutionsFilePath);
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(resultsFilePath))) {
+        try (BufferedWriter resultsWriter = new BufferedWriter(new FileWriter(resultsFilePath));
+                BufferedWriter solutionsWriter = new BufferedWriter(new FileWriter(solutionsFilePath))) {
+
             // Escribir encabezado del CSV
-            writer.write(CSV_HEADER);
+            resultsWriter.write(CSV_HEADER);
 
             // Ejecutar experimentos con diferentes configuraciones
             for (int orderCount : ORDER_COUNTS) {
-                for (int blockageCount : BLOCKAGE_COUNTS) {
-                    for (int run = 1; run <= REPETITIONS; run++) {
-                        System.out.printf("Ejecutando: Órdenes=%d, Bloqueos=%d, Repetición=%d\n",
-                                orderCount, blockageCount, run);
+                for (int run = 1; run <= REPETITIONS; run++) {
+                    System.out.printf("Ejecutando: Órdenes=%d, Repetición=%d\n", orderCount, run);
 
-                        try {
-                            ExperimentResult result = runExperiment(orderCount, blockageCount, startTime, endTime);
-                            if (result != null) {
-                                writer.write(String.format("%d,%d,%d,%d,%.2f,%d\n",
-                                        result.orders, 
-                                        result.blockages,
-                                        Constants.MAX_ITERATIONS,
-                                        result.executionTimeMs,
-                                        result.solutionCost,
-                                        run));
-                                writer.flush(); // Guardar después de cada ejecución
-                            }
-                        } catch (Exception e) {
-                            System.err.println("Error fatal en el experimento: " + e.getMessage());
-                            e.printStackTrace();
+                    try {
+                        ExperimentResult result = runExperiment(orderCount, startTime);
+                        if (result != null) {
+                            // Guardar resultados numéricos en CSV
+                            resultsWriter.write(String.format("%d,%d,%.2f,%d\n",
+                                    result.orders,
+                                    result.executionTimeMs,
+                                    result.solutionCost,
+                                    run));
+                            resultsWriter.flush();
 
-                            // Registrar el error en el CSV de forma simplificada
-                            String errorLine = String.format(
-                                    "%d,%d,%d,0,0.00,%d,ERROR: %s\n",
-                                    orderCount, blockageCount, Constants.MAX_ITERATIONS, 
-                                    run, e.getMessage().replace(',', ';'));
-                            writer.write(errorLine);
-                            writer.flush();
-
-                            // Continuar con el siguiente experimento en lugar de abortar todo
-                            System.out.println("Continuando con el siguiente experimento...");
+                            // Guardar la solución completa en archivo de texto
+                            solutionsWriter.write(String.format("===== EXPERIMENTO: %d ÓRDENES - REPETICIÓN %d =====\n",
+                                    orderCount, run));
+                            solutionsWriter.write(result.solutionDetails);
+                            solutionsWriter.write("\n\n");
+                            solutionsWriter.flush();
                         }
+                    } catch (Exception e) {
+                        System.err.println("Error en el experimento: " + e.getMessage());
+                        e.printStackTrace();
+                        resultsWriter.write(String.format("%d,0,0.00,%d,ERROR\n", orderCount, run));
+                        resultsWriter.flush();
+                        System.out.println("Continuando con el siguiente experimento...");
                     }
                 }
             }
@@ -104,31 +103,6 @@ public class AlgorithmExperiment {
         } catch (IOException e) {
             System.err.println("Error al escribir resultados: " + e.getMessage());
         }
-    }
-
-    private static ExperimentResult runExperiment(int maxOrders, int maxBlockages,
-            LocalDateTime startTime, LocalDateTime endTime) {
-        SimulationState simulationState = createSimulationState(startTime);
-        generateSyntheticData(simulationState, maxOrders, maxBlockages, startTime, endTime);
-        System.out.println("Ejecutando algoritmo con " + simulationState.getOrders().size() +
-                " órdenes y " + simulationState.getBlockages().size() + " bloqueos");
-
-        // Medir tiempo de ejecución
-        long startCrono = System.nanoTime();
-        Solution solution = MetaheuristicSolver.solve(simulationState);
-        long endCrono = System.nanoTime();
-
-        // Convertir a milisegundos para mayor legibilidad
-        long durationMs = (endCrono - startCrono) / 1_000_000;
-
-        System.out.println("Solución encontrada con costo: " + solution.getCost() +
-                " en " + durationMs + " ms");
-
-        return new ExperimentResult(
-                maxOrders,
-                maxBlockages,
-                durationMs,
-                solution.getCost());
     }
 
     private static SimulationState createSimulationState(LocalDateTime startTime) {
@@ -156,119 +130,53 @@ public class AlgorithmExperiment {
         return new SimulationState(vehicles, mainDepot, auxDepots, startTime);
     }
 
-    /**
-     * Genera datos sintéticos para pruebas cuando los archivos de datos reales no
-     * están disponibles
-     */
-    private static void generateSyntheticData(SimulationState simulationState, int maxOrders, int maxBlockages,
-            LocalDateTime startTime, LocalDateTime endTime) {
-
-        Random random = new Random(RANDOM_SEED); // Semilla fija para reproducibilidad
-        int cityX = Constants.CITY_X;
-        int cityY = Constants.CITY_Y;
-
-        // Limpiar datos anteriores
-        simulationState.getOrders().clear();
-        simulationState.getBlockages().clear();
-
-        // Generar órdenes sintéticas
-        for (int i = 0; i < maxOrders; i++) {
-            // Posición aleatoria en la ciudad
-            Position position = new Position(
-                    random.nextInt(cityX),
-                    random.nextInt(cityY));
-
-            // Tiempo de llegada aleatorio dentro del rango de simulación
-            long startSeconds = startTime.toEpochSecond(java.time.ZoneOffset.UTC);
-            long endSeconds = endTime.toEpochSecond(java.time.ZoneOffset.UTC);
-            long randomSeconds = startSeconds + random.nextInt((int) (endSeconds - startSeconds));
-
-            LocalDateTime arrivalTime = LocalDateTime.ofEpochSecond(
-                    randomSeconds, 0, java.time.ZoneOffset.UTC);
-
-            // Tiempo límite de entre 4 y 24 horas después
-            LocalDateTime deadlineTime = arrivalTime.plusHours(4 + random.nextInt(20));
-
-            // Cantidad de GLP entre 1 y 20 m³
-            int glpRequest = 1 + random.nextInt(20);
-
-            // Crear orden sintética
-            Order order = new Order(
-                    "SYNTH-" + i,
-                    arrivalTime,
-                    deadlineTime,
-                    glpRequest,
-                    position);
-
-            simulationState.addOrder(order);
+    private static List<Order> generateRandomOrders(int count, LocalDateTime startTime) {
+        Random random = new Random(RANDOM_SEED);
+        List<Order> orders = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            String orderId = "order_" + (i + 1);
+            int remainingGlpM3 = random.nextInt(50) + 1; // Entre 1 y 50 m³
+            int limitHours = random.nextInt(20) + 4; // Entre 4 y 24 horas
+            LocalDateTime deliveryTime = startTime.plusHours(limitHours);
+            Position position = new Position(random.nextInt(100), random.nextInt(100)); // Coordenadas aleatorias
+            orders.add(new Order(orderId, startTime, deliveryTime, remainingGlpM3, position));
         }
-
-        // Generar bloqueos sintéticos
-        for (int i = 0; i < maxBlockages; i++) {
-            // Posición aleatoria en la ciudad
-            Position position = new Position(
-                    random.nextInt(cityX),
-                    random.nextInt(cityY));
-
-            // Tiempo de inicio aleatorio dentro del rango de simulación
-            long startSeconds = startTime.toEpochSecond(java.time.ZoneOffset.UTC);
-            long endSeconds = endTime.toEpochSecond(java.time.ZoneOffset.UTC);
-            long randomStartSeconds = startSeconds + random.nextInt((int) (endSeconds - startSeconds));
-
-            LocalDateTime blockageStart = LocalDateTime.ofEpochSecond(
-                    randomStartSeconds, 0, java.time.ZoneOffset.UTC);
-
-            // Duración del bloqueo entre 1 y 12 horas
-            LocalDateTime blockageEnd = blockageStart.plusHours(1 + random.nextInt(12));
-            if (blockageEnd.isAfter(endTime)) {
-                blockageEnd = endTime;
-            }
-
-            // Crear línea de bloqueo con 2-4 puntos
-            int numPoints = 2 + random.nextInt(3);
-            List<Position> blockagePoints = new ArrayList<>();
-
-            // Primer punto
-            blockagePoints.add(position);
-
-            // Puntos adicionales en un radio de 3-10 km
-            for (int j = 1; j < numPoints; j++) {
-                int offsetX = random.nextInt(10) - 5; // -5 a 5
-                int offsetY = random.nextInt(10) - 5; // -5 a 5
-
-                int newX = Math.max(0, Math.min(cityX, position.getX() + offsetX));
-                int newY = Math.max(0, Math.min(cityY, position.getY() + offsetY));
-
-                blockagePoints.add(new Position(newX, newY));
-            }
-
-            // Crear bloqueo sintético
-            Blockage blockage = new Blockage(
-                    blockageStart,
-                    blockageEnd,
-                    blockagePoints);
-
-            simulationState.addBlockage(blockage);
-        }
-
-        System.out.println("Generados " + simulationState.getOrders().size() + " órdenes sintéticas");
-        System.out.println("Generados " + simulationState.getBlockages().size() + " bloqueos sintéticos");
+        return orders;
     }
 
-    /**
-     * Clase para almacenar los resultados de cada experimento
-     */
-    private static class ExperimentResult {
-        private final int orders;
-        private final int blockages;
-        private final long executionTimeMs;
-        private final double solutionCost;
+    private static ExperimentResult runExperiment(int orderCount, LocalDateTime startTime) {
+        // Generar pedidos aleatorios
+        List<Order> orders = generateRandomOrders(orderCount, startTime);
 
-        public ExperimentResult(int orders, int blockages, long executionTimeMs, double solutionCost) {
-            this.orders = orders;
-            this.blockages = blockages;
-            this.executionTimeMs = executionTimeMs;
-            this.solutionCost = solutionCost;
+        // Crear estado de simulación inicial
+        SimulationState state = createSimulationState(startTime);
+        for (Order order : orders) {
+            state.addOrder(order);
+        }
+
+        // Resolver el problema de asignación
+        long startExecution = System.currentTimeMillis();
+        Solution solution = MetaheuristicSolver.solve(state);
+        long endExecution = System.currentTimeMillis();
+        // Preparar detalles de la solución
+        String solutionDetails = solution.toString();
+
+        return new ExperimentResult(orderCount,
+                endExecution - startExecution,
+                solution.getCost().totalCost(),
+                solutionDetails);
+    }
+
+    private record ExperimentResult(
+            int orders,
+            long executionTimeMs,
+            double solutionCost,
+            String solutionDetails) {
+
+        @Override
+        public String toString() {
+            return String.format("Órdenes: %d, Tiempo: %d ms, Costo: %.2f, Detalles: %s",
+                    orders, executionTimeMs, solutionCost, solutionDetails);
         }
     }
 }

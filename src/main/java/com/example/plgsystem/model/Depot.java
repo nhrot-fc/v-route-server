@@ -62,4 +62,10 @@ public class Depot implements Serializable {
     public void refill() {
         currentGlpM3 = glpCapacityM3;
     }
+
+    public Depot copy() {
+        Depot copy = new Depot(this.id, this.position, this.glpCapacityM3, this.type);
+        copy.currentGlpM3 = this.currentGlpM3;
+        return copy;
+    }
 }

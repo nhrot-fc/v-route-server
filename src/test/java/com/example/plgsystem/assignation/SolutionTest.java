@@ -53,7 +53,7 @@ class SolutionTest {
 
         // Assert
         assertEquals(routes, solution.getRoutes());
-        assertTrue(solution.getCost() > 0);
+        assertTrue(solution.getCost().totalCost() > 0);
     }
 
     @Test

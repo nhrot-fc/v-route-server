@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import com.example.plgsystem.model.Order;
-import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.simulation.SimulationState;
 
@@ -28,7 +26,73 @@ public class DistributionOperations {
     }
 
     /**
-     * Internal operation: Shuffle a random segment of a vehicle's deliveries
+     * Reintegrates lost delivery parts into other vehicles.
+     * Use this when some delivery parts couldn't be assigned due to route constraints.
+     */
+    public static Map<String, List<DeliveryPart>> reintegrateDeliveryParts(
+            Map<String, List<DeliveryPart>> assignments, 
+            List<DeliveryPart> lostParts, 
+            SimulationState state) {
+        if (lostParts.isEmpty()) {
+            return assignments;
+        }
+
+        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
+        
+        // Sort lost parts by deadline (most urgent first)
+        lostParts.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
+        
+        // Get vehicles that have valid routes
+        List<String> viableVehicles = new ArrayList<>(result.keySet());
+        
+        if (viableVehicles.isEmpty()) {
+            return result; // No viable vehicles to assign to
+        }
+        
+        // For each lost part, try to assign it to a vehicle
+        for (DeliveryPart part : lostParts) {
+            // Select vehicle with weighting by capacity
+            List<Vehicle> vehicles = new ArrayList<>();
+            for (String vehicleId : viableVehicles) {
+                Vehicle vehicle = state.getVehicleById(vehicleId);
+                if (vehicle != null) {
+                    vehicles.add(vehicle);
+                }
+            }
+            
+            if (!vehicles.isEmpty()) {
+                Vehicle selectedVehicle = selectVehicleByCapacityWeight(vehicles);
+                result.get(selectedVehicle.getId()).add(part);
+            }
+        }
+        
+        return result;
+    }
+
+    /**
+     * Select a vehicle with bias towards those with larger capacity.
+     */
+    private static Vehicle selectVehicleByCapacityWeight(List<Vehicle> vehicles) {
+        if (vehicles.isEmpty()) {
+            throw new IllegalArgumentException("No vehicles available for selection");
+        }
+        int totalCapacity = 0;
+        for (Vehicle vehicle : vehicles) {
+            totalCapacity += vehicle.getGlpCapacityM3();
+        }
+        double randomValue = random.nextDouble() * totalCapacity;
+        double cumulativeWeight = 0;
+        for (Vehicle vehicle : vehicles) {
+            cumulativeWeight += vehicle.getGlpCapacityM3();
+            if (randomValue <= cumulativeWeight) {
+                return vehicle;
+            }
+        }
+        return vehicles.getLast();
+    }
+
+    /**
+     * Operation 1: Shuffle a random segment of a vehicle's deliveries
      */
     public static Map<String, List<DeliveryPart>> shuffleSegment(Map<String, List<DeliveryPart>> assignments) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
@@ -65,89 +129,134 @@ public class DistributionOperations {
     }
 
     /**
-     * Internal operation: Move a delivery from one position to another within the
-     * same vehicle
+     * Operation 2: Sort deliveries by deadline for a random vehicle
      */
-    public static Map<String, List<DeliveryPart>> moveDelivery(Map<String, List<DeliveryPart>> assignments) {
+    public static Map<String, List<DeliveryPart>> sortByDeadline(Map<String, List<DeliveryPart>> assignments) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
 
-        // Get vehicles with non-empty assignments
-        List<String> vehiclesWithAssignments = result.entrySet().stream()
-                .filter(e -> e.getValue().size() > 1) // Need at least 2 items to move
+        // Get vehicles with multiple deliveries
+        List<String> eligibleVehicles = result.entrySet().stream()
+                .filter(e -> e.getValue().size() > 1)
                 .map(Map.Entry::getKey)
                 .toList();
 
-        if (vehiclesWithAssignments.isEmpty()) {
-            return result; // No eligible vehicles
-        }
-
-        // Select random vehicle
-        String vehicleId = vehiclesWithAssignments.get(random.nextInt(vehiclesWithAssignments.size()));
-        List<DeliveryPart> deliveries = result.get(vehicleId);
-
-        // Select random source and target positions
-        int size = deliveries.size();
-        int sourcePos = random.nextInt(size);
-        int targetPos;
-        do {
-            targetPos = random.nextInt(size);
-        } while (targetPos == sourcePos);
-
-        // Move the delivery
-        DeliveryPart movedDelivery = deliveries.remove(sourcePos);
-        deliveries.add(targetPos, movedDelivery);
-
-        return result;
-    }
-
-    /**
-     * External operation: Swap one delivery between two vehicles
-     */
-    public static Map<String, List<DeliveryPart>> swapDeliveries(Map<String, List<DeliveryPart>> assignments) {
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Get vehicles with non-empty assignments
-        List<String> vehiclesWithAssignments = result.entrySet().stream()
-                .filter(e -> !e.getValue().isEmpty())
-                .map(Map.Entry::getKey)
-                .toList();
-
-        if (vehiclesWithAssignments.size() < 2) {
-            return result; // Need at least 2 vehicles
-        }
-
-        // Select two different random vehicles
-        int index1 = random.nextInt(vehiclesWithAssignments.size());
-        int index2;
-        do {
-            index2 = random.nextInt(vehiclesWithAssignments.size());
-        } while (index2 == index1);
-
-        String vehicleId1 = vehiclesWithAssignments.get(index1);
-        String vehicleId2 = vehiclesWithAssignments.get(index2);
-
-        List<DeliveryPart> deliveries1 = result.get(vehicleId1);
-        List<DeliveryPart> deliveries2 = result.get(vehicleId2);
-
-        // If either list is empty, return unchanged
-        if (deliveries1.isEmpty() || deliveries2.isEmpty()) {
+        if (eligibleVehicles.isEmpty()) {
             return result;
         }
 
-        // Select random delivery from each vehicle
-        int pos1 = random.nextInt(deliveries1.size());
-        int pos2 = random.nextInt(deliveries2.size());
-
-        // Swap the deliveries
-        DeliveryPart temp = deliveries1.get(pos1);
-        deliveries1.set(pos1, deliveries2.get(pos2));
-        deliveries2.set(pos2, temp);
+        // Option 1: Sort a single random vehicle
+        if (random.nextDouble() < 0.5) {
+            // Select random vehicle
+            String vehicleId = eligibleVehicles.get(random.nextInt(eligibleVehicles.size()));
+            List<DeliveryPart> deliveries = result.get(vehicleId);
+            
+            // Sort by deadline
+            deliveries.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
+        } 
+        // Option 2: Sort all vehicles
+        else {
+            for (String vehicleId : eligibleVehicles) {
+                List<DeliveryPart> deliveries = result.get(vehicleId);
+                deliveries.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
+            }
+        }
 
         return result;
     }
 
     /**
-     * External operation: Move a delivery from one vehicle to another
+     * Operation 3: Balance GLP distribution by vehicle capacity
+     */
+    public static Map<String, List<DeliveryPart>> balanceByCapacity(Map<String, List<DeliveryPart>> assignments,
+            SimulationState state) {
+        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
+
+        // Calculate total GLP and capacity for each vehicle
+        Map<String, Integer> glpPerVehicle = new HashMap<>();
+        Map<String, Integer> capacityPerVehicle = new HashMap<>();
+
+        for (String vehicleId : result.keySet()) {
+            Vehicle vehicle = state.getVehicleById(vehicleId);
+            if (vehicle == null)
+                continue;
+
+            int totalGlp = result.get(vehicleId).stream()
+                    .mapToInt(DeliveryPart::getGlpDeliverM3)
+                    .sum();
+
+            glpPerVehicle.put(vehicleId, totalGlp);
+            capacityPerVehicle.put(vehicleId, vehicle.getGlpCapacityM3());
+        }
+
+        // Find overloaded and underloaded vehicles based on capacity ratio
+        List<String> overloadedVehicles = new ArrayList<>();
+        List<String> underloadedVehicles = new ArrayList<>();
+
+        for (String vehicleId : result.keySet()) {
+            if (!capacityPerVehicle.containsKey(vehicleId))
+                continue;
+
+            int glp = glpPerVehicle.getOrDefault(vehicleId, 0);
+            int capacity = capacityPerVehicle.get(vehicleId);
+            double ratio = (double) glp / capacity;
+
+            // Define overloaded and underloaded based on ratio to average
+            if (ratio > 0.7 && !result.get(vehicleId).isEmpty()) {
+                overloadedVehicles.add(vehicleId);
+            } else if (ratio < 0.3) {
+                underloadedVehicles.add(vehicleId);
+            }
+        }
+
+        // Balance by moving deliveries from overloaded to underloaded
+        if (!overloadedVehicles.isEmpty() && !underloadedVehicles.isEmpty()) {
+            // Number of moves to make - more aggressive balancing
+            int movesToMake = 1 + random.nextInt(2); // 1-2 moves
+            
+            for (int move = 0; move < movesToMake; move++) {
+                // Re-evaluate after each move
+                if (overloadedVehicles.isEmpty() || underloadedVehicles.isEmpty()) {
+                    break;
+                }
+                
+                // Pick random overloaded and underloaded vehicles
+                String sourceVehicleId = overloadedVehicles.get(random.nextInt(overloadedVehicles.size()));
+                String targetVehicleId = underloadedVehicles.get(random.nextInt(underloadedVehicles.size()));
+
+                List<DeliveryPart> sourceDeliveries = result.get(sourceVehicleId);
+                List<DeliveryPart> targetDeliveries = result.get(targetVehicleId);
+
+                // Move a random delivery
+                if (!sourceDeliveries.isEmpty()) {
+                    int sourcePos = random.nextInt(sourceDeliveries.size());
+                    DeliveryPart deliveryToMove = sourceDeliveries.remove(sourcePos);
+                    targetDeliveries.add(deliveryToMove);
+                    
+                    // Update GLP counts
+                    int movedGlp = deliveryToMove.getGlpDeliverM3();
+                    glpPerVehicle.put(sourceVehicleId, glpPerVehicle.get(sourceVehicleId) - movedGlp);
+                    glpPerVehicle.put(targetVehicleId, glpPerVehicle.get(targetVehicleId) + movedGlp);
+                    
+                    // Re-evaluate vehicles
+                    double sourceRatio = (double) glpPerVehicle.get(sourceVehicleId) / capacityPerVehicle.get(sourceVehicleId);
+                    double targetRatio = (double) glpPerVehicle.get(targetVehicleId) / capacityPerVehicle.get(targetVehicleId);
+                    
+                    if (sourceRatio <= 0.7) {
+                        overloadedVehicles.remove(sourceVehicleId);
+                    }
+                    
+                    if (targetRatio >= 0.3) {
+                        underloadedVehicles.remove(targetVehicleId);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Operation 4: Move a delivery from one vehicle to another
      */
     public static Map<String, List<DeliveryPart>> moveDeliveryBetweenVehicles(
             Map<String, List<DeliveryPart>> assignments) {
@@ -194,7 +303,7 @@ public class DistributionOperations {
     }
 
     /**
-     * External operation: Swap all deliveries between two vehicles
+     * Operation 5: Swap all deliveries between two vehicles
      */
     public static Map<String, List<DeliveryPart>> swapVehicles(Map<String, List<DeliveryPart>> assignments) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
@@ -224,294 +333,151 @@ public class DistributionOperations {
     }
 
     /**
-     * Internal operation: Sort deliveries by deadline for a random vehicle
-     */
-    public static Map<String, List<DeliveryPart>> sortByDeadline(Map<String, List<DeliveryPart>> assignments) {
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Get vehicles with multiple deliveries
-        List<String> eligibleVehicles = result.entrySet().stream()
-                .filter(e -> e.getValue().size() > 1)
-                .map(Map.Entry::getKey)
-                .toList();
-
-        if (eligibleVehicles.isEmpty()) {
-            return result;
-        }
-
-        // Select random vehicle
-        String vehicleId = eligibleVehicles.get(random.nextInt(eligibleVehicles.size()));
-        List<DeliveryPart> deliveries = result.get(vehicleId);
-
-        // Sort by deadline
-        deliveries.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
-
-        return result;
-    }
-
-    /**
-     * Internal operation: Reverse the order of deliveries for a random vehicle
-     */
-    public static Map<String, List<DeliveryPart>> reverseDeliveries(Map<String, List<DeliveryPart>> assignments) {
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Get vehicles with multiple deliveries
-        List<String> eligibleVehicles = result.entrySet().stream()
-                .filter(e -> e.getValue().size() > 1)
-                .map(Map.Entry::getKey)
-                .toList();
-
-        if (eligibleVehicles.isEmpty()) {
-            return result;
-        }
-
-        // Select random vehicle
-        String vehicleId = eligibleVehicles.get(random.nextInt(eligibleVehicles.size()));
-        List<DeliveryPart> deliveries = result.get(vehicleId);
-
-        // Reverse order
-        Collections.reverse(deliveries);
-
-        return result;
-    }
-
-    /**
-     * External operation: Balance GLP distribution by vehicle capacity
-     */
-    public static Map<String, List<DeliveryPart>> balanceByCapacity(Map<String, List<DeliveryPart>> assignments,
-            SimulationState state) {
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Calculate total GLP and capacity for each vehicle
-        Map<String, Integer> glpPerVehicle = new HashMap<>();
-        Map<String, Integer> capacityPerVehicle = new HashMap<>();
-
-        for (String vehicleId : result.keySet()) {
-            Vehicle vehicle = state.getVehicleById(vehicleId);
-            if (vehicle == null)
-                continue;
-
-            int totalGlp = result.get(vehicleId).stream()
-                    .mapToInt(DeliveryPart::getGlpDeliverM3)
-                    .sum();
-
-            glpPerVehicle.put(vehicleId, totalGlp);
-            capacityPerVehicle.put(vehicleId, vehicle.getGlpCapacityM3());
-        }
-
-        // Find overloaded and underloaded vehicles based on capacity ratio
-        List<String> overloadedVehicles = new ArrayList<>();
-        List<String> underloadedVehicles = new ArrayList<>();
-
-        for (String vehicleId : result.keySet()) {
-            if (!capacityPerVehicle.containsKey(vehicleId))
-                continue;
-
-            int glp = glpPerVehicle.getOrDefault(vehicleId, 0);
-            int capacity = capacityPerVehicle.get(vehicleId);
-            double ratio = (double) glp / capacity;
-
-            // Define overloaded and underloaded based on ratio to average
-            if (ratio > 0.7 && !result.get(vehicleId).isEmpty()) {
-                overloadedVehicles.add(vehicleId);
-            } else if (ratio < 0.3) {
-                underloadedVehicles.add(vehicleId);
-            }
-        }
-
-        // Balance by moving deliveries from overloaded to underloaded
-        if (!overloadedVehicles.isEmpty() && !underloadedVehicles.isEmpty()) {
-            // Pick random overloaded and underloaded vehicles
-            String sourceVehicleId = overloadedVehicles.get(random.nextInt(overloadedVehicles.size()));
-            String targetVehicleId = underloadedVehicles.get(random.nextInt(underloadedVehicles.size()));
-
-            List<DeliveryPart> sourceDeliveries = result.get(sourceVehicleId);
-            List<DeliveryPart> targetDeliveries = result.get(targetVehicleId);
-
-            // Move a random delivery
-            if (!sourceDeliveries.isEmpty()) {
-                int sourcePos = random.nextInt(sourceDeliveries.size());
-                DeliveryPart deliveryToMove = sourceDeliveries.remove(sourcePos);
-                targetDeliveries.add(deliveryToMove);
-            }
-        }
-
-        return result;
-    }
-
-    /**
-     * External operation: Geographic clustering - move deliveries between vehicles
-     * based on proximity
-     */
-    public static Map<String, List<DeliveryPart>> geographicClustering(Map<String, List<DeliveryPart>> assignments,
-            SimulationState state) {
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Need at least 2 vehicles with deliveries
-        List<String> vehiclesWithDeliveries = result.entrySet().stream()
-                .filter(e -> !e.getValue().isEmpty())
-                .map(Map.Entry::getKey)
-                .toList();
-
-        if (vehiclesWithDeliveries.size() < 2) {
-            return result;
-        }
-
-        // Select two random vehicles
-        String vehicleId1 = vehiclesWithDeliveries.get(random.nextInt(vehiclesWithDeliveries.size()));
-        String vehicleId2;
-        do {
-            vehicleId2 = vehiclesWithDeliveries.get(random.nextInt(vehiclesWithDeliveries.size()));
-        } while (vehicleId2.equals(vehicleId1));
-
-        // Get positions of orders for both vehicles
-        Map<String, Position> orderPositions = new HashMap<>();
-        for (String orderId : result.get(vehicleId1).stream().map(DeliveryPart::getOrderId)
-                .toList()) {
-            Order order = state.getOrderById(orderId);
-            if (order != null) {
-                orderPositions.put(orderId, order.getPosition());
-            }
-        }
-        for (String orderId : result.get(vehicleId2).stream().map(DeliveryPart::getOrderId)
-                .toList()) {
-            Order order = state.getOrderById(orderId);
-            if (order != null) {
-                orderPositions.put(orderId, order.getPosition());
-            }
-        }
-
-        // Determine centers for both vehicles
-        Position center1 = calculateCenter(result.get(vehicleId1), orderPositions);
-        Position center2 = calculateCenter(result.get(vehicleId2), orderPositions);
-
-        if (center1 == null || center2 == null) {
-            return result;
-        }
-
-        // Find deliveries from vehicle1 closer to center2
-        List<DeliveryPart> deliveriesToMove1to2 = new ArrayList<>();
-        for (DeliveryPart delivery : result.get(vehicleId1)) {
-            Position pos = orderPositions.get(delivery.getOrderId());
-            if (pos != null) {
-                if (pos.distanceTo(center2) < pos.distanceTo(center1)) {
-                    deliveriesToMove1to2.add(delivery);
-                }
-            }
-        }
-
-        // Find deliveries from vehicle2 closer to center1
-        List<DeliveryPart> deliveriesToMove2to1 = new ArrayList<>();
-        for (DeliveryPart delivery : result.get(vehicleId2)) {
-            Position pos = orderPositions.get(delivery.getOrderId());
-            if (pos != null) {
-                if (pos.distanceTo(center1) < pos.distanceTo(center2)) {
-                    deliveriesToMove2to1.add(delivery);
-                }
-            }
-        }
-
-        // Move at most one delivery in each direction
-        if (!deliveriesToMove1to2.isEmpty()) {
-            DeliveryPart delivery = deliveriesToMove1to2.get(random.nextInt(deliveriesToMove1to2.size()));
-            result.get(vehicleId1).remove(delivery);
-            result.get(vehicleId2).add(delivery);
-        }
-
-        if (!deliveriesToMove2to1.isEmpty()) {
-            DeliveryPart delivery = deliveriesToMove2to1.get(random.nextInt(deliveriesToMove2to1.size()));
-            result.get(vehicleId2).remove(delivery);
-            result.get(vehicleId1).add(delivery);
-        }
-
-        return result;
-    }
-
-    /**
-     * External operation: Balance delivery count among vehicles
-     */
-    public static Map<String, List<DeliveryPart>> balanceDeliveryCount(Map<String, List<DeliveryPart>> assignments) {
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Find vehicle with most and least deliveries
-        String maxVehicleId = null;
-        String minVehicleId = null;
-        int maxCount = -1;
-        int minCount = Integer.MAX_VALUE;
-
-        for (Map.Entry<String, List<DeliveryPart>> entry : result.entrySet()) {
-            int count = entry.getValue().size();
-            if (count > maxCount) {
-                maxCount = count;
-                maxVehicleId = entry.getKey();
-            }
-            if (count < minCount) {
-                minCount = count;
-                minVehicleId = entry.getKey();
-            }
-        }
-
-        // If there's a significant imbalance, move a delivery
-        if (maxVehicleId != null && minVehicleId != null && !maxVehicleId.equals(minVehicleId)
-                && maxCount > minCount + 1) {
-            List<DeliveryPart> maxDeliveries = result.get(maxVehicleId);
-            List<DeliveryPart> minDeliveries = result.get(minVehicleId);
-
-            // Move a random delivery from max to min
-            int sourcePos = random.nextInt(maxDeliveries.size());
-            DeliveryPart deliveryToMove = maxDeliveries.remove(sourcePos);
-            minDeliveries.add(deliveryToMove);
-        }
-
-        return result;
-    }
-
-    /**
-     * Helper method to calculate the center position of a set of deliveries
-     */
-    private static Position calculateCenter(List<DeliveryPart> deliveries, Map<String, Position> positionMap) {
-        if (deliveries.isEmpty())
-            return null;
-
-        int totalX = 0;
-        int totalY = 0;
-        int count = 0;
-
-        for (DeliveryPart delivery : deliveries) {
-            Position pos = positionMap.get(delivery.getOrderId());
-            if (pos != null) {
-                totalX += pos.getX();
-                totalY += pos.getY();
-                count++;
-            }
-        }
-
-        if (count == 0)
-            return null;
-
-        return new Position(totalX / count, totalY / count);
-    }
-
-    /**
-     * Performs a random operation on the assignments, including operations that
-     * require state information
+     * Performs a random operation on the assignments, using only the simplified operations
      */
     public static Map<String, List<DeliveryPart>> randomOperationWithState(
             Map<String, List<DeliveryPart>> assignments, SimulationState state) {
-        int operationType = random.nextInt(10);
+        int operationType = random.nextInt(5);
 
         return switch (operationType) {
             case 0 -> shuffleSegment(assignments);
-            case 1 -> moveDelivery(assignments);
-            case 2 -> swapDeliveries(assignments);
+            case 1 -> sortByDeadline(assignments);
+            case 2 -> balanceByCapacity(assignments, state);
             case 3 -> moveDeliveryBetweenVehicles(assignments);
             case 4 -> swapVehicles(assignments);
-            case 5 -> sortByDeadline(assignments);
-            case 6 -> reverseDeliveries(assignments);
-            case 7 -> balanceByCapacity(assignments, state);
-            case 8 -> geographicClustering(assignments, state);
-            case 9 -> balanceDeliveryCount(assignments);
             default -> cloneAssignments(assignments);
         };
+    }
+    
+    /**
+     * Performs operations prioritizing balancing and deadline ordering.
+     * Used for periodic rebalancing to escape local optima.
+     */
+    public static Map<String, List<DeliveryPart>> performStrategicRebalancing(
+            Map<String, List<DeliveryPart>> assignments, SimulationState state) {
+        // First, sort all routes by deadline
+        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
+        
+        // Sort all vehicles' routes by deadline
+        for (List<DeliveryPart> deliveries : result.values()) {
+            if (deliveries.size() > 1) {
+                deliveries.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
+            }
+        }
+        
+        // Then perform thorough balancing - multiple moves to reach better balance
+        result = aggressiveBalancing(result, state);
+        
+        return result;
+    }
+    
+    /**
+     * Performs multiple balance operations to achieve a better global balance
+     */
+    private static Map<String, List<DeliveryPart>> aggressiveBalancing(
+            Map<String, List<DeliveryPart>> assignments, SimulationState state) {
+        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
+        
+        // Calculate initial capacities and loads
+        Map<String, Integer> glpPerVehicle = new HashMap<>();
+        Map<String, Integer> capacityPerVehicle = new HashMap<>();
+        
+        for (String vehicleId : result.keySet()) {
+            Vehicle vehicle = state.getVehicleById(vehicleId);
+            if (vehicle == null) continue;
+            
+            int totalGlp = result.get(vehicleId).stream()
+                    .mapToInt(DeliveryPart::getGlpDeliverM3)
+                    .sum();
+                    
+            glpPerVehicle.put(vehicleId, totalGlp);
+            capacityPerVehicle.put(vehicleId, vehicle.getGlpCapacityM3());
+        }
+        
+        // Calculate global load ratio
+        int totalGlp = glpPerVehicle.values().stream().mapToInt(Integer::intValue).sum();
+        int totalCapacity = capacityPerVehicle.values().stream().mapToInt(Integer::intValue).sum();
+        double globalRatio = (double) totalGlp / totalCapacity;
+        
+        // Perform multiple moves for better balance
+        int maxMoves = result.size() * 2; // Arbitrary number based on fleet size
+        int movesMade = 0;
+        
+        while (movesMade < maxMoves) {
+            // Find most overloaded and most underloaded vehicles
+            String mostOverloaded = null;
+            String mostUnderloaded = null;
+            double maxOverRatio = 0;
+            double minUnderRatio = Double.MAX_VALUE;
+            
+            for (String vehicleId : result.keySet()) {
+                if (!capacityPerVehicle.containsKey(vehicleId)) continue;
+                
+                int glp = glpPerVehicle.getOrDefault(vehicleId, 0);
+                int capacity = capacityPerVehicle.get(vehicleId);
+                double ratio = (double) glp / capacity;
+                
+                // Compare to global ratio
+                if (ratio > globalRatio * 1.2 && ratio > maxOverRatio && !result.get(vehicleId).isEmpty()) {
+                    maxOverRatio = ratio;
+                    mostOverloaded = vehicleId;
+                }
+                
+                if (ratio < globalRatio * 0.8 && ratio < minUnderRatio) {
+                    minUnderRatio = ratio;
+                    mostUnderloaded = vehicleId;
+                }
+            }
+            
+            // If can't find suitable vehicles, stop balancing
+            if (mostOverloaded == null || mostUnderloaded == null || mostOverloaded.equals(mostUnderloaded)) {
+                break;
+            }
+            
+            // Move a delivery from overloaded to underloaded
+            List<DeliveryPart> sourceDeliveries = result.get(mostOverloaded);
+            List<DeliveryPart> targetDeliveries = result.get(mostUnderloaded);
+            
+            // Sort by GLP amount and move largest one that fits
+            sourceDeliveries.sort(Comparator.comparing(DeliveryPart::getGlpDeliverM3).reversed());
+            
+            boolean moveMade = false;
+            for (int i = 0; i < sourceDeliveries.size(); i++) {
+                DeliveryPart part = sourceDeliveries.get(i);
+                int glpAmount = part.getGlpDeliverM3();
+                
+                // Check if this move would improve balance
+                double newSourceRatio = (double)(glpPerVehicle.get(mostOverloaded) - glpAmount) / 
+                        capacityPerVehicle.get(mostOverloaded);
+                double newTargetRatio = (double)(glpPerVehicle.get(mostUnderloaded) + glpAmount) / 
+                        capacityPerVehicle.get(mostUnderloaded);
+                
+                // If the move improves balance (gets both closer to global ratio)
+                if (Math.abs(newSourceRatio - globalRatio) < Math.abs(maxOverRatio - globalRatio) &&
+                    Math.abs(newTargetRatio - globalRatio) < Math.abs(minUnderRatio - globalRatio)) {
+                    
+                    // Remove from source
+                    sourceDeliveries.remove(i);
+                    // Add to target
+                    targetDeliveries.add(part);
+                    
+                    // Update GLP counts
+                    glpPerVehicle.put(mostOverloaded, glpPerVehicle.get(mostOverloaded) - glpAmount);
+                    glpPerVehicle.put(mostUnderloaded, glpPerVehicle.get(mostUnderloaded) + glpAmount);
+                    
+                    moveMade = true;
+                    break;
+                }
+            }
+            
+            // If no suitable move was found, stop balancing
+            if (!moveMade) {
+                break;
+            }
+            
+            movesMade++;
+        }
+        
+        return result;
     }
 }

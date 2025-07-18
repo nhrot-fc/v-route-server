@@ -40,8 +40,8 @@ public class PathFinder {
             closedSet.add(current.position);
 
             for (int[] dir : direcciones) {
-                int newX = current.position.getX() + dir[0];
-                int newY = current.position.getY() + dir[1];
+                double newX = current.position.getX() + dir[0];
+                double newY = current.position.getY() + dir[1];
 
                 if (newX < 0 || newX >= Constants.CITY_X ||
                         newY < 0 || newY >= Constants.CITY_Y) {

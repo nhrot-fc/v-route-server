@@ -67,4 +67,17 @@ public class Incident implements Serializable {
     public boolean isReturnToDepotRequired() {
         return type.getRepairHours() > 0;
     }
+
+    public void resolve() {
+        this.resolved = true;
+    }
+    
+    public Incident copy() {
+        Incident copy = new Incident(this.vehicle, this.type, this.occurrenceTime);
+        copy.setId(this.id);
+        copy.setShift(this.shift);
+        copy.setLocation(this.location);
+        copy.setResolved(this.resolved);
+        return copy;
+    }
 }

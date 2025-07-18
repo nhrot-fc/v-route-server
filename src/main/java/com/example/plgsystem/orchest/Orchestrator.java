@@ -7,6 +7,7 @@ import com.example.plgsystem.model.Depot;
 import com.example.plgsystem.model.Maintenance;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.operation.Action;
+import com.example.plgsystem.operation.ActionType;
 import com.example.plgsystem.operation.VehiclePlan;
 import com.example.plgsystem.simulation.SimulationState;
 import com.example.plgsystem.assignation.Route;
@@ -22,7 +23,7 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.UUID;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -45,7 +46,7 @@ public class Orchestrator {
     private Duration tickDuration;
     private LocalDateTime lastReplanningTime;
     private LocalDateTime lastEventsCheckTime;
-    private int eventsCheckFrequency; // How often to check for new events (in ticks)
+    private int eventsCheckFrequency;
     private int ticksSinceLastCheck;
 
     private boolean isReplanning;
@@ -66,8 +67,7 @@ public class Orchestrator {
 
         // Initialize event checking variables
         this.lastEventsCheckTime = simulationTime;
-        // Check for new events every 120 ticks (adjustable)
-        this.eventsCheckFrequency = 120;
+        this.eventsCheckFrequency = 20;
         this.ticksSinceLastCheck = 0;
 
         // Schedule the first NEW_DAY_BEGIN event
@@ -138,6 +138,7 @@ public class Orchestrator {
         ticksSinceLastCheck++;
         if (ticksSinceLastCheck >= eventsCheckFrequency) {
             checkAndLoadNewEvents();
+            ticksSinceLastCheck = 0;
         }
 
         executeVehiclePlans(nextTick);
@@ -227,84 +228,52 @@ public class Orchestrator {
     }
 
     private void checkAndLoadNewEvents() {
-        LocalDate today = simulationTime.toLocalDate();
-        logger.debug("Checking for new events for date: {}", today);
+        logger.info("Checking for new events from data loader");
+        Set<String> currentOrders = new HashSet<>();
+        Set<String> currentBlockages = new HashSet<>();
 
-        // Load all events for the current day
-        List<Event> todayOrdersEvents = dataLoader.loadOrdersForDate(today);
-        List<Event> todayBlockagesEvents = dataLoader.loadBlockagesForDate(today);
-
-        // Track stats
-        int newOrdersAdded = 0;
-        int newBlockagesAdded = 0;
-
-        // Create sets to track existing event IDs
-        Set<String> existingOrderIds = new HashSet<>();
-        Set<UUID> existingBlockageIds = new HashSet<>();
-
-        // Collect IDs from current orders and blockages in environment
         for (Order order : environment.getOrders()) {
-            existingOrderIds.add(order.getId());
-        }
-        for (Blockage blockage : environment.getBlockages()) {
-            existingBlockageIds.add(blockage.getId());
+            currentOrders.add(order.getId());
         }
 
-        // Process new orders, avoiding duplicates
-        for (Event event : todayOrdersEvents) {
-            if (event.getType() == EventType.ORDER_ARRIVAL && event.getData() != null) {
+        for (Blockage blockage : environment.getBlockages()) {
+            String blockageCustomId = String.format("%03d-%03d-%03d-%03d-%s-%s",
+                    (int) blockage.getLines().get(0).getX(), (int) blockage.getLines().get(0).getY(),
+                    (int) blockage.getLines().get(1).getX(), (int) blockage.getLines().get(1).getY(),
+                    blockage.getStartTime(), blockage.getEndTime());
+            currentBlockages.add(blockageCustomId);
+        }
+
+        List<Event> newOrderEvents = dataLoader.loadOrdersForDate(simulationTime.toLocalDate());
+        List<Event> newBlockageEvents = dataLoader.loadBlockagesForDate(simulationTime.toLocalDate());
+
+        List<Event> filteredEvents = new ArrayList<>();
+        for (Event event : newOrderEvents) {
+            if (event.getType() == EventType.ORDER_ARRIVAL) {
                 Order order = (Order) event.getData();
 
-                // Skip if this order already exists or if it's scheduled for a time we've
-                // already passed
-                if (!existingOrderIds.contains(order.getId()) && !event.getTime().isBefore(simulationTime)) {
-                    eventQueue.add(event);
-                    newOrdersAdded++;
+                if (!currentOrders.contains(order.getId())) {
+                    filteredEvents.add(event);
                 }
             }
         }
 
-        // Process new blockages, avoiding duplicates and adding to environment if
-        // already active
-        for (Event event : todayBlockagesEvents) {
-            if (event.getType() == EventType.BLOCKAGE_START && event.getData() != null) {
+        for (Event event : newBlockageEvents) {
+            if (event.getType() == EventType.BLOCKAGE_START) {
                 Blockage blockage = (Blockage) event.getData();
 
-                // Skip if this blockage already exists
-                if (!existingBlockageIds.contains(blockage.getId())) {
-                    // If the blockage start time is in the past but it's still active, add it
-                    // directly to the environment
-                    if (event.getTime().isBefore(simulationTime) && !blockage.getEndTime().isBefore(simulationTime)) {
-                        environment.addBlockage(blockage);
-                        newBlockagesAdded++;
-                    }
-                    // Otherwise, if it starts in the future, add it to the event queue
-                    else if (!event.getTime().isBefore(simulationTime)) {
-                        eventQueue.add(event);
-                        newBlockagesAdded++;
-                    }
-                }
-            } else if (event.getType() == EventType.BLOCKAGE_END) {
-                // Add end events that are still in the future
-                if (!event.getTime().isBefore(simulationTime)) {
-                    eventQueue.add(event);
+                String blockageCustomId = String.format("%03d-%03d-%03d-%03d-%s-%s",
+                        (int) blockage.getLines().get(0).getX(), (int) blockage.getLines().get(0).getY(),
+                        (int) blockage.getLines().get(1).getX(), (int) blockage.getLines().get(1).getY(),
+                        blockage.getStartTime(), blockage.getEndTime());
+                if (!currentBlockages.contains(blockageCustomId)) {
+                    filteredEvents.add(event);
                 }
             }
         }
 
-        if (newOrdersAdded > 0 || newBlockagesAdded > 0) {
-            logger.info("Added {} new orders and {} new blockages for date {}",
-                    newOrdersAdded, newBlockagesAdded, today);
-
-            // Trigger replanning if we found new events
-            if (newOrdersAdded > 0 || newBlockagesAdded > 0) {
-                needsReplanning = true;
-            }
-        }
-
-        // Update last check time
+        addEvents(filteredEvents);
         lastEventsCheckTime = simulationTime;
-        ticksSinceLastCheck = 0;
     }
 
     private void processEvent(Event event) {
@@ -407,9 +376,6 @@ public class Orchestrator {
                         LocalTime.of(0, 0));
                 addEvent(new Event(EventType.NEW_DAY_BEGIN, nextDay, null, null));
                 logger.info("Scheduled next NEW_DAY_BEGIN event for " + nextDay);
-
-                // Force an immediate check for new events to load the day's initial data
-                checkAndLoadNewEvents();
                 break;
 
             default:
@@ -441,48 +407,41 @@ public class Orchestrator {
     }
 
     private void executeAction(Action action, Vehicle vehicle, SimulationState environment, LocalDateTime nextTick) {
-        // Skip if action is already completed
         if (action.getCurrentProgress() >= 1.0) {
             return;
         }
 
-        // Store the previous progress for effect calculations
         double previousProgress = action.getCurrentProgress();
-
-        // Calculate how much of the action should be executed based on time passed
         LocalDateTime actionStart = action.getStartTime();
         LocalDateTime actionEnd = action.getEndTime();
-        long totalDurationSeconds = Duration.between(actionStart, actionEnd).toSeconds();
 
-        // If total duration is zero, mark as complete and return
+        // Apply immediate effects if this is the first time we're processing this
+        // action
+        if (previousProgress == 0.0 && !action.isEffectApplied()) {
+            applyImmediateEffects(action, vehicle, environment);
+        }
+
+        // Calculate progress based on time
+        long totalDurationSeconds = Duration.between(actionStart, actionEnd).toSeconds();
         if (totalDurationSeconds <= 0) {
             action.setCurrentProgress(1.0);
-            applyActionEffects(action, vehicle, environment, 1.0, previousProgress);
+            completeAction(action, vehicle, environment);
             return;
         }
 
-        // Calculate elapsed time since action start, capped at action end time
         LocalDateTime effectiveTime = nextTick.isBefore(actionEnd) ? nextTick : actionEnd;
         long elapsedSeconds = Duration.between(actionStart, effectiveTime).toSeconds();
-
-        // Calculate new progress percentage
         double progress = Math.min(1.0, (double) elapsedSeconds / totalDurationSeconds);
-
-        // Update the action's progress
         action.setCurrentProgress(progress);
 
-        // Apply action effects based on type and progress
-        applyActionEffects(action, vehicle, environment, progress, previousProgress);
+        // Apply gradual effects (only for DRIVE action)
+        if (action.getType() == ActionType.DRIVE) {
+            applyGradualEffects(action, vehicle, environment, progress, previousProgress);
+        }
 
-        // System.out.println("Executed action " + action.getType() + " progress: " +
-        // progress +
-        // " [Vehicle: " + vehicle.getId() +
-        // ", Position: " + vehicle.getCurrentPosition() +
-        // ", Fuel: " + vehicle.getCurrentFuelGal() +
-        // ", GLP: " + vehicle.getCurrentGlpM3() + "]");
-
-        // If action is now complete (progress = 1.0), advance to next action in plan
+        // If action is complete, move to next action
         if (progress >= 1.0) {
+            completeAction(action, vehicle, environment);
             VehiclePlan plan = environment.getCurrentVehiclePlans().get(vehicle.getId());
             if (plan != null) {
                 plan.advanceAction();
@@ -490,66 +449,52 @@ public class Orchestrator {
         }
     }
 
-    private void applyActionEffects(Action action, Vehicle vehicle, SimulationState environment, double progress,
-            double previousProgress) {
-        // Apply partial effects based on progress if not completed previously
-        if (previousProgress >= progress) {
-            return; // No additional effects to apply
-        }
-
-        double effectMultiplier = progress - previousProgress;
-
-        // Apply effects based on action type
+    private void applyImmediateEffects(Action action, Vehicle vehicle, SimulationState environment) {
         switch (action.getType()) {
-            case DRIVE:
-                // Update vehicle position based on path
-                updateVehiclePosition(vehicle, action, progress);
-
-                // Apply fuel consumption
-                double fuelToConsume = action.getFuelConsumedGal() * effectMultiplier;
-                vehicle.consumeFuel(fuelToConsume);
-                break;
-
             case REFUEL:
                 vehicle.refuel();
-                logger.info("Vehicle {} refueled to capacity", vehicle.getId());
+                logger.info("Vehicle {} refueled to capacity from depot {}", vehicle.getId(), action.getDepotId());
+                action.setEffectApplied(true);
                 break;
 
             case RELOAD:
-                // Only apply GLP loading at completion
                 vehicle.refill(action.getGlpLoaded());
-                logger.info("Vehicle {} loaded {} m³ of GLP", vehicle.getId(), action.getGlpLoaded());
+                logger.info("Vehicle {} loaded {} m³ of GLP from depot {}", vehicle.getId(), action.getGlpLoaded(),
+                        action.getDepotId());
 
-                // Update depot GLP levels if this is a depot reload
+                // Update depot GLP levels
                 Depot depot = environment.getDepotById(action.getDepotId());
                 if (depot != null) {
                     depot.serve(action.getGlpLoaded());
                 }
+                action.setEffectApplied(true);
                 break;
 
             case SERVE:
-                // Only apply GLP delivery at completion
                 vehicle.dispense(action.getGlpDelivered());
-                logger.info("Vehicle {} delivered {} m³ of GLP", vehicle.getId(), action.getGlpDelivered());
+                logger.info("Vehicle {} delivered {} m³ of GLP to order {}", vehicle.getId(), action.getGlpDelivered(),
+                        action.getOrderId());
 
-                // Find and update order status if needed
+                // Find and update order status
                 Order order = environment.getOrderById(action.getOrderId());
-                if (order != null && !order.isDelivered()) {
-                    order.recordDelivery(action.getGlpDelivered(), vehicle, action.getEndTime());
+                if (order != null) {
+                    order.recordDelivery(action.getGlpDelivered(), vehicle, action.getStartTime());
                 }
-
+                action.setEffectApplied(true);
                 break;
 
             case MAINTENANCE:
-                // Vehicle is already in maintenance status, no additional effects
-                // but we update the position
+            case WAIT:
+                // Update position immediately for MAINTENANCE and WAIT actions
                 if (action.getPath() != null && !action.getPath().isEmpty()) {
                     vehicle.setCurrentPosition(action.getPath().get(0));
                 }
+                action.setEffectApplied(true);
                 break;
 
-            case WAIT:
-                // No effects besides keeping the vehicle in place
+            case DRIVE:
+                // DRIVE has gradual effects, no immediate effects to apply here
+                // Just update the initial position
                 if (action.getPath() != null && !action.getPath().isEmpty()) {
                     vehicle.setCurrentPosition(action.getPath().get(0));
                 }
@@ -558,6 +503,43 @@ public class Orchestrator {
             default:
                 logger.warn("Unknown action type: {}", action.getType());
                 break;
+        }
+    }
+
+    private void applyGradualEffects(Action action, Vehicle vehicle, SimulationState environment,
+            double currentProgress, double previousProgress) {
+        if (previousProgress >= currentProgress) {
+            return; // No additional effects to apply
+        }
+
+        double effectMultiplier = currentProgress - previousProgress;
+
+        switch (action.getType()) {
+            case DRIVE:
+                // Update vehicle position based on path
+                updateVehiclePosition(vehicle, action, currentProgress);
+
+                // Apply fuel consumption proportional to progress
+                double fuelToConsume = action.getFuelConsumedGal() * effectMultiplier;
+                vehicle.consumeFuel(fuelToConsume);
+                break;
+
+            default:
+                // Other action types don't have gradual effects
+                break;
+        }
+    }
+
+    private void completeAction(Action action, Vehicle vehicle, SimulationState environment) {
+        // Ensure final position is set correctly for all action types
+        if (action.getPath() != null && !action.getPath().isEmpty()) {
+            vehicle.setCurrentPosition(action.getPath().get(action.getPath().size() - 1));
+        }
+
+        // For DRIVE, ensure full fuel consumption is applied
+        if (action.getType() == ActionType.DRIVE && !action.isEffectApplied()) {
+            vehicle.consumeFuel(action.getFuelConsumedGal());
+            action.setEffectApplied(true);
         }
     }
 
@@ -584,8 +566,8 @@ public class Orchestrator {
             Position start = path.get(segmentIndex);
             Position end = path.get(segmentIndex + 1);
 
-            int newX = (int) Math.round(start.getX() + segmentProgress * (end.getX() - start.getX()));
-            int newY = (int) Math.round(start.getY() + segmentProgress * (end.getY() - start.getY()));
+            double newX = start.getX() + segmentProgress * (end.getX() - start.getX());
+            double newY = start.getY() + segmentProgress * (end.getY() - start.getY());
 
             vehicle.setCurrentPosition(new Position(newX, newY));
         }
@@ -598,7 +580,7 @@ public class Orchestrator {
      * for refueling and refilling.
      */
     private void createReturnToDepotPlansForIdleVehicles() {
-        logger.info("Checking for available vehicles without plans...");
+        // logger.info("Checking for available vehicles without plans...");
         int plansCreated = 0;
 
         for (Vehicle vehicle : environment.getVehicles()) {

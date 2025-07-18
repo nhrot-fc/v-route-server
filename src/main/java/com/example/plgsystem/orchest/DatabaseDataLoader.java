@@ -59,8 +59,6 @@ public class DatabaseDataLoader implements DataLoader {
             }
 
             logger.info("Creados {} eventos de órdenes para la fecha {}", orders.size(), date);
-        } else {
-            logger.info("No hay órdenes en la base de datos para la fecha: {}", date);
         }
 
         return events;
@@ -103,8 +101,6 @@ public class DatabaseDataLoader implements DataLoader {
             }
 
             logger.info("Creados {} eventos de bloqueos para la fecha {}", blockages.size() * 2, date);
-        } else {
-            logger.info("No hay bloqueos en la base de datos para la fecha: {}", date);
         }
 
         return events;
