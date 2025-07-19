@@ -20,7 +20,7 @@ public class SimulationTest {
     @Test
     public void testSimulationCreation() {
         // Given
-        SimulationState state = createSampleSimulationState();
+        SimulationState state = createSampleSimulationState(LocalDateTime.now());
 
         // When
         Simulation simulation = new Simulation(state, SimulationType.CUSTOM, new FileDataLoader());
@@ -35,7 +35,7 @@ public class SimulationTest {
     @Test
     public void testSimulationWithSpecifiedType() {
         // Given
-        SimulationState state = createSampleSimulationState();
+        SimulationState state = createSampleSimulationState(LocalDateTime.now());
 
         // When
         Simulation simulation = new Simulation(state, SimulationType.DAILY_OPERATIONS,
@@ -48,7 +48,7 @@ public class SimulationTest {
     @Test
     public void testSimulationStatusManagement() {
         // Given
-        SimulationState state = createSampleSimulationState();
+        SimulationState state = createSampleSimulationState(LocalDateTime.now());
         Simulation simulation = new Simulation(state, SimulationType.CUSTOM, new FileDataLoader());
 
         // When & Then - Test start
@@ -76,7 +76,7 @@ public class SimulationTest {
     @Test
     public void testDailyOperationSimulation() {
         // Given
-        SimulationState state = createSampleSimulationState();
+        SimulationState state = createSampleSimulationState(LocalDateTime.now());
         Simulation simulation = new Simulation(state, SimulationType.DAILY_OPERATIONS,
                 new DatabaseDataLoader(null, null));
 
@@ -111,10 +111,6 @@ public class SimulationTest {
         assertEquals(state.getVehicles(), simulation.getState().getVehicles());
         assertEquals(state.getMainDepot(), simulation.getState().getMainDepot());
         assertEquals(state.getAuxDepots(), simulation.getState().getAuxDepots());
-    }
-
-    private SimulationState createSampleSimulationState() {
-        return createSampleSimulationState(LocalDateTime.now());
     }
 
     private SimulationState createSampleSimulationState(LocalDateTime time) {

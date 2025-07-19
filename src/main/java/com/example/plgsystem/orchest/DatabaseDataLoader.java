@@ -4,8 +4,6 @@ import com.example.plgsystem.model.Blockage;
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.repository.BlockageRepository;
 import com.example.plgsystem.repository.OrderRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -15,19 +13,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Implementación de DataLoader que carga datos desde la base de datos.
+ * Implementation of DataLoader that loads data from the database.
  */
 public class DatabaseDataLoader implements DataLoader {
-    private static final Logger logger = LoggerFactory.getLogger(DatabaseDataLoader.class);
 
     private final OrderRepository orderRepository;
     private final BlockageRepository blockageRepository;
 
     /**
-     * Constructor para DatabaseDataLoader
+     * Constructor for DatabaseDataLoader
      * 
-     * @param orderRepository    Repositorio para órdenes
-     * @param blockageRepository Repositorio para bloqueos
+     * @param orderRepository    Repository for orders
+     * @param blockageRepository Repository for blockages
      */
     public DatabaseDataLoader(
             OrderRepository orderRepository,
@@ -39,26 +36,20 @@ public class DatabaseDataLoader implements DataLoader {
     @Override
     @Transactional(readOnly = true)
     public List<Event> loadOrdersForDate(LocalDate date) {
-        logger.info("Cargando órdenes desde la base de datos para la fecha: {}", date);
-
-        // Establecer el rango de tiempo para el día
+        // Set the time range for the day
         LocalDateTime startOfDay = LocalDateTime.of(date, LocalTime.MIN);
         LocalDateTime endOfDay = LocalDateTime.of(date, LocalTime.MAX);
 
-        // Buscar órdenes que lleguen en la fecha especificada
+        // Find orders that arrive on the specified date
         List<Order> orders = orderRepository.findByArrivalTimeBetween(startOfDay, endOfDay);
         List<Event> events = new ArrayList<>();
 
         if (!orders.isEmpty()) {
-            logger.info("Encontradas {} órdenes para la fecha {}", orders.size(), date);
-
-            // Crear eventos para cada orden
+            // Create events for each order
             for (Order order : orders) {
                 Event event = new Event(EventType.ORDER_ARRIVAL, order.getArrivalTime(), order.getId(), order);
                 events.add(event);
             }
-
-            logger.info("Creados {} eventos de órdenes para la fecha {}", orders.size(), date);
         }
 
         return events;
@@ -67,29 +58,25 @@ public class DatabaseDataLoader implements DataLoader {
     @Override
     @Transactional(readOnly = true)
     public List<Event> loadBlockagesForDate(LocalDate date) {
-        logger.info("Cargando bloqueos desde la base de datos para la fecha: {}", date);
-
-        // Establecer el rango de tiempo para el día
+        // Set the time range for the day
         LocalDateTime startOfDay = LocalDateTime.of(date, LocalTime.MIN);
         LocalDateTime endOfDay = LocalDateTime.of(date, LocalTime.MAX);
 
-        // Buscar bloqueos activos en la fecha especificada
+        // Find active blockages on the specified date
         List<Blockage> blockages = blockageRepository.findActiveBlockagesForPeriod(startOfDay, endOfDay);
         List<Event> events = new ArrayList<>();
 
         if (!blockages.isEmpty()) {
-            logger.info("Encontrados {} bloqueos para la fecha {}", blockages.size(), date);
-
-            // Crear eventos para cada bloqueo
+            // Create events for each blockage
             for (Blockage blockage : blockages) {
-                // Evento de inicio del bloqueo
+                // Start event for the blockage
                 Event startEvent = new Event(
                         EventType.BLOCKAGE_START,
                         blockage.getStartTime(),
                         blockage.getId().toString(),
                         blockage);
 
-                // Evento de fin del bloqueo
+                // End event for the blockage
                 Event endEvent = new Event(
                         EventType.BLOCKAGE_END,
                         blockage.getEndTime(),
@@ -99,8 +86,6 @@ public class DatabaseDataLoader implements DataLoader {
                 events.add(startEvent);
                 events.add(endEvent);
             }
-
-            logger.info("Creados {} eventos de bloqueos para la fecha {}", blockages.size() * 2, date);
         }
 
         return events;

@@ -83,7 +83,6 @@ public class SimulationControllerTest {
         when(simulationService.startSimulation(any(UUID.class))).thenReturn(testSimulation);
         when(simulationService.pauseSimulation(any(UUID.class))).thenReturn(testSimulation);
         when(simulationService.finishSimulation(any(UUID.class))).thenReturn(testSimulation);
-        doNothing().when(simulationService).replanSimulation(any(Simulation.class));
         try {
             doNothing().when(simulationService).loadOrders(any(Simulation.class), anyInt(), anyInt(), any());
             doNothing().when(simulationService).loadBlockages(any(Simulation.class), anyInt(), anyInt(), any());
@@ -167,16 +166,6 @@ public class SimulationControllerTest {
         mockMvc.perform(post("/api/simulation/{id}/stop", simulationId))
                 .andExpect(status().isOk());
         verify(simulationService).finishSimulation(simulationId);
-    }
-
-    @Test
-    public void testReplanSimulation() throws Exception {
-        // Test replan simulation
-        mockMvc.perform(post("/api/simulation/{id}/replan", simulationId))
-                .andExpect(status().isOk());
-
-        verify(simulationService).getSimulation(simulationId);
-        verify(simulationService).replanSimulation(testSimulation);
     }
 
     @Test

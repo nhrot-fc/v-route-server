@@ -1,7 +1,6 @@
 package com.example.plgsystem.simulation;
 
 import java.time.LocalDateTime;
-import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import lombok.Getter;
@@ -26,24 +25,22 @@ public class Simulation {
 
     public Simulation(SimulationState state, SimulationType type, DataLoader dataLoader) {
         this.id = UUID.randomUUID();
-        Duration tickDuration = type.isDailyOperation() ? Duration.ofSeconds(1) : Duration.ofMinutes(1);
-        int minutesForReplan = type.isDailyOperation() ? 30 : 75;
-        this.orchestrator = new Orchestrator(state, tickDuration, minutesForReplan, dataLoader);
+        this.orchestrator = new Orchestrator(state, dataLoader, type.isDailyOperation());
         this.status = SimulationStatus.PAUSED;
         this.creationTime = LocalDateTime.now();
         this.type = type;
     }
 
     public SimulationState getState() {
-        return orchestrator.getEnvironment();
+        return orchestrator.getState();
     }
 
     public LocalDateTime getSimulationTime() {
-        return orchestrator.getSimulationTime();
+        return orchestrator.getState().getCurrentTime();
     }
 
     public Map<String, VehiclePlan> getCurrentVehiclePlans() {
-        return orchestrator.getEnvironment().getCurrentVehiclePlans();
+        return orchestrator.getState().getCurrentVehiclePlans();
     }
 
     public void advanceTick() {
@@ -96,13 +93,5 @@ public class Simulation {
 
     public boolean isError() {
         return status.equals(SimulationStatus.ERROR);
-    }
-    
-    /**
-     * Checks if the simulation is currently replanning.
-     * @return true if the simulation is in the middle of a replanning operation
-     */
-    public boolean isReplanning() {
-        return orchestrator.isReplanning();
     }
 }

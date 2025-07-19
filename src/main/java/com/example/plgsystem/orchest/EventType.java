@@ -24,7 +24,4 @@ public enum EventType {
     
     /** New day has begun */
     NEW_DAY_BEGIN,
-    
-    /** The simulation has reached its end time */
-    SIMULATION_END
 }

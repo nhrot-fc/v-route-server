@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  */
 @AllArgsConstructor
 @Getter
-@ToString
+@ToString(exclude = "data")
 public class Event implements Comparable<Event> {
     private final EventType type;
     private final LocalDateTime time;

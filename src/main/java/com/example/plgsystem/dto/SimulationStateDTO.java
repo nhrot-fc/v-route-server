@@ -25,52 +25,53 @@ public class SimulationStateDTO {
     private String simulationId;
     private LocalDateTime currentTime;
     private SimulationStatus status;
-    
+
     // Entidades principales
     private List<VehicleDTO> vehicles;
-    private DepotDTO mainDepot; 
+    private DepotDTO mainDepot;
     private List<DepotDTO> auxDepots;
-    
+
     // Listas de entidades
     private List<OrderDTO> pendingOrders;
     private List<Blockage> activeBlockages;
     private List<IncidentDTO> activeIncidents;
     private List<MaintenanceDTO> scheduledMaintenances;
     private List<VehiclePlanDTO> currentVehiclePlans;
-    
+
     // Estadísticas
     private int pendingOrdersCount;
     private int deliveredOrdersCount;
     private int overdueOrdersCount;
     private int availableVehiclesCount;
-    
+
     /**
      * Convierte un estado de simulación a DTO
+     * 
      * @param simulationId ID de la simulación
-     * @param state Estado de la simulación
-     * @param status Estado actual de ejecución
+     * @param state        Estado de la simulación
+     * @param status       Estado actual de ejecución
      * @return DTO con el estado de la simulación
      */
     public static SimulationStateDTO fromSimulationState(
-            String simulationId, 
-            SimulationState state, 
+            String simulationId,
+            SimulationState state,
             SimulationStatus status) {
-        
+
         // Filtrar pedidos pendientes
         List<Order> pendingOrders = state.getOrders().stream()
-                .filter(order -> !order.isDelivered())
+                .filter(order -> !order.isDelivered() && !order.isOverdue(state.getCurrentTime()))
                 .toList();
-        
+
         // Filtrar órdenes con entrega vencida
         List<Order> overdueOrders = state.getOrders().stream()
-                .filter(order -> order.isOverdue(state.getCurrentTime()))
+                .filter(order -> order.isOverdue(state.getCurrentTime()) && !order.isDelivered())
                 .toList();
-        
+
         // Filtrar bloqueos activos
         List<Blockage> activeBlockages = state.getBlockages().stream()
                 .filter(blockage -> blockage.isActiveAt(state.getCurrentTime()))
                 .collect(Collectors.toList());
-        
+
         return SimulationStateDTO.builder()
                 .simulationId(simulationId)
                 .currentTime(state.getCurrentTime())
@@ -101,14 +102,14 @@ public class SimulationStateDTO {
                         .collect(Collectors.toList()))
                 // Establecer contadores
                 .pendingOrdersCount(pendingOrders.size())
-                .deliveredOrdersCount((int)state.getOrders().stream()
+                .deliveredOrdersCount((int) state.getOrders().stream()
                         .filter(Order::isDelivered).count())
                 .overdueOrdersCount(overdueOrders.size())
-                .availableVehiclesCount((int)state.getVehicles().stream()
+                .availableVehiclesCount((int) state.getVehicles().stream()
                         .filter(v -> v.getStatus() == VehicleStatus.AVAILABLE).count())
                 .currentVehiclePlans(state.getCurrentVehiclePlans().values().stream()
                         .map(VehiclePlanDTO::fromEntity)
                         .collect(Collectors.toList()))
                 .build();
     }
-} 
+}

@@ -207,19 +207,6 @@ public class SimulationController {
         return ResponseEntity.ok(new SimulationDTO(simulation));
     }
 
-    @PostMapping("/{id}/replan")
-    public ResponseEntity<SimulationDTO> replanSimulation(@PathVariable UUID id) {
-        logger.info("Replanning simulation with ID: {}", id);
-        Simulation simulation = simulationService.getSimulation(id);
-        if (simulation == null) {
-            logger.warn("Cannot replan: Simulation with ID {} not found", id);
-            return ResponseEntity.notFound().build();
-        }
-        simulationService.replanSimulation(simulation);
-        logger.info("Simulation with ID: {} successfully replanned", id);
-        return ResponseEntity.ok(new SimulationDTO(simulation));
-    }
-
     @PostMapping(value = "/{id}/load-orders", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cargar órdenes para una simulación", description = "Carga un archivo de órdenes para un año y mes específico en una simulación")
     public ResponseEntity<String> loadOrders(

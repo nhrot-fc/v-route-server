@@ -2,6 +2,8 @@ package com.example.plgsystem.simulation;
 
 import com.example.plgsystem.model.*;
 import com.example.plgsystem.model.Constants;
+import com.example.plgsystem.operation.Action;
+import com.example.plgsystem.operation.ActionType;
 import com.example.plgsystem.operation.VehiclePlan;
 
 import lombok.Getter;
@@ -80,27 +82,49 @@ public class SimulationState {
         maintenances.add(maintenance);
     }
 
+    public void addVehiclePlan(String vehicleId, VehiclePlan plan) {
+        currentVehiclePlans.put(vehicleId, plan);
+    }
+
+    public VehiclePlan getVehiclePlan(String vehicleId) {
+        return currentVehiclePlans.get(vehicleId);
+    }
+
+    public void removeVehiclePlan(String vehicleId) {
+        currentVehiclePlans.remove(vehicleId);
+    }
+
+    public void refillDepots() {
+        for (Depot depot : auxDepots) {
+            if (depot != null) {
+                depot.refill();
+            }
+        }
+        if (mainDepot != null) {
+            mainDepot.refill();
+        }
+    }
+
     public void advanceTime(Duration duration) {
-        currentTime = currentTime.plus(duration);
-        processStateChanges();
+        LocalDateTime nextTime = currentTime.plus(duration);
+        processStateChanges(nextTime);
+        executeVehiclePlans(currentTime, nextTime);
+        currentTime = nextTime;
     }
 
     public boolean isPositionBlockedAt(Position position, LocalDateTime time) {
         return blockages.stream().filter(b -> b.isActiveAt(time)).anyMatch(b -> b.isPositionBlocked(position));
     }
 
-    /**
-     * Updates internal state based on current time
-     */
-    private void processStateChanges() {
+    private void processStateChanges(LocalDateTime nextTime) {
         // Clean past orders, incidents, blockages, maintenances
         orders.removeIf(Order::isDelivered);
-        blockages.removeIf(blockage -> blockage.getEndTime().isBefore(currentTime));
+        blockages.removeIf(blockage -> blockage.getEndTime().isBefore(nextTime));
 
         // Process incidents
         List<Incident> resolvedIncidents = new ArrayList<>();
         incidents.forEach(incident -> {
-            if (incident.getAvailabilityTime().isBefore(currentTime)) {
+            if (incident.getAvailabilityTime().isBefore(nextTime)) {
                 incident.setResolved(true);
                 incident.getVehicle().setAvailable();
                 resolvedIncidents.add(incident);
@@ -112,12 +136,191 @@ public class SimulationState {
         List<Maintenance> completedMaintenances = new ArrayList<>();
         maintenances.forEach(maintenance -> {
             if (maintenance.getRealEnd() != null &&
-                    maintenance.getRealEnd().isBefore(currentTime)) {
+                    maintenance.getRealEnd().isBefore(nextTime)) {
                 maintenance.getVehicle().setAvailable();
                 completedMaintenances.add(maintenance);
             }
         });
         maintenances.removeAll(completedMaintenances);
+    }
+
+    private void executeVehiclePlans(LocalDateTime prevTime, LocalDateTime nextTime) {
+        if (currentVehiclePlans == null || currentVehiclePlans.isEmpty()) {
+            return;
+        }
+
+        for (Map.Entry<String, VehiclePlan> entry : currentVehiclePlans.entrySet()) {
+            String vehicleId = entry.getKey();
+            VehiclePlan plan = entry.getValue();
+            Vehicle vehicle = getVehicleById(vehicleId);
+
+            if (vehicle == null) {
+                continue; // Skip if vehicle not found
+            }
+
+            Action currentAction = plan.getCurrentAction();
+            if (currentAction == null) {
+                continue; // No more actions to execute
+            }
+
+            // If action hasn't started yet
+            if (currentAction.getStartTime().isAfter(nextTime)) {
+                continue; // Not time to execute this action yet
+            }
+
+            executeAction(currentAction, vehicle, prevTime, nextTime);
+
+            // If action is complete after execution, advance to next action
+            if (currentAction.getCurrentProgress() >= 1.0) {
+                plan.advanceAction();
+            }
+        }
+    }
+
+    private void executeAction(Action action, Vehicle vehicle, LocalDateTime prevTime, LocalDateTime nextTime) {
+        double previousProgress = action.getCurrentProgress();
+
+        // Apply immediate effects if this is the first time we're processing this
+        // action
+        if (previousProgress == 0.0 && !action.isEffectApplied() &&
+                action.getStartTime().equals(prevTime) || action.getStartTime().isBefore(prevTime)) {
+            applyImmediateEffects(action, vehicle);
+        }
+
+        // Calculate progress based on time
+        long totalDurationMillis = Duration.between(action.getStartTime(), action.getEndTime()).toMillis();
+        if (totalDurationMillis <= 0) {
+            action.setCurrentProgress(1.0);
+            completeAction(action, vehicle);
+            return;
+        }
+
+        LocalDateTime effectiveTime = nextTime.isBefore(action.getEndTime()) ? nextTime : action.getEndTime();
+        long elapsedMillis = Duration.between(action.getStartTime(), effectiveTime).toMillis();
+        double progress = Math.min(1.0, (double) elapsedMillis / totalDurationMillis);
+        action.setCurrentProgress(progress);
+
+        // Apply gradual effects
+        if (action.getType() == ActionType.DRIVE) {
+            applyGradualEffects(action, vehicle, progress, previousProgress);
+        }
+
+        // If action is complete
+        if (progress >= 1.0) {
+            completeAction(action, vehicle);
+        }
+    }
+
+    private void applyImmediateEffects(Action action, Vehicle vehicle) {
+        switch (action.getType()) {
+            case REFUEL:
+                vehicle.refuel();
+                vehicle.setRefueling();
+                break;
+
+            case RELOAD:
+                Depot loadingDepot = getDepotById(action.getDepotId());
+                if (loadingDepot != null) {
+                    int glpToLoad = action.getGlpLoaded();
+                    loadingDepot.serve(glpToLoad);
+                    vehicle.refill(glpToLoad);
+                }
+                vehicle.setReloading();
+                break;
+
+            case SERVE:
+                Order order = getOrderById(action.getOrderId());
+                if (order != null && !order.isDelivered()) {
+                    int glpToDeliver = action.getGlpDelivered();
+                    vehicle.serveOrder(order, glpToDeliver, action.getStartTime());
+                }
+                vehicle.setServing();
+                break;
+
+            case MAINTENANCE:
+                vehicle.setMaintenance();
+                break;
+
+            case WAIT:
+                vehicle.setIdle();
+                break;
+
+            case DRIVE:
+                // For DRIVE, we set the initial position
+                if (action.getPath() != null && !action.getPath().isEmpty()) {
+                    vehicle.setCurrentPosition(action.getPath().get(0));
+                }
+                vehicle.setDriving();
+                break;
+        }
+    }
+
+    private void applyGradualEffects(Action action, Vehicle vehicle, double currentProgress, double previousProgress) {
+        if (previousProgress >= currentProgress) {
+            return; // No additional effects to apply
+        }
+
+        double effectMultiplier = currentProgress - previousProgress;
+
+        if (action.getType() == ActionType.DRIVE) {
+            // Update vehicle position
+            updateVehiclePosition(vehicle, action, currentProgress);
+
+            // Apply proportional fuel consumption
+            double fuelToConsume = action.getFuelConsumedGal() * effectMultiplier;
+            vehicle.consumeFuel(fuelToConsume);
+        }
+    }
+
+    private void completeAction(Action action, Vehicle vehicle) {
+        // Ensure final position is set correctly
+        if (action.getPath() != null && !action.getPath().isEmpty()) {
+            vehicle.setCurrentPosition(action.getPath().get(action.getPath().size() - 1));
+        }
+
+        // Apply any final effects
+        if (action.getType() == ActionType.DRIVE && !action.isEffectApplied()) {
+            vehicle.consumeFuel(action.getFuelConsumedGal());
+            action.setEffectApplied(true);
+        }
+
+        // Mark action as complete
+        action.setCurrentProgress(1.0);
+        action.setEffectApplied(true);
+
+        // Set vehicle to available after completing an action
+        vehicle.setAvailable();
+    }
+
+    private void updateVehiclePosition(Vehicle vehicle, Action action, double progress) {
+        List<Position> path = action.getPath();
+        if (path == null || path.isEmpty()) {
+            return;
+        }
+
+        if (path.size() == 1) {
+            vehicle.setCurrentPosition(path.get(0));
+            return;
+        }
+
+        if (progress <= 0) {
+            vehicle.setCurrentPosition(path.get(0));
+        } else if (progress >= 1.0) {
+            vehicle.setCurrentPosition(path.get(path.size() - 1));
+        } else {
+            // Improved position interpolation for smoother movement
+            double segmentLength = 1.0 / (path.size() - 1);
+            int segmentIndex = (int) Math.min(path.size() - 2, Math.floor(progress / segmentLength));
+            double segmentProgress = (progress - segmentIndex * segmentLength) / segmentLength;
+
+            Position start = path.get(segmentIndex);
+            Position end = path.get(segmentIndex + 1);
+
+            double newX = start.getX() + segmentProgress * (end.getX() - start.getX());
+            double newY = start.getY() + segmentProgress * (end.getY() - start.getY());
+
+            vehicle.setCurrentPosition(new Position(newX, newY));
+        }
     }
 
     @Override
@@ -225,7 +428,7 @@ public class SimulationState {
             copy.addMaintenance(maintenance.copy()); // Reuse the same Maintenance objects
         }
         for (Map.Entry<String, VehiclePlan> entry : currentVehiclePlans.entrySet()) {
-            copy.currentVehiclePlans.put(entry.getKey(), entry.getValue().copy());
+            copy.addVehiclePlan(entry.getKey(), entry.getValue().copy());
         }
         return copy;
     }
