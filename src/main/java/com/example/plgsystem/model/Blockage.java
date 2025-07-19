@@ -127,7 +127,16 @@ public class Blockage implements Serializable {
         copy.setStartTime(this.startTime);
         copy.setEndTime(this.endTime);
         copy.setLinePoints(this.linePoints);
-        copy.setLines(new ArrayList<>(this.lines));
+        
+        // Create deep copy of positions
+        if (this.lines != null) {
+            List<Position> linesCopy = new ArrayList<>(this.lines.size());
+            for (Position pos : this.lines) {
+                linesCopy.add(pos != null ? pos.clone() : null);
+            }
+            copy.setLines(linesCopy);
+        }
+        
         return copy;
     }
 }

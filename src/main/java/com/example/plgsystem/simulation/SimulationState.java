@@ -399,37 +399,75 @@ public class SimulationState {
     /**
      * Creates a lightweight snapshot of the current simulation state for planning
      * purposes.
-     * Note: This is not a deep clone, it reuses most objects but creates new
-     * collections
-     * to avoid concurrent modification issues.
+     * Esta implementación crea copias profundas de todos los objetos para asegurar
+     * que no existan referencias compartidas entre el estado original y la copia.
      * 
      * @return A new SimulationState object representing the current state
      */
     public SimulationState createSnapshot() {
-        List<Vehicle> vehicleCopies = new ArrayList<>();
+        // Crear copias profundas de todos los vehículos
+        List<Vehicle> vehicleCopies = new ArrayList<>(vehicles.size());
+        Map<String, Vehicle> vehicleMap = new HashMap<>(); // Para mantener relación entre ID y copia
+
         for (Vehicle vehicle : vehicles) {
-            vehicleCopies.add(vehicle.copy());
+            Vehicle vehicleCopy = vehicle.copy();
+            vehicleCopies.add(vehicleCopy);
+            vehicleMap.put(vehicle.getId(), vehicleCopy);
         }
-        List<Depot> auxDepotCopies = new ArrayList<>();
+
+        // Crear copias de los depósitos
+        Depot mainDepotCopy = mainDepot.copy();
+        List<Depot> auxDepotCopies = new ArrayList<>(auxDepots.size());
         for (Depot depot : auxDepots) {
             auxDepotCopies.add(depot.copy());
         }
-        SimulationState copy = new SimulationState(vehicleCopies, mainDepot.copy(), auxDepotCopies, currentTime);
+
+        // Crear el nuevo estado de simulación
+        SimulationState copy = new SimulationState(vehicleCopies, mainDepotCopy, auxDepotCopies, currentTime);
+
+        // Copiar órdenes
         for (Order order : orders) {
-            copy.addOrder(order.copy()); // Reuse the same Order objects
+            copy.addOrder(order.copy());
         }
+
+        // Copiar bloqueos
         for (Blockage blockage : blockages) {
-            copy.addBlockage(blockage.copy()); // Reuse the same Blockage objects
+            copy.addBlockage(blockage.copy());
         }
+
+        // Copiar incidentes (manteniendo relación con vehículos copiados)
         for (Incident incident : incidents) {
-            copy.addIncident(incident.copy()); // Reuse the same Incident objects
+            Incident incidentCopy = incident.copy();
+            // Reemplazar la referencia al vehículo con su copia
+            Vehicle originalVehicle = incident.getVehicle();
+            if (originalVehicle != null) {
+                Vehicle copiedVehicle = vehicleMap.get(originalVehicle.getId());
+                if (copiedVehicle != null) {
+                    incidentCopy.setVehicle(copiedVehicle);
+                }
+            }
+            copy.addIncident(incidentCopy);
         }
+
+        // Copiar mantenimientos (manteniendo relación con vehículos copiados)
         for (Maintenance maintenance : maintenances) {
-            copy.addMaintenance(maintenance.copy()); // Reuse the same Maintenance objects
+            Maintenance maintenanceCopy = maintenance.copy();
+            // Reemplazar la referencia al vehículo con su copia
+            Vehicle originalVehicle = maintenance.getVehicle();
+            if (originalVehicle != null) {
+                Vehicle copiedVehicle = vehicleMap.get(originalVehicle.getId());
+                if (copiedVehicle != null) {
+                    maintenanceCopy.setVehicle(copiedVehicle);
+                }
+            }
+            copy.addMaintenance(maintenanceCopy);
         }
+
+        // Copiar planes de vehículos
         for (Map.Entry<String, VehiclePlan> entry : currentVehiclePlans.entrySet()) {
             copy.addVehiclePlan(entry.getKey(), entry.getValue().copy());
         }
+
         return copy;
     }
 }

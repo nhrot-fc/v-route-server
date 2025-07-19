@@ -11,6 +11,23 @@ import com.example.plgsystem.model.Constants;
 import com.example.plgsystem.simulation.SimulationState;
 
 public class MetaheuristicSolver {
+    // Parámetros configurables para el algoritmo
+    private static int maxIterations = Constants.MAX_ITERATIONS;
+    private static int tabuTenure = Constants.TABU_TENURE;
+    private static int numNeighbors = Constants.NUM_NEIGHBORS;
+    
+    /**
+     * Configura los parámetros del algoritmo de búsqueda tabú
+     * @param maxIterations Número máximo de iteraciones
+     * @param tabuTenure Duración de permanencia en la lista tabú
+     * @param numNeighbors Número de vecinos a generar en cada iteración
+     */
+    public static void configure(int maxIterations, int tabuTenure, int numNeighbors) {
+        MetaheuristicSolver.maxIterations = maxIterations;
+        MetaheuristicSolver.tabuTenure = tabuTenure;
+        MetaheuristicSolver.numNeighbors = numNeighbors;
+    }
+    
     /**
      * Represents a tabu move in the search space
      */
@@ -159,11 +176,11 @@ public class MetaheuristicSolver {
         List<TabuMove> tabuList = new ArrayList<>();
         
         // Configuration for periodic rebalancing
-        final int REBALANCE_INTERVAL = Constants.MAX_ITERATIONS / 5; // Apply rebalancing 5 times during the search
+        final int REBALANCE_INTERVAL = maxIterations / 5; // Apply rebalancing 5 times during the search
         final int REBALANCE_PERIOD = 3; // Apply rebalancing for this many consecutive iterations
         
         // 2. MAIN SEARCH LOOP
-        for (int iteration = 0; iteration < Constants.MAX_ITERATIONS; iteration++) {
+        for (int iteration = 0; iteration < maxIterations; iteration++) {
             // Periodically apply rebalancing operations to escape local optima
             boolean isRebalancingIteration = (iteration % REBALANCE_INTERVAL < REBALANCE_PERIOD);
             
@@ -191,7 +208,7 @@ public class MetaheuristicSolver {
             
             // a. Generate and evaluate the neighborhood of the current solution
             List<Map<String, List<DeliveryPart>>> neighbors = generateNeighbors(currentAssignment, state,
-                    Constants.NUM_NEIGHBORS);
+                    numNeighbors);
             Map<String, List<DeliveryPart>> bestCandidate = null;
             Solution bestCandidateSolution = null;
 
@@ -232,7 +249,7 @@ public class MetaheuristicSolver {
 
                 // Update tabu memory: add the inverse move to the tabu list
                 String moveId = generateMoveId(bestCandidate, currentAssignment);
-                tabuList.add(new TabuMove(moveId, Constants.TABU_TENURE));
+                tabuList.add(new TabuMove(moveId, tabuTenure));
 
                 // d. Update the best global solution
                 if (currentSolution != null

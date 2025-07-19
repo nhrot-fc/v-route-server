@@ -69,11 +69,17 @@ public class Incident implements Serializable {
         this.resolved = true;
     }
     
+    // Este método crea una copia para simulación sin relaciones bidireccionales
     public Incident copy() {
-        Incident copy = new Incident(this.vehicle, this.type, this.occurrenceTime);
+        // En una copia para simulación, mantenemos la referencia al vehículo
+        // pero sin crear copias recursivas que generarían relaciones circulares
+        Incident copy = new Incident();
         copy.setId(this.id);
+        copy.setType(this.type);
+        copy.setOccurrenceTime(this.occurrenceTime);
         copy.setShift(this.shift);
         copy.setResolved(this.resolved);
+        copy.setVehicle(this.vehicle); // Mantenemos referencia al vehículo original
         return copy;
     }
 }

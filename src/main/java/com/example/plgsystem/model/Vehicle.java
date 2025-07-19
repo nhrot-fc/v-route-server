@@ -155,7 +155,8 @@ public class Vehicle implements Serializable {
     }
     
     public Vehicle copy() {
-        Vehicle copy = new Vehicle(this.id, this.type, this.currentPosition);
+        // Create a deep copy with cloned position
+        Vehicle copy = new Vehicle(this.id, this.type, this.currentPosition != null ? this.currentPosition.clone() : null);
         copy.currentGlpM3 = this.currentGlpM3;
         copy.currentFuelGal = this.currentFuelGal;
         copy.status = this.status;

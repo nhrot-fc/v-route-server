@@ -2,6 +2,7 @@ package com.example.plgsystem.operation;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
 
 import com.example.plgsystem.model.Constants;
 import com.example.plgsystem.model.Position;
@@ -91,7 +92,28 @@ public class Action {
     }
 
     public Action copy() {
-        return new Action(type, startTime, endTime, path, glpDelivered, glpLoaded,
-                fuelConsumedGal, fuelRefueledGal, orderId, depotId, currentProgress, effectApplied);
+        // Create a deep copy of the path if it exists
+        List<Position> pathCopy = null;
+        if (path != null) {
+            pathCopy = new ArrayList<>(path.size());
+            for (Position pos : path) {
+                pathCopy.add(pos != null ? pos.clone() : null);
+            }
+        }
+        
+        return new Action(
+            type, 
+            startTime, 
+            endTime, 
+            pathCopy, 
+            glpDelivered, 
+            glpLoaded,
+            fuelConsumedGal, 
+            fuelRefueledGal, 
+            orderId, 
+            depotId, 
+            currentProgress, 
+            effectApplied
+        );
     }
 }

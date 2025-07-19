@@ -48,10 +48,14 @@ public class Maintenance implements Serializable {
     }
 
     public Maintenance copy() {
-        Maintenance copy = new Maintenance(this.vehicle, this.assignedDate);
+        // En una copia para simulación, mantenemos la referencia al vehículo
+        // pero sin crear copias recursivas que generarían relaciones circulares
+        Maintenance copy = new Maintenance();
         copy.id = this.id;
+        copy.assignedDate = this.assignedDate;
         copy.realStart = this.realStart;
         copy.realEnd = this.realEnd;
+        copy.vehicle = this.vehicle; // Mantenemos referencia al vehículo original
         return copy;
     }
 }

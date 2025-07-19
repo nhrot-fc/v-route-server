@@ -27,6 +27,7 @@ import java.util.concurrent.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import com.example.plgsystem.model.Maintenance;
 
 @Getter
 public class Orchestrator {
@@ -55,7 +56,7 @@ public class Orchestrator {
         this.eventQueue = new PriorityQueue<>();
 
         this.ticksToCheckEvents = 10;
-        this.ticksToReplan = isDailyOperation ? 60 : 90;
+        this.ticksToReplan = 60;
         this.replanFlag = false;
 
         // Inicializar componentes para planificación asíncrona
@@ -159,6 +160,7 @@ public class Orchestrator {
 
                 if (!currentBlockages.contains(blockageCustomId) && event.getTime().isAfter(state.getCurrentTime())) {
                     filteredEvents.add(event);
+                    state.addBlockage(blockage);
                 }
             }
         }
@@ -180,16 +182,47 @@ public class Orchestrator {
                     ticksToReplan, replanFlag);
             startAsyncReplanification();
             replanFlag = false;
-            ticksToReplan = isDailyOperation ? 60 : 90;
+            ticksToReplan = 60;
         }
+
+        // Verificar vehículos sin plan que estén fuera de planta y enviarlos a planta
+        for (Vehicle vehicle : state.getVehicles()) {
+            if (!state.getCurrentVehiclePlans().containsKey(vehicle.getId()) &&
+                    vehicle.isAvailable() &&
+                    !isAtMainDepot(vehicle)) {
+
+                logger.info("Vehículo {} sin plan y fuera de planta, creando plan para retorno a base",
+                        vehicle.getId());
+                VehiclePlan planToMainDepot = VehiclePlanCreator.createPlanToMainDepot(vehicle, state);
+
+                if (planToMainDepot != null) {
+                    state.addVehiclePlan(vehicle.getId(), planToMainDepot);
+                    logger.debug("Plan de retorno a base creado para vehículo {}", vehicle.getId());
+                }
+            }
+        }
+    }
+
+    private boolean isAtMainDepot(Vehicle vehicle) {
+        if (state.getMainDepot() == null || vehicle == null ||
+                state.getMainDepot().getPosition() == null ||
+                vehicle.getCurrentPosition() == null) {
+            return false;
+        }
+        return vehicle.getCurrentPosition().equals(state.getMainDepot().getPosition());
     }
 
     private void startAsyncReplanification() {
         // Creamos un snapshot del estado actual
         SimulationState futureState = state.createSnapshot();
 
-        // Proyectamos el estado 90 minutos en el futuro
-        LocalDateTime projectedTime = futureState.getCurrentTime().plusMinutes(90);
+        // Proyectamos el estado 60 minutos en el futuro
+        LocalDateTime projectedTime = futureState.getCurrentTime().plusMinutes(60);
+
+        // Procesamos los eventos que ocurrirían dentro de la ventana de proyección
+        applyEventsToFutureState(futureState, projectedTime);
+
+        // Avanzamos el tiempo del estado futuro
         futureState.advanceTime(Duration.between(futureState.getCurrentTime(), projectedTime));
 
         // Guardamos el tiempo objetivo para el que estamos planificando
@@ -221,6 +254,46 @@ public class Orchestrator {
         });
     }
 
+    private void applyEventsToFutureState(SimulationState futureState, LocalDateTime projectedTime) {
+        logger.debug("Aplicando eventos futuros a la proyección hasta: {}", projectedTime);
+
+        // Creamos una copia de la cola de eventos para no modificar la original
+        PriorityQueue<Event> eventsCopy = new PriorityQueue<>(eventQueue);
+
+        // Procesamos eventos que ocurrirían antes del tiempo proyectado
+        while (!eventsCopy.isEmpty() && eventsCopy.peek().getTime().isBefore(projectedTime)) {
+            Event event = eventsCopy.poll();
+            logger.debug("Aplicando evento futuro: {} al estado proyectado", event);
+
+            switch (event.getType()) {
+                case ORDER_ARRIVAL:
+                    Order order = (Order) event.getData();
+                    futureState.addOrder(order);
+                    break;
+                case BLOCKAGE_START:
+                    Blockage blockage = (Blockage) event.getData();
+                    futureState.addBlockage(blockage);
+                    break;
+                case MAINTENANCE_START:
+                    // Aplicar inicio de mantenimiento al estado futuro
+                    break;
+                case MAINTENANCE_END:
+                    // Aplicar fin de mantenimiento al estado futuro
+                    break;
+                case VEHICLE_BREAKDOWN:
+                    // No proyectamos incidentes futuros ya que son imprevisibles
+                    break;
+                case NEW_DAY_BEGIN:
+                    futureState.refillDepots();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        logger.debug("Eventos futuros aplicados al estado proyectado");
+    }
+
     private Map<String, VehiclePlan> generateNewPlans(SimulationState futureState) {
         logger.debug("Generando nuevos planes para estado futuro en tiempo: {}", futureState.getCurrentTime());
         logger.debug("Estado futuro contiene: {} vehículos, {} órdenes",
@@ -233,14 +306,14 @@ public class Orchestrator {
             // Usar el MetaheuristicSolver para generar una solución optimizada
             logger.info("Iniciando proceso de optimización con MetaheuristicSolver");
             Solution solution = MetaheuristicSolver.solve(futureState);
-            
+
             if (solution == null) {
                 logger.warn("El solver no pudo encontrar una solución válida");
                 return newPlans;
             }
-            
+
             logger.info("Solución generada con costo total: {}", solution.getCost().totalCost());
-            
+
             // Crear planes de vehículo a partir de las rutas en la solución
             for (Map.Entry<String, Route> entry : solution.getRoutes().entrySet()) {
                 String vehicleId = entry.getKey();
@@ -256,7 +329,7 @@ public class Orchestrator {
                     VehiclePlan plan = VehiclePlanCreator.createPlanFromRoute(route, futureState);
                     if (plan != null) {
                         newPlans.put(vehicleId, plan);
-                        logger.debug("Plan generado para vehículo {}: {} acciones", 
+                        logger.debug("Plan generado para vehículo {}: {} acciones",
                                 vehicleId, plan.getActions().size());
                     } else {
                         logger.warn("No se pudo crear plan para vehículo: {}", vehicleId);
@@ -265,7 +338,7 @@ public class Orchestrator {
                     logger.error("Error al crear plan para vehículo {}: {}", vehicleId, e.getMessage(), e);
                 }
             }
-            
+
             logger.info("Generación de planes completada con éxito: {} planes creados", newPlans.size());
         } catch (Exception e) {
             logger.error("Error durante la generación de planes: {}", e.getMessage(), e);
@@ -304,7 +377,27 @@ public class Orchestrator {
                 state.addOrder(order);
                 break;
             case MAINTENANCE_START:
-                // TODO: Send Vehicle to mainPlant and start maintenance
+                Maintenance maintenance = (Maintenance) event.getData();
+                Vehicle vehicleForMaintenance = state.getVehicleById(maintenance.getVehicle().getId());
+                if (vehicleForMaintenance != null) {
+                    // Remover plan actual si existe
+                    state.removeVehiclePlan(vehicleForMaintenance.getId());
+
+                    // Crear un plan para llevar el vehículo a la planta principal
+                    VehiclePlan planToMainDepot = VehiclePlanCreator.createPlanToMainDepot(vehicleForMaintenance,
+                            state);
+                    if (planToMainDepot != null) {
+                        state.addVehiclePlan(vehicleForMaintenance.getId(), planToMainDepot);
+                        logger.info("Vehículo {} enviado a mantenimiento, plan creado", vehicleForMaintenance.getId());
+                    }
+
+                    // Marcar el vehículo en mantenimiento
+                    vehicleForMaintenance.setMaintenance();
+                    state.addMaintenance(maintenance);
+                }
+
+                // Cancelar planificación en progreso y replanificar inmediatamente
+                cancelCurrentPlanningAndReplan();
                 break;
             case MAINTENANCE_END:
                 replanFlag = true;
@@ -316,8 +409,9 @@ public class Orchestrator {
                 vehicle.setIncident();
                 state.addIncident(incident);
                 state.removeVehiclePlan(vehicle.getId());
-                replanFlag = true;
-                logger.debug("Avería de vehículo detectada, replanificación solicitada");
+
+                // Cancelar planificación en progreso y replanificar inmediatamente
+                cancelCurrentPlanningAndReplan();
                 break;
             case NEW_DAY_BEGIN:
                 state.refillDepots();
@@ -325,6 +419,21 @@ public class Orchestrator {
             default:
                 break;
         }
+    }
+
+    private void cancelCurrentPlanningAndReplan() {
+        // Si hay una planificación en curso, cancelarla
+        if (planningInProgress && currentPlanningTask != null && !currentPlanningTask.isDone()) {
+            logger.info("Cancelando planificación en curso debido a evento crítico");
+            currentPlanningTask.cancel(true);
+            planningInProgress = false;
+        }
+
+        // Iniciar nueva planificación inmediatamente
+        logger.info("Iniciando replanificación inmediata debido a evento crítico");
+        startAsyncReplanification();
+        replanFlag = false;
+        ticksToReplan = 60;
     }
 
     public void shutdown() {

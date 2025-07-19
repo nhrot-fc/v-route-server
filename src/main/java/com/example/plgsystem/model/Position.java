@@ -28,7 +28,7 @@ public class Position implements Serializable {
     }
 
     public Position clone() {
-        return new Position(x, y);
+        return new Position(this.x, this.y);
     }
 
     public double distanceTo(Position other) {

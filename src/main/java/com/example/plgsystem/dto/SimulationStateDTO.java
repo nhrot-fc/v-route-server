@@ -59,12 +59,12 @@ public class SimulationStateDTO {
 
         // Filtrar pedidos pendientes
         List<Order> pendingOrders = state.getOrders().stream()
-                .filter(order -> !order.isDelivered() && !order.isOverdue(state.getCurrentTime()))
+                .filter(order -> order != null && !order.isDelivered() && !order.isOverdue(state.getCurrentTime()))
                 .toList();
 
         // Filtrar órdenes con entrega vencida
         List<Order> overdueOrders = state.getOrders().stream()
-                .filter(order -> order.isOverdue(state.getCurrentTime()) && !order.isDelivered())
+                .filter(order -> order != null && order.isOverdue(state.getCurrentTime()) && !order.isDelivered())
                 .toList();
 
         // Filtrar bloqueos activos
