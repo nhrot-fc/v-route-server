@@ -17,8 +17,6 @@ public class RouteStop {
 
     private final String depotId;
     private final int glpLoadM3;
-    
-    private final double distanceFromPrevious;
 
     // Constructor para paradas de entrega (orden)
     public RouteStop(Position position, String orderId, LocalDateTime orderDeadlineTime, int glpDeliverM3) {
@@ -29,19 +27,6 @@ public class RouteStop {
         this.glpDeliverM3 = glpDeliverM3;
         this.depotId = null;
         this.glpLoadM3 = 0;
-        this.distanceFromPrevious = 0.0; // Default value
-    }
-    
-    // Constructor para paradas de entrega (orden) con distancia
-    public RouteStop(Position position, String orderId, LocalDateTime orderDeadlineTime, int glpDeliverM3, double distanceFromPrevious) {
-        this.position = position;
-        this.isOrderStop = true;
-        this.orderId = orderId;
-        this.orderDeadlineTime = orderDeadlineTime;
-        this.glpDeliverM3 = glpDeliverM3;
-        this.depotId = null;
-        this.glpLoadM3 = 0;
-        this.distanceFromPrevious = distanceFromPrevious;
     }
 
     // Constructor para paradas de carga (depósito)
@@ -53,21 +38,8 @@ public class RouteStop {
         this.orderId = null;
         this.orderDeadlineTime = null;
         this.glpDeliverM3 = 0;
-        this.distanceFromPrevious = 0.0; // Default value
     }
-    
-    // Constructor para paradas de carga (depósito) con distancia
-    public RouteStop(Position position, String depotId, int glpLoadM3, double distanceFromPrevious) {
-        this.position = position;
-        this.isOrderStop = false;
-        this.depotId = depotId;
-        this.glpLoadM3 = glpLoadM3;
-        this.orderId = null;
-        this.orderDeadlineTime = null;
-        this.glpDeliverM3 = 0;
-        this.distanceFromPrevious = distanceFromPrevious;
-    }
-    
+
     @Override
     public String toString() {
         String baseInfo;
@@ -80,7 +52,7 @@ public class RouteStop {
             baseInfo = String.format("🏭 DepotStop { 📍 pos: %s, 🏢 depotId: %s, 🛢️ load: %d m³",
                     position, depotId, glpLoadM3);
         }
-        
-        return baseInfo + String.format(", 🚗 distance: %.2f km }", distanceFromPrevious);
+        baseInfo += "}";
+        return baseInfo;
     }
 }

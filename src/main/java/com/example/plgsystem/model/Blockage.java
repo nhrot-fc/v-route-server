@@ -78,7 +78,8 @@ public class Blockage implements Serializable {
     }
 
     public boolean isActiveAt(LocalDateTime dateTime) {
-        return !dateTime.isBefore(startTime) && !dateTime.isAfter(endTime);
+        // check if dateTime is between startTime and endTime (inclusive)
+        return dateTime.isAfter(startTime) && dateTime.isBefore(endTime) || dateTime.equals(startTime) || dateTime.equals(endTime);
     }
 
     public boolean isPositionBlocked(Position position) {
@@ -91,7 +92,7 @@ public class Blockage implements Serializable {
             if (p1.getX() == p2.getX() && p1.getX() == position.getX()) {
                 double minY = Math.min(p1.getY(), p2.getY());
                 double maxY = Math.max(p1.getY(), p2.getY());
-                if (minY <= position.getY() && position.getY() <= maxY) {
+                if (position.getY() >= minY && position.getY() <= maxY) {
                     return true;
                 }
             }
@@ -99,7 +100,7 @@ public class Blockage implements Serializable {
             else if (p1.getY() == p2.getY() && p1.getY() == position.getY()) {
                 double minX = Math.min(p1.getX(), p2.getX());
                 double maxX = Math.max(p1.getX(), p2.getX());
-                if (minX <= position.getX() && position.getX() <= maxX) {
+                if (position.getX() >= minX && position.getX() <= maxX) {
                     return true;
                 }
             }
