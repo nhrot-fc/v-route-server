@@ -38,9 +38,6 @@ public class Incident implements Serializable {
     @Column(name = "occurrence_time")
     private LocalDateTime occurrenceTime;
 
-    @Embedded
-    private Position location;
-
     @Column(nullable = false)
     private boolean resolved;
 
@@ -76,7 +73,6 @@ public class Incident implements Serializable {
         Incident copy = new Incident(this.vehicle, this.type, this.occurrenceTime);
         copy.setId(this.id);
         copy.setShift(this.shift);
-        copy.setLocation(this.location);
         copy.setResolved(this.resolved);
         return copy;
     }

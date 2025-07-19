@@ -21,6 +21,7 @@ public class VehiclePlanDTO {
     private List<ActionDTO> actions;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    private int currentActionIndex;
     
     /**
      * Converts a VehiclePlan entity to a VehiclePlanDTO
@@ -45,6 +46,7 @@ public class VehiclePlanDTO {
                         .toList())
                 .startTime(plan.getStartTime())
                 .endTime(endTime)
+                .currentActionIndex(plan.getCurrentActionIndex())
                 .build();
     }
 } 

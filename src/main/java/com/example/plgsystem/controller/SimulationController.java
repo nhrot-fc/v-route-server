@@ -1,8 +1,10 @@
 package com.example.plgsystem.controller;
 
+import com.example.plgsystem.dto.IncidentCreateDTO;
 import com.example.plgsystem.dto.SimulationCreateDTO;
 import com.example.plgsystem.dto.SimulationDTO;
 import com.example.plgsystem.dto.SimulationStateDTO;
+import com.example.plgsystem.enums.IncidentType;
 import com.example.plgsystem.enums.SimulationType;
 import com.example.plgsystem.service.SimulationService;
 import com.example.plgsystem.simulation.Simulation;
@@ -298,6 +300,60 @@ public class SimulationController {
         simulationService.deleteSimulation(id);
         logger.info("Simulación con ID: {} eliminada exitosamente", id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{simulationId}/vehicle/{vehicleId}/breakdown")
+    @Operation(summary = "Crear avería de vehículo", description = "Crea un evento de avería para un vehículo en la simulación")
+    public ResponseEntity<?> createVehicleBreakdown(
+            @PathVariable UUID simulationId,
+            @PathVariable String vehicleId,
+            @RequestBody(required = false) IncidentCreateDTO incidentDTO) {
+        
+        logger.info("Creando avería para vehículo {} en simulación {}", vehicleId, simulationId);
+        
+        try {
+            Simulation simulation = simulationService.getSimulation(simulationId);
+            if (simulation == null) {
+                logger.warn("No se encontró la simulación con ID: {}", simulationId);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // Si no se proporciona un DTO, crear uno con valores predeterminados
+            if (incidentDTO == null) {
+                incidentDTO = new IncidentCreateDTO();
+                incidentDTO.setVehicleId(vehicleId);
+                incidentDTO.setType(IncidentType.TI1); // Tipo de avería predeterminado
+                incidentDTO.setOccurrenceTime(simulation.getSimulationTime()); // Tiempo actual de simulación
+            } else {
+                // Asegurar que el ID del vehículo en el path coincida con el del DTO
+                incidentDTO.setVehicleId(vehicleId);
+                
+                // Si no se proporciona tiempo, usar el tiempo actual de la simulación
+                if (incidentDTO.getOccurrenceTime() == null) {
+                    incidentDTO.setOccurrenceTime(simulation.getSimulationTime());
+                }
+            }
+            
+            simulationService.createVehicleBreakdown(simulation, incidentDTO);
+            
+            logger.info("Avería creada exitosamente para vehículo {} en simulación {}", 
+                    vehicleId, simulationId);
+            return ResponseEntity.ok().body(Map.of(
+                "message", "Avería creada exitosamente",
+                "vehicleId", vehicleId,
+                "simulationId", simulationId,
+                "type", incidentDTO.getType(),
+                "occurrenceTime", incidentDTO.getOccurrenceTime()
+            ));
+            
+        } catch (IllegalArgumentException e) {
+            logger.error("Error al crear avería: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error inesperado al crear avería: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error al crear avería: " + e.getMessage());
+        }
     }
 
 }

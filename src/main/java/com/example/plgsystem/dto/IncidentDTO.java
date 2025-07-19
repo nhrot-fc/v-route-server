@@ -3,7 +3,6 @@ package com.example.plgsystem.dto;
 import com.example.plgsystem.model.Incident;
 import com.example.plgsystem.enums.IncidentType;
 import com.example.plgsystem.enums.Shift;
-import com.example.plgsystem.model.Position;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,7 +21,6 @@ public class IncidentDTO {
     private IncidentType type;
     private Shift shift;
     private LocalDateTime occurrenceTime;
-    private Position location;
     private boolean resolved;
     private LocalDateTime immobilizationEndTime;
     private LocalDateTime availabilityTime;
@@ -35,7 +33,6 @@ public class IncidentDTO {
                 .type(incident.getType())
                 .shift(incident.getShift())
                 .occurrenceTime(incident.getOccurrenceTime())
-                .location(incident.getLocation())
                 .resolved(incident.isResolved())
                 .immobilizationEndTime(incident.getImmobilizationEndTime())
                 .availabilityTime(incident.getAvailabilityTime())

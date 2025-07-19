@@ -39,6 +39,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import com.example.plgsystem.dto.IncidentCreateDTO;
+import com.example.plgsystem.model.Incident;
+import com.example.plgsystem.orchest.EventType;
+import com.example.plgsystem.enums.VehicleStatus;
 
 @Service
 public class SimulationService implements ApplicationListener<ContextRefreshedEvent> {
@@ -83,6 +87,54 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         }
         List<Vehicle> vehicles = vehicleService.findAll();
         logger.info("Found {} vehicles for daily operations", vehicles.size());
+        if (vehicles.isEmpty()) {
+            // Generate TA vehicles
+            for (int i = 0; i < 2; i++) {
+                String id = "TA" + String.format("%02d", i + 1);
+                Vehicle vehicle = Vehicle.builder()
+                        .id(id)
+                        .type(VehicleType.TA)
+                        .currentPosition(mainDepot.getPosition().clone())
+                        .build();
+                vehicles.add(vehicle);
+            }
+
+            // Generate TB vehicles
+            for (int i = 0; i < 4; i++) {
+                String id = "TB" + String.format("%02d", i + 1);
+                Vehicle vehicle = Vehicle.builder()
+                        .id(id)
+                        .type(VehicleType.TB)
+                        .currentPosition(mainDepot.getPosition().clone())
+                        .build();
+                vehicles.add(vehicle);
+            }
+
+            // Generate TC vehicles
+            for (int i = 0; i < 4; i++) {
+                String id = "TC" + String.format("%02d", i + 1);
+                Vehicle vehicle = Vehicle.builder()
+                        .id(id)
+                        .type(VehicleType.TC)
+                        .currentPosition(mainDepot.getPosition().clone())
+                        .build();
+                vehicles.add(vehicle);
+            }
+
+            // Generate TD vehicles
+            for (int i = 0; i < 10; i++) {
+                String id = "TD" + String.format("%02d", i + 1);
+                Vehicle vehicle = Vehicle.builder()
+                        .id(id)
+                        .type(VehicleType.TD)
+                        .currentPosition(mainDepot.getPosition().clone())
+                        .build();
+                vehicles.add(vehicle);
+            }
+        }
+
+        vehicles.forEach(vehicleService::save);
+
         List<Depot> auxDepots = depotService.findAuxiliaryDepots();
         if (auxDepots.isEmpty()) {
             auxDepots = Arrays.asList(
@@ -352,32 +404,32 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
             logger.info("Simulation {} is already in the process of replanning", simulation.getId());
             return;
         }
-        
+
         // Set up completion callback
         UUID id = simulation.getId();
         String channelBasePath = "/topic/simulation/" + id;
-        
+
         simulation.getOrchestrator().setOnReplanningComplete(() -> {
             logger.info("Replanning completed for simulation {}", id);
             messagingTemplate.convertAndSend(
                     channelBasePath + "/replanning",
-                    Map.of("status", "completed", 
-                           "message", "Replanning completed successfully.",
-                           "timestamp", LocalDateTime.now().toString()));
-            
+                    Map.of("status", "completed",
+                            "message", "Replanning completed successfully.",
+                            "timestamp", LocalDateTime.now().toString()));
+
             // Send an updated state after replanning
             sendSimulationUpdate(simulation);
         });
-        
+
         // Start replanning
         simulation.getOrchestrator().replan();
-        
+
         // Send a notification that replanning has started
         messagingTemplate.convertAndSend(
                 channelBasePath + "/replanning",
-                Map.of("status", "started", 
-                       "message", "Replanning started. This may take a few seconds.",
-                       "timestamp", LocalDateTime.now().toString()));
+                Map.of("status", "started",
+                        "message", "Replanning started. This may take a few seconds.",
+                        "timestamp", LocalDateTime.now().toString()));
     }
 
     @Scheduled(fixedRate = 1000)
@@ -386,7 +438,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
         int runningCount = 0;
         int skippedCount = 0;
-        
+
         for (Simulation simulation : simulations.values()) {
             if (simulation.isRunning()) {
                 if (!simulation.isReplanning()) {
@@ -399,8 +451,8 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         }
 
         if (runningCount > 0) {
-            logger.debug("Advanced {} running simulations, skipped {} replanning simulations", 
-                        runningCount, skippedCount);
+            logger.debug("Advanced {} running simulations, skipped {} replanning simulations",
+                    runningCount, skippedCount);
         }
     }
 
@@ -450,8 +502,61 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
     }
 
     public void deleteSimulation(UUID id) {
-    simulations.remove(id);
-    // Opcional: también podrías cancelar tareas, limpiar recursos, etc.
-}
+        simulations.remove(id);
+        // Opcional: también podrías cancelar tareas, limpiar recursos, etc.
+    }
 
+    /**
+     * Crea un evento de avería para un vehículo en una simulación específica
+     * 
+     * @param simulation La simulación donde ocurre la avería
+     * @param incidentDTO Datos de la avería a crear
+     * @throws IllegalArgumentException Si el vehículo no existe en la simulación o hay algún error en los datos
+     */
+    public void createVehicleBreakdown(Simulation simulation, IncidentCreateDTO incidentDTO) {
+        logger.info("Creando avería para vehículo {} en simulación {}", 
+                incidentDTO.getVehicleId(), simulation.getId());
+        
+        // Verificar que el vehículo existe en la simulación
+        Vehicle vehicle = simulation.getState().getVehicleById(incidentDTO.getVehicleId());
+        if (vehicle == null) {
+            logger.error("Vehículo no encontrado: {}", incidentDTO.getVehicleId());
+            throw new IllegalArgumentException("Vehículo no encontrado: " + incidentDTO.getVehicleId());
+        }
+        
+        // Verificar que el tipo de avería es válido
+        if (incidentDTO.getType() == null) {
+            logger.error("Tipo de avería no especificado");
+            throw new IllegalArgumentException("Tipo de avería no especificado");
+        }
+        
+        // Crear el incidente
+        Incident incident = new Incident(vehicle, incidentDTO.getType(), incidentDTO.getOccurrenceTime());
+        
+        // Crear el evento de avería
+        Event breakdownEvent = new Event(
+                EventType.VEHICLE_BREAKDOWN, 
+                incidentDTO.getOccurrenceTime(),
+                vehicle.getId(),
+                incident);
+        
+        // Añadir el evento al orquestador de la simulación
+        simulation.getOrchestrator().addEvent(breakdownEvent);
+        
+        // También añadir el incidente directamente al estado para procesamiento inmediato si el tiempo coincide
+        if (incidentDTO.getOccurrenceTime().isEqual(simulation.getSimulationTime()) || 
+            incidentDTO.getOccurrenceTime().isBefore(simulation.getSimulationTime())) {
+            simulation.getState().addIncident(incident);
+            vehicle.setStatus(VehicleStatus.INCIDENT);
+            
+            // Eliminar cualquier plan existente para este vehículo
+            simulation.getState().getCurrentVehiclePlans().remove(vehicle.getId());
+            
+            // Marcar que se necesita replanificar
+            simulation.getOrchestrator().replan();
+        }
+        
+        logger.info("Avería creada exitosamente para vehículo {} en simulación {}", 
+                vehicle.getId(), simulation.getId());
+    }
 }
