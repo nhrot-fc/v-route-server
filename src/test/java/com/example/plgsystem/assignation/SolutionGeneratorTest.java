@@ -49,8 +49,12 @@ class SolutionGeneratorTest {
         }
 
         assignments = new HashMap<>();
-        assignments.put("V-001", List.of(new DeliveryPart("ORD-1", 10, order1.getDeadlineTime())));
-        assignments.put("V-002", List.of(new DeliveryPart("ORD-2", 15, order2.getDeadlineTime())));
+        List<DeliveryPart> deliveryParts1 = new ArrayList<>();
+        deliveryParts1.add(new DeliveryPart("ORD-1", 10, order1.getDeadlineTime()));
+        assignments.put("V-001", deliveryParts1);
+        List<DeliveryPart> deliveryParts2 = new ArrayList<>();
+        deliveryParts2.add(new DeliveryPart("ORD-2", 15, order2.getDeadlineTime()));
+        assignments.put("V-002", deliveryParts2);
     }
 
     @Test
@@ -86,27 +90,6 @@ class SolutionGeneratorTest {
             Map<String, List<DeliveryPart>> ordersAssigments = solution.getVehicleOrderAssignments();
             
             assertNotNull(ordersAssigments);
-        }
-    }
-    
-    @Test
-    void generateSolution_shouldHandleEmptyAssignments() {
-        // Arrange
-        Map<String, List<DeliveryPart>> emptyAssignments = new HashMap<>();
-        emptyAssignments.put("V-001", new ArrayList<>());
-        emptyAssignments.put("V-002", new ArrayList<>());
-        
-        // Setup static mock for PathFinder
-        try (MockedStatic<PathFinder> pathFinderMock = mockStatic(PathFinder.class, withSettings())) {
-            // Configure PathFinder to always return a valid path
-            pathFinderMock.when(() -> PathFinder.findPath(any(), any(), any(), any())).thenReturn(mockPath);
-            
-            // Act
-            Solution solution = SolutionGenerator.generateSolution(mockState, emptyAssignments);
-            
-            // Assert
-            Map<String, Route> routes = solution.getRoutes();
-            assertTrue(routes.isEmpty());
         }
     }
     

@@ -46,10 +46,8 @@ public class IncidentRepositoryTest {
         Shift shift = Shift.T1;
         LocalDateTime occurrenceTime = shift.getStartTime().atDate(LocalDate.now());
         Incident incident = new Incident(vehicle, IncidentType.TI1, occurrenceTime);
-        Position location = new Position(10, 20);
 
         incident.setOccurrenceTime(occurrenceTime);
-        incident.setLocation(location);
 
         // When
         Incident savedIncident = incidentRepository.save(incident);
@@ -61,8 +59,6 @@ public class IncidentRepositoryTest {
         assertEquals(IncidentType.TI1, savedIncident.getType());
         assertEquals(Shift.T1, savedIncident.getShift());
         assertEquals(occurrenceTime, savedIncident.getOccurrenceTime());
-        assertEquals(location.getX(), savedIncident.getLocation().getX());
-        assertEquals(location.getY(), savedIncident.getLocation().getY());
         assertFalse(savedIncident.isResolved());
     }
 
@@ -74,7 +70,6 @@ public class IncidentRepositoryTest {
         LocalDateTime occurrenceTime = shift.getStartTime().atDate(LocalDate.now());
         Incident incident = new Incident(vehicle, IncidentType.TI1, occurrenceTime);
         incident.setOccurrenceTime(LocalDateTime.now());
-        incident.setLocation(new Position(10, 20));
 
         entityManager.persist(incident);
         entityManager.flush();

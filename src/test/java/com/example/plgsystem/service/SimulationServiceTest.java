@@ -107,10 +107,7 @@ public class SimulationServiceTest {
 
         // Insert the test simulation into the service's internal map
         try {
-            java.lang.reflect.Field simulationsField = simulationService.getClass().getDeclaredField("simulations");
-            simulationsField.setAccessible(true);
-            Map<UUID, Simulation> simulations = (Map<UUID, Simulation>) simulationsField.get(simulationService);
-            simulations.put(testSimulationId, testSimulation);
+            simulationService.getSimulations().put(testSimulationId, testSimulation);
         } catch (Exception e) {
             fail("Failed to insert simulation into service map: " + e.getMessage());
         }
@@ -183,10 +180,7 @@ public class SimulationServiceTest {
             idField.setAccessible(true);
             idField.set(testSimulation, testSimulationId);
             
-            java.lang.reflect.Field simulationsField = simulationService.getClass().getDeclaredField("simulations");
-            simulationsField.setAccessible(true);
-            Map<UUID, Simulation> simulations = (Map<UUID, Simulation>) simulationsField.get(simulationService);
-            simulations.put(testSimulationId, testSimulation);
+            simulationService.getSimulations().put(testSimulationId, testSimulation);
         } catch (Exception e) {
             fail("Failed to set up test: " + e.getMessage());
         }
@@ -213,10 +207,7 @@ public class SimulationServiceTest {
             idField.setAccessible(true);
             idField.set(testSimulation, testSimulationId);
             
-            java.lang.reflect.Field simulationsField = simulationService.getClass().getDeclaredField("simulations");
-            simulationsField.setAccessible(true);
-            Map<UUID, Simulation> simulations = (Map<UUID, Simulation>) simulationsField.get(simulationService);
-            simulations.put(testSimulationId, testSimulation);
+            simulationService.getSimulations().put(testSimulationId, testSimulation);
         } catch (Exception e) {
             fail("Failed to set up test: " + e.getMessage());
         }
@@ -243,10 +234,7 @@ public class SimulationServiceTest {
             idField.setAccessible(true);
             idField.set(testSimulation, testSimulationId);
             
-            java.lang.reflect.Field simulationsField = simulationService.getClass().getDeclaredField("simulations");
-            simulationsField.setAccessible(true);
-            Map<UUID, Simulation> simulations = (Map<UUID, Simulation>) simulationsField.get(simulationService);
-            simulations.put(testSimulationId, testSimulation);
+            simulationService.getSimulations().put(testSimulationId, testSimulation);
         } catch (Exception e) {
             fail("Failed to set up test: " + e.getMessage());
         }
@@ -281,11 +269,8 @@ public class SimulationServiceTest {
         
         // Using reflection to add simulations to internal map
         try {
-            java.lang.reflect.Field simulationsField = simulationService.getClass().getDeclaredField("simulations");
-            simulationsField.setAccessible(true);
-            Map<UUID, Simulation> simulations = (Map<UUID, Simulation>) simulationsField.get(simulationService);
-            simulations.put(id1, simulation1);
-            simulations.put(id2, simulation2);
+            simulationService.getSimulations().put(id1, simulation1);
+            simulationService.getSimulations().put(id2, simulation2);
         } catch (Exception e) {
             fail("Failed to set up test: " + e.getMessage());
         }

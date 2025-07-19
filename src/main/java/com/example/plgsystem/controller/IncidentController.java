@@ -58,8 +58,6 @@ public class IncidentController {
 
         Incident incident = new Incident(vehicle, createDTO.getType(), occurrenceTime);
 
-        incident.setLocation(createDTO.getLocation());
-
         Incident savedIncident = incidentService.save(incident);
         logger.info("Incident created with ID: {}", savedIncident.getId());
         return new ResponseEntity<>(IncidentDTO.fromEntity(savedIncident), HttpStatus.CREATED);

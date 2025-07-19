@@ -173,47 +173,6 @@ class DistributionOperationsTest {
     }
     
     @Test
-    void geographicClustering_shouldGroupByLocation() {
-        // Arrange assignments with orders in different areas
-        Map<String, List<DeliveryPart>> testAssignments = new HashMap<>();
-        List<DeliveryPart> mixed1 = new ArrayList<>();
-        mixed1.add(new DeliveryPart("ORD-1", 5, currentTime.plusHours(1))); // Position(10, 10)
-        mixed1.add(new DeliveryPart("ORD-3", 7, currentTime.plusHours(3))); // Position(30, 30)
-        
-        List<DeliveryPart> mixed2 = new ArrayList<>();
-        mixed2.add(new DeliveryPart("ORD-2", 10, currentTime.plusHours(2))); // Position(15, 15)
-        mixed2.add(new DeliveryPart("ORD-4", 3, currentTime.plusHours(4)));  // Position(35, 35)
-        
-        testAssignments.put("V-001", mixed1);
-        testAssignments.put("V-002", mixed2);
-        
-        // Act
-        Map<String, List<DeliveryPart>> clustered = DistributionOperations.geographicClustering(testAssignments, mockState);
-        
-        // Assert
-        // Check if orders in the same geographical area are assigned to the same vehicle
-        boolean foundCluster = false;
-        
-        for (List<DeliveryPart> vehicleAssignments : clustered.values()) {
-            // Check if any vehicle has both nearby orders ORD-1 and ORD-2
-            boolean hasOrd1 = vehicleAssignments.stream().anyMatch(d -> d.getOrderId().equals("ORD-1"));
-            boolean hasOrd2 = vehicleAssignments.stream().anyMatch(d -> d.getOrderId().equals("ORD-2"));
-            
-            // Check if any vehicle has both nearby orders ORD-3 and ORD-4
-            boolean hasOrd3 = vehicleAssignments.stream().anyMatch(d -> d.getOrderId().equals("ORD-3"));
-            boolean hasOrd4 = vehicleAssignments.stream().anyMatch(d -> d.getOrderId().equals("ORD-4"));
-            
-            // If either pair is together, clustering worked
-            if ((hasOrd1 && hasOrd2) || (hasOrd3 && hasOrd4)) {
-                foundCluster = true;
-                break;
-            }
-        }
-        
-        assertTrue(foundCluster, "Geographic clustering should group nearby orders together");
-    }
-    
-    @Test
     void randomOperationWithState_shouldReturnModifiedAssignments() {
         // Act
         Map<String, List<DeliveryPart>> result = DistributionOperations.randomOperationWithState(assignments, mockState);

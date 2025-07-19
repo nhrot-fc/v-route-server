@@ -89,10 +89,6 @@ public class IncidentControllerTest {
         } catch (Exception e) {
             throw new RuntimeException("Failed to set ID field", e);
         }
-
-        // Configurar ubicaciones
-        incident1.setLocation(new Position(15, 25));
-        incident2.setLocation(new Position(35, 45));
     }
 
     @Test
@@ -208,7 +204,6 @@ public class IncidentControllerTest {
         createDTO.setVehicleId("V-001");
         createDTO.setType(IncidentType.TI1);
         createDTO.setOccurrenceTime(LocalDateTime.of(2025, 5, 15, 10, 0));
-        createDTO.setLocation(new Position(10, 20));
 
         when(vehicleService.findById("V-001")).thenReturn(Optional.of(vehicle1));
         when(incidentService.save(any(Incident.class))).thenReturn(incident1);

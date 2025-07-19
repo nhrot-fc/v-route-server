@@ -72,6 +72,10 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         logger.info("SimulationService initialized");
     }
 
+    public Map<UUID, Simulation> getSimulations() {
+        return simulations;
+    }
+
     @Override
     public void onApplicationEvent(@NonNull ContextRefreshedEvent event) {
         logger.info("Application context refreshed, initializing daily operations");
