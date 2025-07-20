@@ -34,6 +34,12 @@ public class VehicleService {
         return vehicleRepository.save(vehicle);
     }
 
+    @Transactional
+    public int bulkSave(List<Vehicle> vehicles) {
+        List<Vehicle> savedVehicles = vehicleRepository.saveAll(vehicles);
+        return savedVehicles.size();
+    }
+
     /**
      * Busca un vehículo por su ID
      */

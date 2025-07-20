@@ -137,7 +137,9 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
             }
         }
 
-        vehicles.forEach(vehicleService::save);
+        // Save vehicles to the repository
+        int saved = vehicleService.bulkSave(vehicles);
+        logger.info("Bulk saved {} vehicles for daily operations", saved);
 
         List<Depot> auxDepots = depotService.findAuxiliaryDepots();
         if (auxDepots.isEmpty()) {
