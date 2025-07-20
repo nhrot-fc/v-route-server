@@ -17,7 +17,7 @@ import com.example.plgsystem.simulation.SimulationState;
 
 public class SolutionGenerator {
     private static final double SAFETY_FACTOR = 1.5; // Reduced from 1.5 to make routes more feasible
-    private static final double FUEL_THRESHOLD = 0.35; // If fuel is below this ratio, consider visiting a depot
+    private static final double FUEL_THRESHOLD = 0.4; // If fuel is below this ratio, consider visiting a depot
 
     public static Solution generateSolution(SimulationState state, Map<String, List<DeliveryPart>> assignments) {
         Map<String, Integer> depotsGlpState = new HashMap<>();
@@ -87,8 +87,24 @@ public class SolutionGenerator {
             currentFuel -= fuelNeededToOrder;
             currentGlp -= deliveryPart.getGlpDeliverM3();
             currentPosition = order.getPosition();
-            stops.add(new RouteStop(currentPosition, order.getId(), order.getDeadlineTime(), deliveryPart.getGlpDeliverM3()));
+            stops.add(new RouteStop(currentPosition, order.getId(), order.getDeadlineTime(),
+                    deliveryPart.getGlpDeliverM3()));
         }
+
+        // Return to depot after deliveries
+        Depot returnDepot = state.getMainDepot();
+        double distanceToDepot = currentPosition.distanceTo(returnDepot.getPosition());
+        double fuelNeededToDepot = calculateFuelNeeded(distanceToDepot, currentGlp, vehicle.getType());
+
+        if (currentFuel < fuelNeededToDepot) {
+            Depot nearestDepot = findNearestDepot(currentPosition, 0, state, depotsGlpState);
+            currentFuel = maxFuel;
+            currentPosition = nearestDepot.getPosition();
+            stops.add(new RouteStop(currentPosition, nearestDepot.getId(), 0));
+        }
+        currentPosition = returnDepot.getPosition();
+        // Add main depot stop - reload GLP and refuel
+        stops.add(new RouteStop(currentPosition, returnDepot.getId(), vehicle.getGlpCapacityM3() - currentGlp));
 
         return new Route(vehicle.getId(), stops, startTime);
     }

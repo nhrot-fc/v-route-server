@@ -105,15 +105,15 @@ public class SimulationState {
         }
     }
 
+    public boolean isPositionBlockedAt(Position position, LocalDateTime time) {
+        return blockages.stream().filter(b -> b.isActiveAt(time)).anyMatch(b -> b.isPositionBlocked(position));
+    }
+
     public void advanceTime(Duration duration) {
         LocalDateTime nextTime = currentTime.plus(duration);
         processStateChanges(nextTime);
         executeVehiclePlans(currentTime, nextTime);
         currentTime = nextTime;
-    }
-
-    public boolean isPositionBlockedAt(Position position, LocalDateTime time) {
-        return blockages.stream().filter(b -> b.isActiveAt(time)).anyMatch(b -> b.isPositionBlocked(position));
     }
 
     private void processStateChanges(LocalDateTime nextTime) {
