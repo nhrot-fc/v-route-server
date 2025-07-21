@@ -153,13 +153,27 @@ public class Vehicle implements Serializable {
     public boolean isAvailable() {
         return this.status != VehicleStatus.MAINTENANCE && this.status != VehicleStatus.INCIDENT;
     }
-    
+
     public Vehicle copy() {
         // Create a deep copy with cloned position
-        Vehicle copy = new Vehicle(this.id, this.type, this.currentPosition != null ? this.currentPosition.clone() : null);
+        Vehicle copy = new Vehicle(this.id, this.type,
+                this.currentPosition != null ? this.currentPosition.clone() : null);
         copy.currentGlpM3 = this.currentGlpM3;
         copy.currentFuelGal = this.currentFuelGal;
         copy.status = this.status;
         return copy;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        Vehicle vehicle = (Vehicle) o;
+        return id.equals(vehicle.id) && type == vehicle.type && glpCapacityM3 == vehicle.glpCapacityM3
+                && fuelCapacityGal == vehicle.fuelCapacityGal && currentPosition.equals(vehicle.currentPosition)
+                && currentGlpM3 == vehicle.currentGlpM3 && currentFuelGal == vehicle.currentFuelGal
+                && status == vehicle.status;
     }
 }

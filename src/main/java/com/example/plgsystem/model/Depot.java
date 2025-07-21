@@ -64,9 +64,20 @@ public class Depot implements Serializable {
     }
 
     public Depot copy() {
-        Depot copy = new Depot(this.id, this.position != null ? this.position.clone() : null, 
-                               this.glpCapacityM3, this.type);
+        Depot copy = new Depot(this.id, this.position != null ? this.position.clone() : null,
+                this.glpCapacityM3, this.type);
         copy.currentGlpM3 = this.currentGlpM3;
         return copy;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        Depot depot = (Depot) o;
+        return id.equals(depot.id) && position.equals(depot.position) && glpCapacityM3 == depot.glpCapacityM3
+                && type == depot.type && currentGlpM3 == depot.currentGlpM3;
     }
 }

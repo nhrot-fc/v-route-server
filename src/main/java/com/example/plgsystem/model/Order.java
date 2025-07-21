@@ -73,18 +73,29 @@ public class Order implements Serializable {
 
     public Order copy() {
         Order copy = new Order(
-            this.id, 
-            this.arrivalTime, 
-            this.deadlineTime, 
-            this.glpRequestM3, 
-            this.position != null ? this.position.clone() : null
-        );
+                this.id,
+                this.arrivalTime,
+                this.deadlineTime,
+                this.glpRequestM3,
+                this.position != null ? this.position.clone() : null);
         copy.remainingGlpM3 = this.remainingGlpM3;
-        
+
         // Deep copy of serveRecords without circular references
         copy.serveRecords = new ArrayList<>();
         // We only copy the essential data since ServeRecord has circular references
         // Full record details are maintained in the original objects
         return copy;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        Order order = (Order) o;
+        return id.equals(order.id) && arrivalTime.equals(order.arrivalTime) && deadlineTime.equals(order.deadlineTime)
+                && glpRequestM3 == order.glpRequestM3 && position.equals(order.position)
+                && remainingGlpM3 == order.remainingGlpM3;
     }
 }

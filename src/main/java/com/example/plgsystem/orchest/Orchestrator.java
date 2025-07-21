@@ -53,11 +53,11 @@ public class Orchestrator {
         this.isDailyOperation = isDailyOperation;
         this.dataLoader = dataLoader;
         this.state = state;
-        this.eventQueue = new PriorityQueue<>();
+        this.eventQueue = new PriorityQueue<>(Event::compareTo);
 
         this.ticksToCheckEvents = 10;
         this.ticksToReplan = 60;
-        this.replanFlag = false;
+        this.replanFlag = true;
 
         // Inicializar componentes para planificación asíncrona
         this.plannerExecutor = Executors.newSingleThreadExecutor();
@@ -213,33 +213,21 @@ public class Orchestrator {
     }
 
     private void startAsyncReplanification() {
-        // Creamos un snapshot del estado actual
         SimulationState futureState = state.createSnapshot();
-
-        // Proyectamos el estado 60 minutos en el futuro
         LocalDateTime projectedTime = futureState.getCurrentTime().plusMinutes(60);
-
-        // Procesamos los eventos que ocurrirían dentro de la ventana de proyección
         applyEventsToFutureState(futureState, projectedTime);
-
-        // Avanzamos el tiempo del estado futuro
         futureState.advanceTime(Duration.between(futureState.getCurrentTime(), projectedTime));
-
-        // Guardamos el tiempo objetivo para el que estamos planificando
         targetPlanningTime = projectedTime;
-
+        
         logger.info("Iniciando replanificación asíncrona para el tiempo: {}", targetPlanningTime);
+        
         planningInProgress = true;
-
-        // Lanzamos la tarea de replanificación en un thread separado
         currentPlanningTask = plannerExecutor.submit(() -> {
             Thread.currentThread().setName("PlannerThread");
             logger.debug("Thread de planificación iniciado para tiempo objetivo: {}", targetPlanningTime);
             try {
-                // Aquí iría la lógica de replanificación que usa futureState
                 Map<String, VehiclePlan> newPlans = generateNewPlans(futureState);
 
-                // Guardamos los nuevos planes para aplicarlos cuando sea el momento
                 synchronized (this) {
                     futurePlans = newPlans;
                     logger.info("Replanificación completada para el tiempo: {}, generados {} planes",
@@ -269,19 +257,6 @@ public class Orchestrator {
                 case ORDER_ARRIVAL:
                     Order order = (Order) event.getData();
                     futureState.addOrder(order);
-                    break;
-                case BLOCKAGE_START:
-                    Blockage blockage = (Blockage) event.getData();
-                    futureState.addBlockage(blockage);
-                    break;
-                case MAINTENANCE_START:
-                    // Aplicar inicio de mantenimiento al estado futuro
-                    break;
-                case MAINTENANCE_END:
-                    // Aplicar fin de mantenimiento al estado futuro
-                    break;
-                case VEHICLE_BREAKDOWN:
-                    // No proyectamos incidentes futuros ya que son imprevisibles
                     break;
                 case NEW_DAY_BEGIN:
                     futureState.refillDepots();
