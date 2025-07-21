@@ -22,10 +22,10 @@ public class PathFinder {
             return Collections.singletonList(start);
         }
 
-        // If start position is blocked, no path is possible
-        if (state.isPositionBlockedAt(start, departureTime)) {
-            return Collections.emptyList();
-        }
+        // // If start position is blocked, no path is possible
+        // if (state.isPositionBlockedAt(start, departureTime)) {
+        //     return Collections.emptyList();
+        // }
 
         // A* algorithm data structures
         PriorityQueue<Node> openSet = new PriorityQueue<>();
