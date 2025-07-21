@@ -35,7 +35,7 @@ public class PlanExecutor {
             }
             Action currentAction = plan.getCurrentAction();
             if (currentAction == null) {
-                logger.error("No current action found for plan: {}", plan);
+                //logger.error("No current action found for plan: {}", plan);
                 continue;
             }
             while (currentAction.getStartTime().isBefore(nextTime) || currentAction.getStartTime().equals(nextTime)) {
