@@ -37,7 +37,7 @@ public class Depot implements Serializable {
         this.position = position;
         this.glpCapacityM3 = glpCapacityM3;
         this.type = type;
-        this.currentGlpM3 = 0;
+        this.currentGlpM3 = glpCapacityM3;
     }
 
     public boolean isMain() {
