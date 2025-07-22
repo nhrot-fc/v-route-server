@@ -32,6 +32,8 @@ import com.example.plgsystem.model.Maintenance;
 @Getter
 public class Orchestrator {
     private static final Logger logger = LoggerFactory.getLogger(Orchestrator.class);
+    private static final int FUTURE_PROJECTION_MINUTES = 90;
+    private static final int TICKS_TO_CHECK_EVENTS = 10;
 
     private final boolean isDailyOperation;
     private final SimulationState state;
@@ -55,8 +57,8 @@ public class Orchestrator {
         this.state = state;
         this.eventQueue = new PriorityQueue<>(Event::compareTo);
 
-        this.ticksToCheckEvents = 10;
-        this.ticksToReplan = 60;
+        this.ticksToCheckEvents = 0;
+        this.ticksToReplan = 0;
         this.replanFlag = true;
 
         // Inicializar componentes para planificación asíncrona
@@ -79,7 +81,7 @@ public class Orchestrator {
         ticksToCheckEvents = ticksToCheckEvents - 1;
         if (ticksToCheckEvents == 0) {
             checkAndLoadNewEvents();
-            ticksToCheckEvents = 10;
+            ticksToCheckEvents = TICKS_TO_CHECK_EVENTS;
         }
 
         // Daily Operations a tick is from previous time to real time
@@ -100,9 +102,6 @@ public class Orchestrator {
 
         // Update replan countDown
         ticksToReplan = ticksToReplan - 1;
-        if (ticksToReplan % 10 == 0) {
-            logger.debug("Ticks hasta próxima replanificación: {}", ticksToReplan);
-        }
     }
 
     private void checkAndLoadNewEvents() {
@@ -173,7 +172,7 @@ public class Orchestrator {
             }
             logger.debug(sb.toString());
         }
-        //logger.info("Current state: \n\n{}", state.toString());
+        // logger.info("Current state: \n\n{}", state.toString());
     }
 
     private void pollEvents(LocalDateTime nextTickTime) {
@@ -190,7 +189,7 @@ public class Orchestrator {
                     ticksToReplan, replanFlag);
             startAsyncReplanification();
             replanFlag = false;
-            ticksToReplan = 60;
+            ticksToReplan = FUTURE_PROJECTION_MINUTES;
         }
 
         // Verificar vehículos sin plan que estén fuera de planta y enviarlos a planta
@@ -222,13 +221,13 @@ public class Orchestrator {
 
     private void startAsyncReplanification() {
         SimulationState futureState = state.createSnapshot();
-        LocalDateTime projectedTime = futureState.getCurrentTime().plusMinutes(60);
+        LocalDateTime projectedTime = futureState.getCurrentTime().plusMinutes(FUTURE_PROJECTION_MINUTES);
         applyEventsToFutureState(futureState, projectedTime);
         futureState.advanceTime(Duration.between(futureState.getCurrentTime(), projectedTime));
         targetPlanningTime = projectedTime;
-        
+
         logger.info("Iniciando replanificación asíncrona para el tiempo: {}", targetPlanningTime);
-        
+
         planningInProgress = true;
         currentPlanningTask = plannerExecutor.submit(() -> {
             Thread.currentThread().setName("PlannerThread");
@@ -286,8 +285,6 @@ public class Orchestrator {
         Map<String, VehiclePlan> newPlans = new HashMap<>();
 
         try {
-            // Usar el MetaheuristicSolver para generar una solución optimizada
-            logger.info("Iniciando proceso de optimización con MetaheuristicSolver");
             Solution solution = MetaheuristicSolver.solve(futureState);
 
             if (solution == null) {
@@ -312,10 +309,6 @@ public class Orchestrator {
                     VehiclePlan plan = VehiclePlanCreator.createPlanFromRoute(route, futureState);
                     if (plan != null) {
                         newPlans.put(vehicleId, plan);
-                        logger.debug("Plan generado para vehículo {}: {} acciones",
-                                vehicleId, plan.getActions().size());
-                    } else {
-                        logger.warn("No se pudo crear plan para vehículo: {}", vehicleId);
                     }
                 } catch (Exception e) {
                     logger.error("Error al crear plan para vehículo {}: {}", vehicleId, e.getMessage(), e);
@@ -388,11 +381,7 @@ public class Orchestrator {
                 break;
             case VEHICLE_BREAKDOWN:
                 Incident incident = (Incident) event.getData();
-                Vehicle vehicle = state.getVehicleById(incident.getVehicle().getId());
-                vehicle.setIncident();
                 state.addIncident(incident);
-                state.removeVehiclePlan(vehicle.getId());
-
                 // Cancelar planificación en progreso y replanificar inmediatamente
                 cancelCurrentPlanningAndReplan();
                 break;
@@ -416,7 +405,7 @@ public class Orchestrator {
         logger.info("Iniciando replanificación inmediata debido a evento crítico");
         startAsyncReplanification();
         replanFlag = false;
-        ticksToReplan = 60;
+        ticksToReplan = FUTURE_PROJECTION_MINUTES;
     }
 
     public void shutdown() {

@@ -305,21 +305,9 @@ public class SimulationController {
                 return ResponseEntity.notFound().build();
             }
             
-            // Si no se proporciona un DTO, crear uno con valores predeterminados
-            if (incidentDTO == null) {
-                incidentDTO = new IncidentCreateDTO();
-                incidentDTO.setVehicleId(vehicleId);
-                incidentDTO.setType(IncidentType.TI1); // Tipo de avería predeterminado
-                incidentDTO.setOccurrenceTime(simulation.getSimulationTime()); // Tiempo actual de simulación
-            } else {
-                // Asegurar que el ID del vehículo en el path coincida con el del DTO
-                incidentDTO.setVehicleId(vehicleId);
-                
-                // Si no se proporciona tiempo, usar el tiempo actual de la simulación
-                if (incidentDTO.getOccurrenceTime() == null) {
-                    incidentDTO.setOccurrenceTime(simulation.getSimulationTime());
-                }
-            }
+            incidentDTO.setVehicleId(vehicleId);
+            incidentDTO.setType(IncidentType.TI1);
+            incidentDTO.setOccurrenceTime(simulation.getState().getCurrentTime());
             
             simulationService.createVehicleBreakdown(simulation, incidentDTO);
             

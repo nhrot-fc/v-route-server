@@ -3,7 +3,12 @@ package com.example.plgsystem.dto;
 import com.example.plgsystem.enums.SimulationStatus;
 import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.model.Blockage;
+import com.example.plgsystem.model.Depot;
+import com.example.plgsystem.model.Incident;
+import com.example.plgsystem.model.Maintenance;
 import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.operation.VehiclePlan;
 import com.example.plgsystem.simulation.SimulationState;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,7 +16,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * DTO para el estado de la simulación
@@ -56,18 +64,37 @@ public class SimulationStateDTO {
             SimulationState state,
             SimulationStatus status) {
 
-        // Filtrar pedidos pendientes
-        List<Order> pendingOrders = state.getOrders().stream()
+        // Create defensive copies of all collections to prevent concurrent modification
+        List<Order> ordersCopy;
+        List<Blockage> blockagesCopy;
+        List<Vehicle> vehiclesCopy;
+        List<Depot> auxDepotsCopy;
+        List<Incident> incidentsCopy;
+        List<Maintenance> maintenanceCopy;
+        Map<String, VehiclePlan> vehiclePlansCopy;
+        
+        synchronized (state) {
+            // Create copies of all collections
+            ordersCopy = new ArrayList<>(state.getOrders());
+            blockagesCopy = new ArrayList<>(state.getBlockages());
+            vehiclesCopy = new ArrayList<>(state.getVehicles());
+            auxDepotsCopy = new ArrayList<>(state.getAuxDepots());
+            incidentsCopy = new ArrayList<>(state.getIncidents());
+            maintenanceCopy = new ArrayList<>(state.getMaintenances());
+            vehiclePlansCopy = new HashMap<>(state.getCurrentVehiclePlans());
+        }
+        
+        List<Order> pendingOrders = ordersCopy.stream()
                 .filter(order -> order != null && !order.isDelivered() && !order.isOverdue(state.getCurrentTime()))
                 .toList();
 
         // Filtrar órdenes con entrega vencida
-        List<Order> overdueOrders = state.getOrders().stream()
-                .filter(order -> order != null && order.isOverdue(state.getCurrentTime()) && !order.isDelivered())
+        List<Order> overdueOrders = ordersCopy.stream()
+                .filter(order -> order != null && order.isOverdue(state.getCurrentTime()))
                 .toList();
 
         // Filtrar bloqueos activos
-        List<Blockage> activeBlockages = state.getBlockages().stream()
+        List<Blockage> activeBlockages = blockagesCopy.stream()
                 .filter(blockage -> blockage.isActiveAt(state.getCurrentTime()))
                 .toList();
 
@@ -75,13 +102,13 @@ public class SimulationStateDTO {
                 .simulationId(simulationId)
                 .currentTime(state.getCurrentTime())
                 .status(status)
-                // Convertir vehículos a DTOs
-                .vehicles(state.getVehicles().stream()
+                // Convertir vehículos a DTOs usando la copia local
+                .vehicles(vehiclesCopy.stream()
                         .map(VehicleDTO::fromEntity)
                         .toList())
                 // Convertir depósitos a DTOs
                 .mainDepot(DepotDTO.fromEntity(state.getMainDepot()))
-                .auxDepots(state.getAuxDepots().stream()
+                .auxDepots(auxDepotsCopy.stream()
                         .map(DepotDTO::fromEntity)
                         .toList())
                 // Convertir pedidos pendientes a DTOs
@@ -90,23 +117,24 @@ public class SimulationStateDTO {
                         .toList())
                 // Establecer bloqueos activos
                 .activeBlockages(activeBlockages)
-                // Convertir incidentes a DTOs
-                .activeIncidents(state.getIncidents().stream()
+                // Convertir incidentes a DTOs usando la copia local
+                .activeIncidents(incidentsCopy.stream()
                         .filter(incident -> !incident.isResolved())
                         .map(IncidentDTO::fromEntity)
                         .toList())
-                // Convertir mantenimientos a DTO
-                .scheduledMaintenances(state.getMaintenances().stream()
+                // Convertir mantenimientos a DTO usando la copia local
+                .scheduledMaintenances(maintenanceCopy.stream()
                         .map(MaintenanceDTO::fromEntity)
                         .toList())
                 // Establecer contadores
                 .pendingOrdersCount(pendingOrders.size())
-                .deliveredOrdersCount((int) state.getOrders().stream()
+                .deliveredOrdersCount((int) ordersCopy.stream()
                         .filter(Order::isDelivered).count())
                 .overdueOrdersCount(overdueOrders.size())
-                .availableVehiclesCount((int) state.getVehicles().stream()
+                .availableVehiclesCount((int) vehiclesCopy.stream()
                         .filter(v -> v.getStatus() == VehicleStatus.AVAILABLE).count())
-                .currentVehiclePlans(state.getCurrentVehiclePlans().values().stream()
+                // Usar la copia local de planes de vehículos
+                .currentVehiclePlans(vehiclePlansCopy.values().stream()
                         .map(VehiclePlanDTO::fromEntity)
                         .toList())
                 .build();

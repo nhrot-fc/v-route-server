@@ -42,7 +42,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.example.plgsystem.dto.IncidentCreateDTO;
 import com.example.plgsystem.model.Incident;
 import com.example.plgsystem.orchest.EventType;
-import com.example.plgsystem.enums.VehicleStatus;
 
 @Service
 public class SimulationService implements ApplicationListener<ContextRefreshedEvent> {
@@ -144,8 +143,8 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         List<Depot> auxDepots = depotService.findAuxiliaryDepots();
         if (auxDepots.isEmpty()) {
             auxDepots = Arrays.asList(
-                    new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 500, DepotType.AUXILIARY),
-                    new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 500, DepotType.AUXILIARY));
+                    new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 160, DepotType.AUXILIARY),
+                    new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 160, DepotType.AUXILIARY));
             for (Depot depot : auxDepots) {
                 depotService.save(depot);
             }
@@ -188,8 +187,8 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
         // Get fixed depots from the database
         Depot mainDepot = new Depot("MAIN", Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
-        Depot northDepot = new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 500, DepotType.AUXILIARY);
-        Depot eastDepot = new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 500, DepotType.AUXILIARY);
+        Depot northDepot = new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
+        Depot eastDepot = new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
         List<Depot> auxDepots = Arrays.asList(northDepot, eastDepot);
         logger.info("Using fixed depots: Main={}, Aux=[{}, {}]", mainDepot.getId(), northDepot.getId(),
                 eastDepot.getId());
@@ -500,16 +499,6 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
         // Añadir el evento al orquestador de la simulación
         simulation.getOrchestrator().addEvent(breakdownEvent);
-
-        // También añadir el incidente directamente al estado para procesamiento
-        // inmediato si el tiempo coincide
-        if (incidentDTO.getOccurrenceTime().isEqual(simulation.getSimulationTime()) ||
-                incidentDTO.getOccurrenceTime().isBefore(simulation.getSimulationTime())) {
-            simulation.getState().addIncident(incident);
-            vehicle.setStatus(VehicleStatus.INCIDENT);
-            simulation.getState().getCurrentVehiclePlans().remove(vehicle.getId());
-        }
-
         logger.info("Avería creada exitosamente para vehículo {} en simulación {}",
                 vehicle.getId(), simulation.getId());
     }

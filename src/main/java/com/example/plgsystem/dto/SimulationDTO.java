@@ -35,7 +35,14 @@ public class SimulationDTO {
         this.creationTime = simulation.getCreationTime();
         this.realStartTime = simulation.getRealStartTime();
         this.realEndTime = simulation.getRealEndTime();
-        this.state = SimulationStateDTO.fromSimulationState(simulation.getId().toString(), simulation.getState(),
+        
+        // Create a snapshot of the state to avoid concurrent modification issues
+        synchronized (simulation) {
+            // Using the state snapshot to prevent concurrent modification
+            this.state = SimulationStateDTO.fromSimulationState(
+                simulation.getId().toString(), 
+                simulation.getState().createSnapshot(),
                 simulation.getStatus());
+        }
     }
 } 

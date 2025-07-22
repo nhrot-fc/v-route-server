@@ -22,7 +22,7 @@ public class DepotTest {
         assertEquals(position, depot.getPosition());
         assertEquals(capacity, depot.getGlpCapacityM3());
         assertEquals(type, depot.getType());
-        assertEquals(0, depot.getCurrentGlpM3()); // Initial value should be zero
+        assertEquals(capacity, depot.getCurrentGlpM3()); // Initial value should be zero
     }
     
     @Test

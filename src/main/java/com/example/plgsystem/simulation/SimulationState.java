@@ -73,7 +73,13 @@ public class SimulationState {
     }
 
     public void addIncident(Incident incident) {
-        incidents.add(incident);
+        String vehicleId = incident.getVehicle().getId();
+        Vehicle vehicle = getVehicleById(vehicleId);
+        if (vehicle != null) {
+            vehicle.setIncident();
+            currentVehiclePlans.remove(vehicleId);
+            incidents.add(incident);
+        }
     }
 
     public void addMaintenance(Maintenance maintenance) {
@@ -117,12 +123,12 @@ public class SimulationState {
     private void processStateChanges(LocalDateTime nextTime) {
         // Clean past orders, incidents, blockages, maintenances
         orders.removeIf(Order::isDelivered);
-        blockages.removeIf(blockage -> blockage.getEndTime().isBefore(nextTime));
+        blockages.removeIf(blockage -> nextTime.isAfter(blockage.getEndTime()));
 
         // Process incidents
         List<Incident> resolvedIncidents = new ArrayList<>();
         incidents.forEach(incident -> {
-            if (incident.getAvailabilityTime().isBefore(nextTime)) {
+            if (nextTime.isAfter(incident.getAvailabilityTime())) {
                 incident.setResolved(true);
                 incident.getVehicle().setAvailable();
                 resolvedIncidents.add(incident);
@@ -134,7 +140,7 @@ public class SimulationState {
         List<Maintenance> completedMaintenances = new ArrayList<>();
         maintenances.forEach(maintenance -> {
             if (maintenance.getRealEnd() != null &&
-                    maintenance.getRealEnd().isBefore(nextTime)) {
+                    nextTime.isAfter(maintenance.getRealEnd())) {
                 maintenance.getVehicle().setAvailable();
                 completedMaintenances.add(maintenance);
             }
