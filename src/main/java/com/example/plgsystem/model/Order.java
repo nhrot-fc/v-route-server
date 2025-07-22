@@ -39,7 +39,7 @@ public class Order implements Serializable {
     @Column(name = "remaining_glp_m3", nullable = false)
     private int remainingGlpM3;
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<ServeRecord> serveRecords = new ArrayList<>();
 
     @Builder

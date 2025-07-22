@@ -57,10 +57,10 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
     private static final Logger logger = LoggerFactory.getLogger(SimulationService.class);
 
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
     // Fields
-    //--------------------------------------------------------------------------
-    
+    // --------------------------------------------------------------------------
+
     private final Map<UUID, Simulation> simulations = new ConcurrentHashMap<>();
     private UUID dailyOperationsId;
     private final AtomicBoolean dailyOperationsProcessing = new AtomicBoolean(false);
@@ -74,11 +74,11 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
     private final DepotRepository depotRepository;
     private final IncidentRepository incidentRepository;
     private final MaintenanceRepository maintenanceRepository;
-
-    //--------------------------------------------------------------------------
+    private final DatabaseInitializationService databaseInitializationService;
+    // --------------------------------------------------------------------------
     // Constructor
-    //--------------------------------------------------------------------------
-    
+    // --------------------------------------------------------------------------
+
     public SimulationService(
             DepotService depotService,
             VehicleService vehicleService,
@@ -88,7 +88,8 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
             VehicleRepository vehicleRepository,
             DepotRepository depotRepository,
             IncidentRepository incidentRepository,
-            MaintenanceRepository maintenanceRepository) {
+            MaintenanceRepository maintenanceRepository,
+            DatabaseInitializationService databaseInitializationService) {
         this.depotService = depotService;
         this.vehicleService = vehicleService;
         this.messagingTemplate = messagingTemplate;
@@ -99,16 +100,19 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         this.incidentRepository = incidentRepository;
         this.maintenanceRepository = maintenanceRepository;
         logger.info("SimulationService initialized");
+        this.databaseInitializationService = databaseInitializationService;
     }
 
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
     // Lifecycle Methods
-    //--------------------------------------------------------------------------
-    
+    // --------------------------------------------------------------------------
+
     @Override
     public void onApplicationEvent(@NonNull ContextRefreshedEvent event) {
-        logger.info("Application context refreshed, initializing daily operations");
+        logger.info("Application context refreshed, initializing simulations");
+        databaseInitializationService.initializeDatabase();
         initializeDailyOperations();
+        logger.info("Simulations initialization complete");
     }
 
     /**
@@ -131,10 +135,10 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         FileUtils.cleanupTempFiles();
     }
 
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
     // Simulation Management - Core Methods
-    //--------------------------------------------------------------------------
-    
+    // --------------------------------------------------------------------------
+
     /**
      * Retrieve all simulations
      */
@@ -212,80 +216,33 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         simulations.remove(id);
     }
 
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
     // Simulation Creation & Initialization
-    //--------------------------------------------------------------------------
-    
+    // --------------------------------------------------------------------------
+
     private void initializeDailyOperations() {
         logger.info("Initializing daily operations simulation");
-        Depot mainDepot = depotService.findMainDepots().stream().findFirst().orElse(null);
-        if (mainDepot == null) {
-            mainDepot = new Depot("MAIN", Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
-            depotService.save(mainDepot);
-        }
+
+        // Get depots and vehicles from the repository - they should already be
+        // initialized
+        // by the DatabaseInitializationService
+        Depot mainDepot = depotService.findMainDepots().stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("Main depot not found"));
+
         List<Vehicle> vehicles = vehicleService.findAll();
         logger.info("Found {} vehicles for daily operations", vehicles.size());
+
         if (vehicles.isEmpty()) {
-            // Generate TA vehicles
-            for (int i = 0; i < 2; i++) {
-                String id = "TA" + String.format("%02d", i + 1);
-                Vehicle vehicle = Vehicle.builder()
-                        .id(id)
-                        .type(VehicleType.TA)
-                        .currentPosition(mainDepot.getPosition().clone())
-                        .build();
-                vehicles.add(vehicle);
-            }
-
-            // Generate TB vehicles
-            for (int i = 0; i < 4; i++) {
-                String id = "TB" + String.format("%02d", i + 1);
-                Vehicle vehicle = Vehicle.builder()
-                        .id(id)
-                        .type(VehicleType.TB)
-                        .currentPosition(mainDepot.getPosition().clone())
-                        .build();
-                vehicles.add(vehicle);
-            }
-
-            // Generate TC vehicles
-            for (int i = 0; i < 4; i++) {
-                String id = "TC" + String.format("%02d", i + 1);
-                Vehicle vehicle = Vehicle.builder()
-                        .id(id)
-                        .type(VehicleType.TC)
-                        .currentPosition(mainDepot.getPosition().clone())
-                        .build();
-                vehicles.add(vehicle);
-            }
-
-            // Generate TD vehicles
-            for (int i = 0; i < 10; i++) {
-                String id = "TD" + String.format("%02d", i + 1);
-                Vehicle vehicle = Vehicle.builder()
-                        .id(id)
-                        .type(VehicleType.TD)
-                        .currentPosition(mainDepot.getPosition().clone())
-                        .build();
-                vehicles.add(vehicle);
-            }
+            throw new IllegalStateException("No vehicles found in the database");
         }
-
-        // Save vehicles to the repository
-        int saved = vehicleService.bulkSave(vehicles);
-        logger.info("Bulk saved {} vehicles for daily operations", saved);
 
         List<Depot> auxDepots = depotService.findAuxiliaryDepots();
         if (auxDepots.isEmpty()) {
-            auxDepots = Arrays.asList(
-                    new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 160, DepotType.AUXILIARY),
-                    new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 160, DepotType.AUXILIARY));
-            for (Depot depot : auxDepots) {
-                depotService.save(depot);
-            }
+            throw new IllegalStateException("No auxiliary depots found in the database");
         }
 
         logger.info("Found {} auxiliary depots for daily operations", auxDepots.size());
+
         SimulationState state = new SimulationState(vehicles, mainDepot, auxDepots, LocalDateTime.now());
         DataLoader dataLoader = new DatabaseDataLoader(orderRepository, blockageRepository);
         Simulation dailyOps = new Simulation(state, SimulationType.DAILY_OPERATIONS, dataLoader);
@@ -395,9 +352,9 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         return simulation;
     }
 
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
     // Scheduled Update Methods
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
 
     @Scheduled(fixedRate = 1000)
     public void updateSimulations() {
@@ -452,10 +409,10 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         }
     }
 
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
     // Data Loading Methods
-    //--------------------------------------------------------------------------
-    
+    // --------------------------------------------------------------------------
+
     /**
      * Carga órdenes para una simulación desde un archivo para un año/mes específico
      * 
@@ -534,10 +491,10 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
             throw new IOException("Error al cargar bloqueos: " + e.getMessage(), e);
         }
     }
-    
-    //--------------------------------------------------------------------------
+
+    // --------------------------------------------------------------------------
     // State Management Methods
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
 
     /**
      * Guarda el estado actual de la simulación de operaciones diarias en la base de
@@ -584,10 +541,10 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         }
     }
 
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
     // Event Handling Methods
-    //--------------------------------------------------------------------------
-    
+    // --------------------------------------------------------------------------
+
     /**
      * Crea un evento de avería para un vehículo en una simulación específica
      * 
@@ -629,10 +586,10 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
                 vehicle.getId(), simulation.getId());
     }
 
-    //--------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
     // Communication Methods
-    //--------------------------------------------------------------------------
-    
+    // --------------------------------------------------------------------------
+
     /**
      * Send simulation updates via WebSocket
      */
@@ -655,7 +612,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
                 channelBasePath + "/state",
                 stateDTO);
     }
-    
+
     /**
      * Simple getter for simulations map
      */

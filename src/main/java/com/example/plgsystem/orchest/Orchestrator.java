@@ -33,7 +33,8 @@ import com.example.plgsystem.model.Maintenance;
 public class Orchestrator {
     private static final Logger logger = LoggerFactory.getLogger(Orchestrator.class);
     private static final int TICKS_TO_CHECK_EVENTS = 10;
-    private static int FUTURE_PROJECTION_MINUTES = 90;
+    private static final int DAILY_OPS_PROJECTION_MINUTES = 2;
+    private static final int NORMAL_PROJECTION_MINUTES = 90;
 
     private final boolean isDailyOperation;
     private final SimulationState state;
@@ -43,6 +44,7 @@ public class Orchestrator {
     private int ticksToCheckEvents;
     private int ticksToReplan;
     private boolean replanFlag;
+    private LocalDateTime lastReplanTime;
 
     // Nuevos atributos para replanificación asíncrona
     private final ExecutorService plannerExecutor;
@@ -53,14 +55,13 @@ public class Orchestrator {
 
     public Orchestrator(SimulationState state, DataLoader dataLoader, boolean isDailyOperation) {
         this.isDailyOperation = isDailyOperation;
-        FUTURE_PROJECTION_MINUTES = isDailyOperation ? 90 : 5;
-
         this.dataLoader = dataLoader;
         this.state = state;
         this.eventQueue = new PriorityQueue<>(Event::compareTo);
 
-        this.ticksToCheckEvents = 0;
-        this.ticksToReplan = 0;
+        if (isDailyOperation) {
+            this.lastReplanTime = state.getCurrentTime();
+        }
         this.replanFlag = true;
 
         // Inicializar componentes para planificación asíncrona
@@ -79,36 +80,27 @@ public class Orchestrator {
     }
 
     public void advanceTick() {
-        // Update check events countDown
-        ticksToCheckEvents = ticksToCheckEvents - 1;
-        if (ticksToCheckEvents == 0 || isDailyOperation) {
+        // Daily operations don't need tick-based management for most operations
+        if (isDailyOperation) {
+            checkAndLoadNewEvents();
+        } else if (ticksToCheckEvents <= 0) {
             checkAndLoadNewEvents();
             ticksToCheckEvents = TICKS_TO_CHECK_EVENTS;
         }
 
-        // Daily Operations a tick is from previous time to real time
-        // Simulation each tick represents 1 minute on simulation
         LocalDateTime nextTickTime = isDailyOperation ? LocalDateTime.now() : state.getCurrentTime().plusMinutes(1);
-
-        // Poll events
         pollEvents(nextTickTime);
-
-        // Check if we need to start replanification
         checkReplanification();
-
-        // Check if we need to apply future plans
         checkApplyFuturePlans(nextTickTime);
-
-        // Update state
         state.advanceTime(Duration.between(state.getCurrentTime(), nextTickTime));
 
-        // Update replan countDown
-        ticksToReplan = ticksToReplan - 1;
+        if (!isDailyOperation) {
+            ticksToCheckEvents--;
+            ticksToReplan--;
+        }
     }
 
     private void checkAndLoadNewEvents() {
-        logger.info("Checking for new events from data loader");
-        
         // Track existing orders and blockages to avoid duplicates
         Set<String> currentOrderIds = new HashSet<>();
         Set<String> currentBlockageIds = new HashSet<>();
@@ -145,16 +137,16 @@ public class Orchestrator {
         for (Event event : newOrderEvents) {
             if (event.getType() == EventType.ORDER_ARRIVAL) {
                 Order order = (Order) event.getData();
-                
+
                 // Only add if: 1) Not a duplicate and 2) Deadline is in the future
-                if (!currentOrderIds.contains(order.getId()) && 
-                    order.getDeadlineTime().isAfter(currentTime)) {
-                    
+                if (!currentOrderIds.contains(order.getId()) &&
+                        order.getDeadlineTime().isAfter(currentTime)) {
+
                     eventsToAdd.add(event);
                     currentOrderIds.add(order.getId()); // Mark as processed
                     newEventsCount++;
-                    logger.debug("New order event added: {} (deadline: {})", 
-                        order.getId(), order.getDeadlineTime());
+                    logger.debug("New order event added: {} (deadline: {})",
+                            order.getId(), order.getDeadlineTime());
                 }
             }
         }
@@ -164,20 +156,20 @@ public class Orchestrator {
             if (event.getType() == EventType.BLOCKAGE_START) {
                 Blockage blockage = (Blockage) event.getData();
                 String blockageId = createBlockageIdentifier(blockage);
-                
+
                 // Only add if: 1) Not a duplicate and 2) End time is in the future
-                if (!currentBlockageIds.contains(blockageId) && 
-                    blockage.getEndTime().isAfter(currentTime)) {
-                    
+                if (!currentBlockageIds.contains(blockageId) &&
+                        blockage.getEndTime().isAfter(currentTime)) {
+
                     eventsToAdd.add(event);
                     currentBlockageIds.add(blockageId); // Mark as processed
-                    
+
                     // Add the blockage to the state directly
                     state.addBlockage(blockage);
-                    
+
                     newEventsCount++;
-                    logger.debug("New blockage event added: {} to {}", 
-                        blockage.getStartTime(), blockage.getEndTime());
+                    logger.debug("New blockage event added: {} to {}",
+                            blockage.getStartTime(), blockage.getEndTime());
                 }
             }
         }
@@ -196,11 +188,11 @@ public class Orchestrator {
      */
     private String createBlockageIdentifier(Blockage blockage) {
         return String.format("%03d-%03d-%03d-%03d-%s-%s",
-                (int) blockage.getLines().get(0).getX(), 
+                (int) blockage.getLines().get(0).getX(),
                 (int) blockage.getLines().get(0).getY(),
-                (int) blockage.getLines().get(1).getX(), 
+                (int) blockage.getLines().get(1).getX(),
                 (int) blockage.getLines().get(1).getY(),
-                blockage.getStartTime(), 
+                blockage.getStartTime(),
                 blockage.getEndTime());
     }
 
@@ -212,13 +204,29 @@ public class Orchestrator {
     }
 
     private void checkReplanification() {
-        // Si es tiempo de replanificar o hay una bandera de replanificación activa
-        if ((ticksToReplan <= 0 || replanFlag) && !planningInProgress) {
+        boolean shouldReplan = false;
+
+        if (isDailyOperation) {
+            // For daily operations, check if 2 minutes have passed since last replan
+            LocalDateTime now = LocalDateTime.now();
+            Duration timeSinceLastReplan = Duration.between(lastReplanTime, now);
+            if (timeSinceLastReplan.toMinutes() >= DAILY_OPS_PROJECTION_MINUTES || replanFlag) {
+                shouldReplan = true;
+                lastReplanTime = now; // Update last replan time
+                logger.debug("Daily operations: Replanificando después de {} minutos",
+                        timeSinceLastReplan.toMinutes());
+            }
+        } else if (ticksToReplan <= 0 || replanFlag) {
+            shouldReplan = true;
+            ticksToReplan = NORMAL_PROJECTION_MINUTES;
+        }
+
+        // Si es tiempo de replanificar y no hay planificación en curso
+        if (shouldReplan && !planningInProgress) {
             logger.debug("Iniciando proceso de replanificación: ticksToReplan={}, replanFlag={}",
                     ticksToReplan, replanFlag);
             startAsyncReplanification();
             replanFlag = false;
-            ticksToReplan = FUTURE_PROJECTION_MINUTES;
         }
 
         // Verificar vehículos sin plan que estén fuera de planta y enviarlos a planta
@@ -250,7 +258,11 @@ public class Orchestrator {
 
     private void startAsyncReplanification() {
         SimulationState futureState = state.createSnapshot();
-        LocalDateTime projectedTime = futureState.getCurrentTime().plusMinutes(FUTURE_PROJECTION_MINUTES);
+
+        // Use appropriate projection time based on simulation type
+        int projectionMinutes = isDailyOperation ? DAILY_OPS_PROJECTION_MINUTES : NORMAL_PROJECTION_MINUTES;
+        LocalDateTime projectedTime = futureState.getCurrentTime().plusMinutes(projectionMinutes);
+
         applyEventsToFutureState(futureState, projectedTime);
         futureState.advanceTime(Duration.between(futureState.getCurrentTime(), projectedTime));
         targetPlanningTime = projectedTime;
@@ -414,25 +426,24 @@ public class Orchestrator {
                 if (vehicleWithIncident != null) {
                     // Remove the current plan if it exists
                     state.removeVehiclePlan(vehicleWithIncident.getId());
-                    
+
                     // Create a plan for the incident handling
                     VehiclePlan incidentPlan = VehiclePlanCreator.createPlanForIncident(
-                        vehicleWithIncident, 
-                        incident, 
-                        state
-                    );
-                    
+                            vehicleWithIncident,
+                            incident,
+                            state);
+
                     if (incidentPlan != null) {
                         state.addVehiclePlan(vehicleWithIncident.getId(), incidentPlan);
-                        logger.info("Incident plan created for vehicle {}, type: {}", 
+                        logger.info("Incident plan created for vehicle {}, type: {}",
                                 vehicleWithIncident.getId(), incident.getType());
                     }
-                    
+
                     // Mark the vehicle with incident and add to the state
                     vehicleWithIncident.setIncident();
                     state.addIncident(incident);
                 }
-                
+
                 // Cancel current planning and replan immediately
                 cancelCurrentPlanningAndReplan();
                 break;
@@ -456,7 +467,14 @@ public class Orchestrator {
         logger.info("Iniciando replanificación inmediata debido a evento crítico");
         startAsyncReplanification();
         replanFlag = false;
-        ticksToReplan = FUTURE_PROJECTION_MINUTES;
+
+        // Reset ticksToReplan for normal simulations
+        if (!isDailyOperation) {
+            ticksToReplan = NORMAL_PROJECTION_MINUTES;
+        }
+
+        // For daily operations, lastReplanTime is already updated in
+        // startAsyncReplanification
     }
 
     public void shutdown() {
