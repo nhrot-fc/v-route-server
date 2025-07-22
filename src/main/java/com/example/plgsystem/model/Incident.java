@@ -57,12 +57,12 @@ public class Incident implements Serializable {
 
     @Transient
     public LocalDateTime getAvailabilityTime() {
-        return getImmobilizationEndTime().plusHours(type.getRepairHours());
+        return type.calculateAvailabilityTime(occurrenceTime, shift);
     }
 
     @Transient
     public boolean isReturnToDepotRequired() {
-        return type.getRepairHours() > 0;
+        return type.requiresReturnToDepot();
     }
 
     public void resolve() {

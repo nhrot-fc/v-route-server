@@ -6,6 +6,8 @@ import com.example.plgsystem.operation.VehiclePlan;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -16,6 +18,8 @@ import java.util.List;
 
 @Getter
 public class SimulationState {
+    private static final Logger logger = LoggerFactory.getLogger(SimulationState.class);
+    
     @Setter
     private LocalDateTime currentTime;
 
@@ -132,6 +136,7 @@ public class SimulationState {
                 incident.setResolved(true);
                 incident.getVehicle().setAvailable();
                 resolvedIncidents.add(incident);
+                logger.info("Vehicle {} is now available after incident", incident.getVehicle().getId());
             }
         });
         incidents.removeAll(resolvedIncidents);

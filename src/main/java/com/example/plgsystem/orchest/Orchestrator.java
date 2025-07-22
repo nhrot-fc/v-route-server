@@ -32,8 +32,8 @@ import com.example.plgsystem.model.Maintenance;
 @Getter
 public class Orchestrator {
     private static final Logger logger = LoggerFactory.getLogger(Orchestrator.class);
-    private static final int FUTURE_PROJECTION_MINUTES = 90;
     private static final int TICKS_TO_CHECK_EVENTS = 10;
+    private static int FUTURE_PROJECTION_MINUTES = 90;
 
     private final boolean isDailyOperation;
     private final SimulationState state;
@@ -53,6 +53,8 @@ public class Orchestrator {
 
     public Orchestrator(SimulationState state, DataLoader dataLoader, boolean isDailyOperation) {
         this.isDailyOperation = isDailyOperation;
+        FUTURE_PROJECTION_MINUTES = isDailyOperation ? 90 : 5;
+
         this.dataLoader = dataLoader;
         this.state = state;
         this.eventQueue = new PriorityQueue<>(Event::compareTo);
@@ -79,7 +81,7 @@ public class Orchestrator {
     public void advanceTick() {
         // Update check events countDown
         ticksToCheckEvents = ticksToCheckEvents - 1;
-        if (ticksToCheckEvents == 0) {
+        if (ticksToCheckEvents == 0 || isDailyOperation) {
             checkAndLoadNewEvents();
             ticksToCheckEvents = TICKS_TO_CHECK_EVENTS;
         }
@@ -106,73 +108,100 @@ public class Orchestrator {
 
     private void checkAndLoadNewEvents() {
         logger.info("Checking for new events from data loader");
-        Set<String> currentOrders = new HashSet<>();
-        Set<String> currentBlockages = new HashSet<>();
+        
+        // Track existing orders and blockages to avoid duplicates
+        Set<String> currentOrderIds = new HashSet<>();
+        Set<String> currentBlockageIds = new HashSet<>();
 
+        // Add orders and blockages from the event queue to our tracking sets
         for (Event event : eventQueue) {
             if (event.getType() == EventType.ORDER_ARRIVAL) {
-                currentOrders.add(event.getEntityId());
-            }
-            if (event.getType() == EventType.BLOCKAGE_START) {
+                currentOrderIds.add(event.getEntityId());
+            } else if (event.getType() == EventType.BLOCKAGE_START) {
                 Blockage blockage = (Blockage) event.getData();
-                String blockageCustomId = String.format("%03d-%03d-%03d-%03d-%s-%s",
-                        (int) blockage.getLines().get(0).getX(), (int) blockage.getLines().get(0).getY(),
-                        (int) blockage.getLines().get(1).getX(), (int) blockage.getLines().get(1).getY(),
-                        blockage.getStartTime(), blockage.getEndTime());
-                currentBlockages.add(blockageCustomId);
+                String blockageId = createBlockageIdentifier(blockage);
+                currentBlockageIds.add(blockageId);
             }
         }
 
+        // Add orders and blockages from the current state to our tracking sets
         for (Order order : state.getOrders()) {
-            currentOrders.add(order.getId());
+            currentOrderIds.add(order.getId());
         }
         for (Blockage blockage : state.getBlockages()) {
-            String blockageCustomId = String.format("%03d-%03d-%03d-%03d-%s-%s",
-                    (int) blockage.getLines().get(0).getX(), (int) blockage.getLines().get(0).getY(),
-                    (int) blockage.getLines().get(1).getX(), (int) blockage.getLines().get(1).getY(),
-                    blockage.getStartTime(), blockage.getEndTime());
-            currentBlockages.add(blockageCustomId);
+            String blockageId = createBlockageIdentifier(blockage);
+            currentBlockageIds.add(blockageId);
         }
 
+        // Load potential new events for the current date
         List<Event> newOrderEvents = dataLoader.loadOrdersForDate(state.getCurrentTime().toLocalDate());
         List<Event> newBlockageEvents = dataLoader.loadBlockagesForDate(state.getCurrentTime().toLocalDate());
 
-        List<Event> filteredEvents = new ArrayList<>();
+        LocalDateTime currentTime = state.getCurrentTime();
+        List<Event> eventsToAdd = new ArrayList<>();
+        int newEventsCount = 0;
+
+        // Process order events
         for (Event event : newOrderEvents) {
             if (event.getType() == EventType.ORDER_ARRIVAL) {
                 Order order = (Order) event.getData();
-
-                if (!currentOrders.contains(order.getId()) && event.getTime().isAfter(state.getCurrentTime())) {
-                    filteredEvents.add(event);
+                
+                // Only add if: 1) Not a duplicate and 2) Deadline is in the future
+                if (!currentOrderIds.contains(order.getId()) && 
+                    order.getDeadlineTime().isAfter(currentTime)) {
+                    
+                    eventsToAdd.add(event);
+                    currentOrderIds.add(order.getId()); // Mark as processed
+                    newEventsCount++;
+                    logger.debug("New order event added: {} (deadline: {})", 
+                        order.getId(), order.getDeadlineTime());
                 }
             }
         }
 
+        // Process blockage events
         for (Event event : newBlockageEvents) {
             if (event.getType() == EventType.BLOCKAGE_START) {
                 Blockage blockage = (Blockage) event.getData();
-
-                String blockageCustomId = String.format("%03d-%03d-%03d-%03d-%s-%s",
-                        (int) blockage.getLines().get(0).getX(), (int) blockage.getLines().get(0).getY(),
-                        (int) blockage.getLines().get(1).getX(), (int) blockage.getLines().get(1).getY(),
-                        blockage.getStartTime(), blockage.getEndTime());
-
-                if (!currentBlockages.contains(blockageCustomId) && event.getTime().isAfter(state.getCurrentTime())) {
-                    filteredEvents.add(event);
+                String blockageId = createBlockageIdentifier(blockage);
+                
+                // Only add if: 1) Not a duplicate and 2) End time is in the future
+                if (!currentBlockageIds.contains(blockageId) && 
+                    blockage.getEndTime().isAfter(currentTime)) {
+                    
+                    eventsToAdd.add(event);
+                    currentBlockageIds.add(blockageId); // Mark as processed
+                    
+                    // Add the blockage to the state directly
                     state.addBlockage(blockage);
+                    
+                    newEventsCount++;
+                    logger.debug("New blockage event added: {} to {}", 
+                        blockage.getStartTime(), blockage.getEndTime());
                 }
             }
         }
-        addEvents(filteredEvents);
-        if (!filteredEvents.isEmpty() && !isDailyOperation) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("New events comming: ");
-            for (Event event : filteredEvents) {
-                sb.append("\t [EVENT]: ").append(event).append(" ");
-            }
-            logger.debug(sb.toString());
+
+        // Add all filtered events to the event queue
+        if (!eventsToAdd.isEmpty()) {
+            eventQueue.addAll(eventsToAdd);
+            logger.info("Added {} new events to event queue", newEventsCount);
+        } else {
+            logger.debug("No new events to add");
         }
-        // logger.info("Current state: \n\n{}", state.toString());
+    }
+
+    /**
+     * Creates a unique identifier for a blockage based on its properties
+     */
+    private String createBlockageIdentifier(Blockage blockage) {
+        return String.format("%03d-%03d-%03d-%03d-%s-%s",
+                (int) blockage.getLines().get(0).getX(), 
+                (int) blockage.getLines().get(0).getY(),
+                (int) blockage.getLines().get(1).getX(), 
+                (int) blockage.getLines().get(1).getY(),
+                blockage.getStartTime(), 
+                blockage.getEndTime());
     }
 
     private void pollEvents(LocalDateTime nextTickTime) {
@@ -381,8 +410,30 @@ public class Orchestrator {
                 break;
             case VEHICLE_BREAKDOWN:
                 Incident incident = (Incident) event.getData();
-                state.addIncident(incident);
-                // Cancelar planificación en progreso y replanificar inmediatamente
+                Vehicle vehicleWithIncident = incident.getVehicle();
+                if (vehicleWithIncident != null) {
+                    // Remove the current plan if it exists
+                    state.removeVehiclePlan(vehicleWithIncident.getId());
+                    
+                    // Create a plan for the incident handling
+                    VehiclePlan incidentPlan = VehiclePlanCreator.createPlanForIncident(
+                        vehicleWithIncident, 
+                        incident, 
+                        state
+                    );
+                    
+                    if (incidentPlan != null) {
+                        state.addVehiclePlan(vehicleWithIncident.getId(), incidentPlan);
+                        logger.info("Incident plan created for vehicle {}, type: {}", 
+                                vehicleWithIncident.getId(), incident.getType());
+                    }
+                    
+                    // Mark the vehicle with incident and add to the state
+                    vehicleWithIncident.setIncident();
+                    state.addIncident(incident);
+                }
+                
+                // Cancel current planning and replan immediately
                 cancelCurrentPlanningAndReplan();
                 break;
             case NEW_DAY_BEGIN:

@@ -12,8 +12,7 @@ public enum SimulationType {
     // Simulation types (memory only)
     WEEKLY("🔄", "Weekly Simulation"),
     INFINITE("♾️", "Infinite Simulation"),
-    CUSTOM("⚙️", "Custom Simulation"),
-    BENCHMARK("🚀", "Benchmark Simulation");
+    CUSTOM("⚙️", "Custom Simulation");
 
     private final String icon;
     private final String description;
@@ -23,6 +22,6 @@ public enum SimulationType {
     }
 
     public boolean isTimeBasedSimulation() {
-        return this == WEEKLY || this == INFINITE || this == CUSTOM || this == BENCHMARK;
+        return this == WEEKLY || this == INFINITE || this == CUSTOM;
     }
 }

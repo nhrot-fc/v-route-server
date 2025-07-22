@@ -305,14 +305,34 @@ public class SimulationController {
                 return ResponseEntity.notFound().build();
             }
             
+            // Don't allow incidents in benchmark simulations
+            if (simulation.getType() == SimulationType.INFINITE) {
+                logger.warn("No se permiten averías en simulaciones de tipo INFINITE");
+                return ResponseEntity.badRequest().body("No se permiten averías en simulaciones de tipo INFINITE");
+            }
+            
+            // Initialize DTO if not provided
+            if (incidentDTO == null) {
+                incidentDTO = new IncidentCreateDTO();
+            }
+            
+            // Set vehicle ID
             incidentDTO.setVehicleId(vehicleId);
-            incidentDTO.setType(IncidentType.TI1);
-            incidentDTO.setOccurrenceTime(simulation.getState().getCurrentTime());
+            
+            // Set default type if not specified
+            if (incidentDTO.getType() == null) {
+                incidentDTO.setType(IncidentType.TI1);
+            }
+            
+            // Set current time if not specified
+            if (incidentDTO.getOccurrenceTime() == null) {
+                incidentDTO.setOccurrenceTime(simulation.getState().getCurrentTime());
+            }
             
             simulationService.createVehicleBreakdown(simulation, incidentDTO);
             
-            logger.info("Avería creada exitosamente para vehículo {} en simulación {}", 
-                    vehicleId, simulationId);
+            logger.info("Avería creada exitosamente para vehículo {} en simulación {}, tipo: {}", 
+                    vehicleId, simulationId, incidentDTO.getType());
             return ResponseEntity.ok().body(Map.of(
                 "message", "Avería creada exitosamente",
                 "vehicleId", vehicleId,

@@ -1,23 +1,35 @@
 package com.example.plgsystem.service;
 
+import com.example.plgsystem.dto.IncidentCreateDTO;
 import com.example.plgsystem.dto.SimulationDTO;
 import com.example.plgsystem.dto.SimulationStateDTO;
 import com.example.plgsystem.enums.DepotType;
 import com.example.plgsystem.enums.SimulationType;
 import com.example.plgsystem.enums.VehicleType;
+import com.example.plgsystem.model.Blockage;
 import com.example.plgsystem.model.Constants;
 import com.example.plgsystem.model.Depot;
+import com.example.plgsystem.model.Incident;
+import com.example.plgsystem.model.Maintenance;
+import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Vehicle;
-import com.example.plgsystem.orchest.Event;
 import com.example.plgsystem.orchest.DatabaseDataLoader;
-import com.example.plgsystem.orchest.FileDataLoader;
 import com.example.plgsystem.orchest.DataLoader;
+import com.example.plgsystem.orchest.Event;
+import com.example.plgsystem.orchest.EventType;
+import com.example.plgsystem.orchest.FileDataLoader;
 import com.example.plgsystem.repository.BlockageRepository;
+import com.example.plgsystem.repository.DepotRepository;
+import com.example.plgsystem.repository.IncidentRepository;
+import com.example.plgsystem.repository.MaintenanceRepository;
 import com.example.plgsystem.repository.OrderRepository;
+import com.example.plgsystem.repository.VehicleRepository;
 import com.example.plgsystem.simulation.Simulation;
 import com.example.plgsystem.simulation.SimulationState;
 import com.example.plgsystem.util.FileUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.ContextRefreshedEvent;
@@ -25,9 +37,8 @@ import org.springframework.lang.NonNull;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -39,48 +50,172 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import com.example.plgsystem.dto.IncidentCreateDTO;
-import com.example.plgsystem.model.Incident;
-import com.example.plgsystem.orchest.EventType;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class SimulationService implements ApplicationListener<ContextRefreshedEvent> {
 
     private static final Logger logger = LoggerFactory.getLogger(SimulationService.class);
 
+    //--------------------------------------------------------------------------
+    // Fields
+    //--------------------------------------------------------------------------
+    
     private final Map<UUID, Simulation> simulations = new ConcurrentHashMap<>();
     private UUID dailyOperationsId;
+    private final AtomicBoolean dailyOperationsProcessing = new AtomicBoolean(false);
 
     private final DepotService depotService;
     private final VehicleService vehicleService;
     private final SimpMessagingTemplate messagingTemplate;
     private final OrderRepository orderRepository;
     private final BlockageRepository blockageRepository;
+    private final VehicleRepository vehicleRepository;
+    private final DepotRepository depotRepository;
+    private final IncidentRepository incidentRepository;
+    private final MaintenanceRepository maintenanceRepository;
 
+    //--------------------------------------------------------------------------
+    // Constructor
+    //--------------------------------------------------------------------------
+    
     public SimulationService(
             DepotService depotService,
             VehicleService vehicleService,
             @Lazy SimpMessagingTemplate messagingTemplate,
             OrderRepository orderRepository,
-            BlockageRepository blockageRepository) {
+            BlockageRepository blockageRepository,
+            VehicleRepository vehicleRepository,
+            DepotRepository depotRepository,
+            IncidentRepository incidentRepository,
+            MaintenanceRepository maintenanceRepository) {
         this.depotService = depotService;
         this.vehicleService = vehicleService;
         this.messagingTemplate = messagingTemplate;
         this.orderRepository = orderRepository;
         this.blockageRepository = blockageRepository;
+        this.vehicleRepository = vehicleRepository;
+        this.depotRepository = depotRepository;
+        this.incidentRepository = incidentRepository;
+        this.maintenanceRepository = maintenanceRepository;
         logger.info("SimulationService initialized");
     }
 
-    public Map<UUID, Simulation> getSimulations() {
-        return simulations;
-    }
-
+    //--------------------------------------------------------------------------
+    // Lifecycle Methods
+    //--------------------------------------------------------------------------
+    
     @Override
     public void onApplicationEvent(@NonNull ContextRefreshedEvent event) {
         logger.info("Application context refreshed, initializing daily operations");
         initializeDailyOperations();
     }
 
+    /**
+     * Limpia los recursos cuando se cierra la aplicación
+     */
+    public void cleanup() {
+        logger.info("Limpiando recursos de simulación");
+
+        // Apagar todos los orquestadores de simulaciones activas
+        simulations.values().forEach(simulation -> {
+            try {
+                simulation.getOrchestrator().shutdown();
+                logger.debug("Orquestador apagado para simulación: {}", simulation.getId());
+            } catch (Exception e) {
+                logger.error("Error al apagar orquestador de simulación {}: {}",
+                        simulation.getId(), e.getMessage());
+            }
+        });
+
+        FileUtils.cleanupTempFiles();
+    }
+
+    //--------------------------------------------------------------------------
+    // Simulation Management - Core Methods
+    //--------------------------------------------------------------------------
+    
+    /**
+     * Retrieve all simulations
+     */
+    public Map<UUID, Simulation> getAllSimulations() {
+        logger.debug("Getting all simulations, count: {}", simulations.size());
+        return simulations;
+    }
+
+    /**
+     * Get a specific simulation by ID
+     */
+    public Simulation getSimulation(UUID id) {
+        logger.debug("Getting simulation with ID: {}", id);
+        return simulations.get(id);
+    }
+
+    /**
+     * Start a simulation by ID
+     */
+    public Simulation startSimulation(UUID id) {
+        logger.info("Starting/resuming simulation with ID: {}", id);
+        Simulation simulation = simulations.get(id);
+        if (simulation != null) {
+            simulation.start();
+            logger.info("Simulation {} started successfully", id);
+            sendSimulationUpdate(simulation);
+        } else {
+            logger.warn("Cannot start simulation: ID {} not found", id);
+        }
+        return simulation;
+    }
+
+    /**
+     * Pause a simulation by ID
+     */
+    public Simulation pauseSimulation(UUID id) {
+        logger.info("Pausing simulation with ID: {}", id);
+        Simulation simulation = simulations.get(id);
+        if (simulation != null) {
+            simulation.pause();
+            logger.info("Simulation {} paused successfully", id);
+            sendSimulationUpdate(simulation);
+        } else {
+            logger.warn("Cannot pause simulation: ID {} not found", id);
+        }
+        return simulation;
+    }
+
+    /**
+     * Finish a simulation by ID
+     */
+    public Simulation finishSimulation(UUID id) {
+        logger.info("Finishing simulation with ID: {}", id);
+        Simulation simulation = simulations.get(id);
+        if (simulation != null) {
+            simulation.finish();
+            simulation.getOrchestrator().shutdown();
+            logger.info("Simulation {} finished successfully", id);
+            sendSimulationUpdate(simulation);
+        } else {
+            logger.warn("Cannot finish simulation: ID {} not found", id);
+        }
+        return simulation;
+    }
+
+    /**
+     * Delete a simulation by ID
+     */
+    public void deleteSimulation(UUID id) {
+        Simulation simulation = simulations.get(id);
+        if (simulation != null) {
+            simulation.getOrchestrator().shutdown();
+            logger.info("Shutdown orchestrator resources for simulation {}", id);
+        }
+        simulations.remove(id);
+    }
+
+    //--------------------------------------------------------------------------
+    // Simulation Creation & Initialization
+    //--------------------------------------------------------------------------
+    
     private void initializeDailyOperations() {
         logger.info("Initializing daily operations simulation");
         Depot mainDepot = depotService.findMainDepots().stream().findFirst().orElse(null);
@@ -161,6 +296,9 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         sendSimulationUpdate(dailyOps);
     }
 
+    /**
+     * Create a custom simulation with specified parameters
+     */
     public Simulation createSimulation(
             SimulationType type,
             LocalDateTime startDateTime,
@@ -257,6 +395,67 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         return simulation;
     }
 
+    //--------------------------------------------------------------------------
+    // Scheduled Update Methods
+    //--------------------------------------------------------------------------
+
+    @Scheduled(fixedRate = 1000)
+    public void updateSimulations() {
+        logger.trace("Updating other running simulations");
+
+        // Procesar el resto de simulaciones (en memoria)
+        for (Map.Entry<UUID, Simulation> entry : simulations.entrySet()) {
+            // Omitir las operaciones diarias ya procesadas
+            if (entry.getKey().equals(dailyOperationsId)) {
+                continue;
+            }
+
+            Simulation simulation = entry.getValue();
+            if (simulation.isRunning()) {
+                simulation.advanceTick();
+            }
+        }
+    }
+
+    @Scheduled(fixedRate = 2000)
+    public void updateDailyOperations() {
+        // Procesar operaciones diarias de manera especial
+        Simulation dailyOps = dailyOperationsId != null ? simulations.get(dailyOperationsId) : null;
+        if (dailyOps != null && dailyOps.isRunning()) {
+            // Solo procesar si no hay una operación en curso
+            if (!dailyOperationsProcessing.getAndSet(true)) {
+                try {
+                    dailyOps.advanceTick();
+                    // Guardar el estado en la base de datos
+                    saveDailyOperationsState(dailyOps);
+                } finally {
+                    dailyOperationsProcessing.set(false);
+                }
+            }
+        }
+    }
+
+    @Scheduled(fixedRate = 500)
+    public void broadcastSimulationUpdates() {
+        logger.trace("Broadcasting all running simulations");
+
+        int broadcastCount = 0;
+        for (Simulation simulation : simulations.values()) {
+            if (simulation.isRunning()) {
+                broadcastCount++;
+                sendSimulationUpdate(simulation);
+            }
+        }
+
+        if (broadcastCount > 0) {
+            logger.debug("Broadcasted {} running simulations", broadcastCount);
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    // Data Loading Methods
+    //--------------------------------------------------------------------------
+    
     /**
      * Carga órdenes para una simulación desde un archivo para un año/mes específico
      * 
@@ -335,133 +534,60 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
             throw new IOException("Error al cargar bloqueos: " + e.getMessage(), e);
         }
     }
-
-    public Simulation getSimulation(UUID id) {
-        logger.debug("Getting simulation with ID: {}", id);
-        return simulations.get(id);
-    }
-
-    public Simulation startSimulation(UUID id) {
-        logger.info("Starting/resuming simulation with ID: {}", id);
-        Simulation simulation = simulations.get(id);
-        if (simulation != null) {
-            simulation.start();
-            logger.info("Simulation {} started successfully", id);
-            sendSimulationUpdate(simulation);
-        } else {
-            logger.warn("Cannot start simulation: ID {} not found", id);
-        }
-        return simulation;
-    }
-
-    public Simulation pauseSimulation(UUID id) {
-        logger.info("Pausing simulation with ID: {}", id);
-        Simulation simulation = simulations.get(id);
-        if (simulation != null) {
-            simulation.pause();
-            logger.info("Simulation {} paused successfully", id);
-            sendSimulationUpdate(simulation);
-        } else {
-            logger.warn("Cannot pause simulation: ID {} not found", id);
-        }
-        return simulation;
-    }
-
-    public Simulation finishSimulation(UUID id) {
-        logger.info("Finishing simulation with ID: {}", id);
-        Simulation simulation = simulations.get(id);
-        if (simulation != null) {
-            simulation.finish();
-            simulation.getOrchestrator().shutdown(); // Apagar el orchestrator y sus recursos
-            logger.info("Simulation {} finished successfully", id);
-            sendSimulationUpdate(simulation);
-        } else {
-            logger.warn("Cannot finish simulation: ID {} not found", id);
-        }
-        return simulation;
-    }
-
-    public Map<UUID, Simulation> getAllSimulations() {
-        logger.debug("Getting all simulations, count: {}", simulations.size());
-        return simulations;
-    }
-
-    @Scheduled(fixedRate = 1000)
-    public void updateSimulations() {
-        logger.trace("Updating all running simulations");
-        for (Simulation simulation : simulations.values()) {
-            if (simulation.isRunning()) {
-                simulation.advanceTick();
-            }
-        }
-    }
-
-    @Scheduled(fixedRate = 500)
-    public void broadcastSimulationUpdates() {
-        logger.trace("Broadcasting all running simulations");
-
-        int broadcastCount = 0;
-        for (Simulation simulation : simulations.values()) {
-            if (simulation.isRunning()) {
-                broadcastCount++;
-                sendSimulationUpdate(simulation);
-            }
-        }
-
-        if (broadcastCount > 0) {
-            logger.debug("Broadcasted {} running simulations", broadcastCount);
-        }
-    }
-
-    public void sendSimulationUpdate(Simulation simulation) {
-        logger.trace("Sending WebSocket update for simulation ID: {}", simulation.getId());
-
-        UUID id = simulation.getId();
-        String channelBasePath = "/topic/simulation/" + id;
-
-        messagingTemplate.convertAndSend(
-                channelBasePath,
-                new SimulationDTO(simulation));
-
-        SimulationStateDTO stateDTO = SimulationStateDTO.fromSimulationState(
-                id.toString(),
-                simulation.getState(),
-                simulation.getStatus());
-
-        messagingTemplate.convertAndSend(
-                channelBasePath + "/state",
-                stateDTO);
-    }
+    
+    //--------------------------------------------------------------------------
+    // State Management Methods
+    //--------------------------------------------------------------------------
 
     /**
-     * Limpia los recursos cuando se cierra la aplicación
+     * Guarda el estado actual de la simulación de operaciones diarias en la base de
+     * datos
      */
-    public void cleanup() {
-        logger.info("Limpiando recursos de simulación");
-        
-        // Apagar todos los orquestadores de simulaciones activas
-        simulations.values().forEach(simulation -> {
-            try {
-                simulation.getOrchestrator().shutdown();
-                logger.debug("Orquestador apagado para simulación: {}", simulation.getId());
-            } catch (Exception e) {
-                logger.error("Error al apagar orquestador de simulación {}: {}", 
-                            simulation.getId(), e.getMessage());
-            }
-        });
-        
-        FileUtils.cleanupTempFiles();
-    }
-
-    public void deleteSimulation(UUID id) {
-        Simulation simulation = simulations.get(id);
-        if (simulation != null) {
-            simulation.getOrchestrator().shutdown();
-            logger.info("Shutdown orchestrator resources for simulation {}", id);
+    @Transactional
+    public void saveDailyOperationsState(Simulation simulation) {
+        if (!simulation.isDailyOperation()) {
+            logger.warn("Intento de guardar estado de una simulación que no es de operaciones diarias");
+            return;
         }
-        simulations.remove(id);
+
+        SimulationState state = simulation.getState();
+
+        try {
+            // Actualizar vehículos
+            List<Vehicle> vehicles = state.getVehicles();
+            vehicleRepository.saveAll(vehicles);
+
+            // Actualizar depósitos
+            List<Depot> allDepots = new ArrayList<>();
+            allDepots.add(state.getMainDepot());
+            allDepots.addAll(state.getAuxDepots());
+            depotRepository.saveAll(allDepots);
+
+            // Actualizar órdenes
+            List<Order> orders = state.getOrders();
+            orderRepository.saveAll(orders);
+
+            // Actualizar incidentes
+            List<Incident> incidents = state.getIncidents();
+            incidentRepository.saveAll(incidents);
+
+            // Actualizar mantenimientos
+            List<Maintenance> maintenances = state.getMaintenances();
+            maintenanceRepository.saveAll(maintenances);
+
+            // Actualizar bloqueos
+            List<Blockage> blockages = state.getBlockages();
+            blockageRepository.saveAll(blockages);
+        } catch (Exception e) {
+            logger.error("Error al guardar el estado de operaciones diarias: {}", e.getMessage(), e);
+            simulation.error();
+        }
     }
 
+    //--------------------------------------------------------------------------
+    // Event Handling Methods
+    //--------------------------------------------------------------------------
+    
     /**
      * Crea un evento de avería para un vehículo en una simulación específica
      * 
@@ -501,5 +627,39 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         simulation.getOrchestrator().addEvent(breakdownEvent);
         logger.info("Avería creada exitosamente para vehículo {} en simulación {}",
                 vehicle.getId(), simulation.getId());
+    }
+
+    //--------------------------------------------------------------------------
+    // Communication Methods
+    //--------------------------------------------------------------------------
+    
+    /**
+     * Send simulation updates via WebSocket
+     */
+    public void sendSimulationUpdate(Simulation simulation) {
+        logger.trace("Sending WebSocket update for simulation ID: {}", simulation.getId());
+
+        UUID id = simulation.getId();
+        String channelBasePath = "/topic/simulation/" + id;
+
+        messagingTemplate.convertAndSend(
+                channelBasePath,
+                new SimulationDTO(simulation));
+
+        SimulationStateDTO stateDTO = SimulationStateDTO.fromSimulationState(
+                id.toString(),
+                simulation.getState(),
+                simulation.getStatus());
+
+        messagingTemplate.convertAndSend(
+                channelBasePath + "/state",
+                stateDTO);
+    }
+    
+    /**
+     * Simple getter for simulations map
+     */
+    public Map<UUID, Simulation> getSimulations() {
+        return simulations;
     }
 }
