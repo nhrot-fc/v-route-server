@@ -81,5 +81,6 @@ public interface OrderRepository extends JpaRepository<Order, String> {
      * @param end Fecha y hora de fin
      * @return Lista de órdenes que llegan en el periodo especificado
      */
-    List<Order> findByArrivalTimeBetween(LocalDateTime start, LocalDateTime end);
+    @Query("SELECT o FROM Order o WHERE o.remainingGlpM3 > 0 AND o.arrivalTime BETWEEN :start AND :end ORDER BY o.arrivalTime ASC")
+    List<Order> findPendingByArrivalTimeBetween(LocalDateTime start, LocalDateTime end);
 }

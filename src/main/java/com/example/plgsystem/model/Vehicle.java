@@ -2,6 +2,7 @@ package com.example.plgsystem.model;
 
 import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.enums.VehicleType;
+import com.example.plgsystem.operation.Action;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -58,6 +59,9 @@ public class Vehicle implements Serializable {
 
     @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Maintenance> maintenances = new ArrayList<>();
+    
+    @Transient
+    private Action currentAction; // Tracks the current action being performed
 
     @Builder
     public Vehicle(String id, VehicleType type, Position currentPosition) {
@@ -69,6 +73,7 @@ public class Vehicle implements Serializable {
         this.currentGlpM3 = 0;
         this.currentFuelGal = this.fuelCapacityGal;
         this.status = VehicleStatus.AVAILABLE;
+        this.currentAction = null;
     }
 
     @Transactional
@@ -154,6 +159,26 @@ public class Vehicle implements Serializable {
         return this.status != VehicleStatus.MAINTENANCE && this.status != VehicleStatus.INCIDENT;
     }
 
+    @Transient
+    public boolean isPerformingAction() {
+        return this.currentAction != null;
+    }
+
+    @Transient
+    public void setCurrentAction(Action action) {
+        this.currentAction = action;
+    }
+
+    @Transient
+    public void clearCurrentAction() {
+        this.currentAction = null;
+    }
+
+    @Transient
+    public LocalDateTime getCurrentActionEndTime() {
+        return currentAction != null ? currentAction.getEndTime() : null;
+    }
+
     public Vehicle copy() {
         // Create a deep copy with cloned position
         Vehicle copy = new Vehicle(this.id, this.type,
@@ -161,6 +186,8 @@ public class Vehicle implements Serializable {
         copy.currentGlpM3 = this.currentGlpM3;
         copy.currentFuelGal = this.currentFuelGal;
         copy.status = this.status;
+        // Copy the current action if it exists
+        copy.currentAction = this.currentAction != null ? this.currentAction.copy() : null;
         return copy;
     }
 

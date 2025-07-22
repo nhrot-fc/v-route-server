@@ -41,6 +41,10 @@ public class Orchestrator {
     private final PriorityQueue<Event> eventQueue;
     private final DataLoader dataLoader;
 
+    // Sets to track already processed file-based events
+    private final Set<String> processedOrderIds = new HashSet<>();
+    private final Set<String> processedBlockageIds = new HashSet<>();
+
     private int ticksToCheckEvents;
     private int ticksToReplan;
     private boolean replanFlag;
@@ -119,10 +123,12 @@ public class Orchestrator {
         // Add orders and blockages from the current state to our tracking sets
         for (Order order : state.getOrders()) {
             currentOrderIds.add(order.getId());
+            processedOrderIds.add(order.getId()); // Track as processed for file-based loading
         }
         for (Blockage blockage : state.getBlockages()) {
             String blockageId = createBlockageIdentifier(blockage);
             currentBlockageIds.add(blockageId);
+            processedBlockageIds.add(blockageId); // Track as processed for file-based loading
         }
 
         // Load potential new events for the current date
@@ -138,12 +144,16 @@ public class Orchestrator {
             if (event.getType() == EventType.ORDER_ARRIVAL) {
                 Order order = (Order) event.getData();
 
-                // Only add if: 1) Not a duplicate and 2) Deadline is in the future
+                // Only add if: 1) Not a duplicate, 2) Not previously processed, 3) Deadline is
+                // in the future, 4) Has remaining GLP
                 if (!currentOrderIds.contains(order.getId()) &&
-                        order.getDeadlineTime().isAfter(currentTime)) {
+                        !processedOrderIds.contains(order.getId()) &&
+                        order.getDeadlineTime().isAfter(currentTime) &&
+                        order.getRemainingGlpM3() > 0) {
 
                     eventsToAdd.add(event);
-                    currentOrderIds.add(order.getId()); // Mark as processed
+                    currentOrderIds.add(order.getId());
+                    processedOrderIds.add(order.getId()); // Mark as processed
                     newEventsCount++;
                     logger.debug("New order event added: {} (deadline: {})",
                             order.getId(), order.getDeadlineTime());
@@ -157,12 +167,15 @@ public class Orchestrator {
                 Blockage blockage = (Blockage) event.getData();
                 String blockageId = createBlockageIdentifier(blockage);
 
-                // Only add if: 1) Not a duplicate and 2) End time is in the future
+                // Only add if: 1) Not a duplicate, 2) Not previously processed, 3) End time is
+                // in the future
                 if (!currentBlockageIds.contains(blockageId) &&
+                        !processedBlockageIds.contains(blockageId) &&
                         blockage.getEndTime().isAfter(currentTime)) {
 
                     eventsToAdd.add(event);
-                    currentBlockageIds.add(blockageId); // Mark as processed
+                    currentBlockageIds.add(blockageId);
+                    processedBlockageIds.add(blockageId); // Mark as processed
 
                     // Add the blockage to the state directly
                     state.addBlockage(blockage);
@@ -237,11 +250,16 @@ public class Orchestrator {
 
                 logger.info("Vehículo {} sin plan y fuera de planta, creando plan para retorno a base",
                         vehicle.getId());
+
+                // Create return-to-base plan that respects any current action the vehicle may
+                // be performing
                 VehiclePlan planToMainDepot = VehiclePlanCreator.createPlanToMainDepot(vehicle, state);
 
                 if (planToMainDepot != null) {
                     state.addVehiclePlan(vehicle.getId(), planToMainDepot);
-                    logger.debug("Plan de retorno a base creado para vehículo {}", vehicle.getId());
+                    logger.debug("Plan de retorno a base creado para vehículo {}, iniciando en {}",
+                            vehicle.getId(),
+                            vehicle.isPerformingAction() ? vehicle.getCurrentActionEndTime() : state.getCurrentTime());
                 }
             }
         }
@@ -326,6 +344,16 @@ public class Orchestrator {
         Map<String, VehiclePlan> newPlans = new HashMap<>();
 
         try {
+            // Provide information about vehicles currently performing actions to the solver
+            Map<String, LocalDateTime> vehiclesWithActions = new HashMap<>();
+            for (Vehicle vehicle : futureState.getVehicles()) {
+                if (vehicle.isPerformingAction()) {
+                    vehiclesWithActions.put(vehicle.getId(), vehicle.getCurrentActionEndTime());
+                    logger.debug("Vehículo {} está realizando una acción hasta {}",
+                            vehicle.getId(), vehicle.getCurrentActionEndTime());
+                }
+            }
+
             Solution solution = MetaheuristicSolver.solve(futureState);
 
             if (solution == null) {
@@ -369,13 +397,46 @@ public class Orchestrator {
             if (nextTickTime.isEqual(targetPlanningTime) || nextTickTime.isAfter(targetPlanningTime)) {
                 logger.info("Aplicando planes futuros generados para tiempo: {}", targetPlanningTime);
 
-                // Reemplazar los planes actuales con los futuros
+                // Reemplazar los planes actuales con los futuros, preservando acciones en curso
                 synchronized (this) {
                     int prevPlansCount = state.getCurrentVehiclePlans().size();
-                    state.getCurrentVehiclePlans().clear();
-                    state.getCurrentVehiclePlans().putAll(futurePlans);
-                    logger.debug("Planes anteriores: {}, nuevos planes aplicados: {}",
-                            prevPlansCount, futurePlans.size());
+
+                    // Borrar todos los planes de vehículos que no estén realizando acciones
+                    // actualmente
+                    List<String> keysToRemove = new ArrayList<>();
+                    for (Map.Entry<String, VehiclePlan> entry : state.getCurrentVehiclePlans().entrySet()) {
+                        String vehicleId = entry.getKey();
+                        Vehicle vehicle = state.getVehicleById(vehicleId);
+
+                        if (vehicle != null && !vehicle.isPerformingAction()) {
+                            keysToRemove.add(vehicleId);
+                        } else {
+                            // Si el vehículo está realizando una acción, conserva su plan actual
+                            logger.debug("Preservando plan actual para vehículo {} que está realizando una acción",
+                                    vehicleId);
+                        }
+                    }
+
+                    // Eliminar planes para vehículos sin acciones en curso
+                    for (String key : keysToRemove) {
+                        state.getCurrentVehiclePlans().remove(key);
+                    }
+
+                    // Aplicar los nuevos planes, pero no sobrescribir los planes de vehículos con
+                    // acciones
+                    for (Map.Entry<String, VehiclePlan> entry : futurePlans.entrySet()) {
+                        String vehicleId = entry.getKey();
+                        Vehicle vehicle = state.getVehicleById(vehicleId);
+
+                        if (vehicle != null && !vehicle.isPerformingAction()) {
+                            state.getCurrentVehiclePlans().put(vehicleId, entry.getValue());
+                        }
+                    }
+
+                    logger.debug("Planes anteriores: {}, nuevos planes aplicados: {}, planes preservados: {}",
+                            prevPlansCount, futurePlans.size(),
+                            state.getCurrentVehiclePlans().size() - (prevPlansCount - keysToRemove.size()));
+
                     futurePlans.clear();
                     targetPlanningTime = null;
                 }
@@ -397,20 +458,29 @@ public class Orchestrator {
                 Maintenance maintenance = (Maintenance) event.getData();
                 Vehicle vehicleForMaintenance = state.getVehicleById(maintenance.getVehicle().getId());
                 if (vehicleForMaintenance != null) {
-                    // Remover plan actual si existe
-                    state.removeVehiclePlan(vehicleForMaintenance.getId());
-
-                    // Crear un plan para llevar el vehículo a la planta principal
-                    VehiclePlan planToMainDepot = VehiclePlanCreator.createPlanToMainDepot(vehicleForMaintenance,
-                            state);
-                    if (planToMainDepot != null) {
-                        state.addVehiclePlan(vehicleForMaintenance.getId(), planToMainDepot);
-                        logger.info("Vehículo {} enviado a mantenimiento, plan creado", vehicleForMaintenance.getId());
-                    }
-
-                    // Marcar el vehículo en mantenimiento
+                    // Marcar el vehículo en mantenimiento después de la acción actual
                     vehicleForMaintenance.setMaintenance();
                     state.addMaintenance(maintenance);
+
+                    // For vehicles with ongoing actions, the maintenance plan will respect the
+                    // current action
+                    // and only start after it completes - no need to remove the plan now
+                    // VehiclePlanCreator.createPlanToMainDepot will handle this correctly
+
+                    // Create a plan for the vehicle to return to the main depot
+                    VehiclePlan planToMainDepot = VehiclePlanCreator.createPlanToMainDepot(
+                            vehicleForMaintenance,
+                            state);
+
+                    if (planToMainDepot != null) {
+                        // The plan will be scheduled after any current action completes
+                        state.addVehiclePlan(vehicleForMaintenance.getId(), planToMainDepot);
+                        logger.info("Maintenance plan created for vehicle {}, starting at {}",
+                                vehicleForMaintenance.getId(),
+                                vehicleForMaintenance.isPerformingAction()
+                                        ? vehicleForMaintenance.getCurrentActionEndTime()
+                                        : state.getCurrentTime());
+                    }
                 }
 
                 // Cancelar planificación en progreso y replanificar inmediatamente
@@ -424,10 +494,13 @@ public class Orchestrator {
                 Incident incident = (Incident) event.getData();
                 Vehicle vehicleWithIncident = incident.getVehicle();
                 if (vehicleWithIncident != null) {
-                    // Remove the current plan if it exists
-                    state.removeVehiclePlan(vehicleWithIncident.getId());
+                    // Mark the vehicle with incident and add to the state
+                    vehicleWithIncident.setIncident();
+                    state.addIncident(incident);
 
                     // Create a plan for the incident handling
+                    // The plan will automatically respect the current action and only start after
+                    // it completes
                     VehiclePlan incidentPlan = VehiclePlanCreator.createPlanForIncident(
                             vehicleWithIncident,
                             incident,
@@ -435,13 +508,12 @@ public class Orchestrator {
 
                     if (incidentPlan != null) {
                         state.addVehiclePlan(vehicleWithIncident.getId(), incidentPlan);
-                        logger.info("Incident plan created for vehicle {}, type: {}",
-                                vehicleWithIncident.getId(), incident.getType());
+                        logger.info("Incident plan created for vehicle {}, type: {}, starting at {}",
+                                vehicleWithIncident.getId(),
+                                incident.getType(),
+                                vehicleWithIncident.isPerformingAction() ? vehicleWithIncident.getCurrentActionEndTime()
+                                        : state.getCurrentTime());
                     }
-
-                    // Mark the vehicle with incident and add to the state
-                    vehicleWithIncident.setIncident();
-                    state.addIncident(incident);
                 }
 
                 // Cancel current planning and replan immediately
@@ -449,6 +521,8 @@ public class Orchestrator {
                 break;
             case NEW_DAY_BEGIN:
                 state.refillDepots();
+                processedOrderIds.clear();
+                processedBlockageIds.clear();
                 break;
             default:
                 break;

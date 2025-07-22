@@ -2,6 +2,7 @@ package com.example.plgsystem.assignation;
 
 import com.example.plgsystem.enums.VehicleType;
 import com.example.plgsystem.model.*;
+import com.example.plgsystem.operation.Action;
 import com.example.plgsystem.simulation.SimulationState;
 
 import java.time.Duration;
@@ -73,13 +74,23 @@ public class SolutionEvaluator {
             Map<String, Integer> ordersRemainingGlp, Map<String, Integer> depotsGlpState) {
         double totalDistance = 0;
         int totalLateDeliveries = 0;
-        LocalDateTime lastDeliveryTime = state.getCurrentTime();
+        
+        // Consider the vehicle's current action when determining start time
         LocalDateTime startTime = state.getCurrentTime();
+        if (vehicle.isPerformingAction()) {
+            Action currentAction = vehicle.getCurrentAction();
+            if (currentAction != null && currentAction.getEndTime().isAfter(startTime)) {
+                // Route can only start after the current action finishes
+                startTime = currentAction.getEndTime();
+            }
+        }
+        
+        LocalDateTime lastDeliveryTime = startTime;
+        LocalDateTime currentTime = startTime;
 
         Position currentPosition = vehicle.getCurrentPosition();
         int currentGlp = vehicle.getCurrentGlpM3();
         double currentFuel = vehicle.getCurrentFuelGal();
-        LocalDateTime currentTime = startTime;
 
         for (RouteStop stop : route.stops()) {
             Position nextPosition = stop.getPosition();
@@ -146,7 +157,7 @@ public class SolutionEvaluator {
         }
 
         // Calculate time cost: time to complete last delivery (from start of solution)
-        long timeCostMinutes = Duration.between(startTime, lastDeliveryTime).toMinutes();
+        long timeCostMinutes = Duration.between(state.getCurrentTime(), lastDeliveryTime).toMinutes();
 
         return new SolutionCost(
                 timeCostMinutes * COST_PER_MINUTE,

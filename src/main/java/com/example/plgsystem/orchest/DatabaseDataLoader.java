@@ -41,7 +41,7 @@ public class DatabaseDataLoader implements DataLoader {
         LocalDateTime endOfDay = LocalDateTime.of(date, LocalTime.MAX);
 
         // Find orders that arrive on the specified date
-        List<Order> orders = orderRepository.findByArrivalTimeBetween(startOfDay, endOfDay);
+        List<Order> orders = orderRepository.findPendingByArrivalTimeBetween(startOfDay, endOfDay);
         List<Event> events = new ArrayList<>();
 
         if (!orders.isEmpty()) {

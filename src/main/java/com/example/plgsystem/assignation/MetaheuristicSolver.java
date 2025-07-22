@@ -1,5 +1,6 @@
 package com.example.plgsystem.assignation;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -8,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.example.plgsystem.model.Constants;
+import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.simulation.SimulationState;
 
 public class MetaheuristicSolver {
@@ -170,7 +172,27 @@ public class MetaheuristicSolver {
      */
     public static Solution solve(SimulationState state) {
         // 1. INITIALIZATION
+        
+        // Identify vehicles that are currently performing actions
+        Map<String, Vehicle> vehiclesWithActions = new HashMap<>();
+        LocalDateTime currentTime = state.getCurrentTime();
+        
+        for (Vehicle vehicle : state.getVehicles()) {
+            if (vehicle.isPerformingAction()) {
+                vehiclesWithActions.put(vehicle.getId(), vehicle);
+            }
+        }
+        
         Map<String, List<DeliveryPart>> currentAssignment = RandomDistributor.createInitialRandomAssignments(state);
+        
+        // Ensure we don't assign deliveries to vehicles currently performing actions
+        // These vehicles will be handled separately in the solution generation
+        if (!vehiclesWithActions.isEmpty()) {
+            for (String vehicleId : vehiclesWithActions.keySet()) {
+                currentAssignment.remove(vehicleId);
+            }
+        }
+        
         Solution currentSolution = SolutionGenerator.generateSolution(state, currentAssignment);
         Solution bestSolution = currentSolution;
         List<TabuMove> tabuList = new ArrayList<>();

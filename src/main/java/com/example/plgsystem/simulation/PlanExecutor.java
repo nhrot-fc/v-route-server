@@ -33,20 +33,45 @@ public class PlanExecutor {
                 logger.error("Vehicle not found for plan: {}", plan);
                 continue;
             }
-            Action currentAction = plan.getCurrentAction();
-            if (currentAction == null) {
-                //logger.error("No current action found for plan: {}", plan);
-                continue;
-            }
-            while (currentAction.getStartTime().isBefore(nextTime) || currentAction.getStartTime().equals(nextTime)) {
+            
+            // First, check if the vehicle is already performing an action
+            if (vehicle.isPerformingAction()) {
+                Action currentAction = vehicle.getCurrentAction();
+                // Continue executing current action
                 double progress = executeAction(state, currentAction, vehicle, nextTime);
                 if (progress < 1.0) {
+                    // Action not completed yet
+                    continue;
+                } else {
+                    // Action completed, clear it
+                    vehicle.clearCurrentAction();
+                    vehicle.setAvailable();
+                }
+            }
+            
+            // If we reach here, either the vehicle had no action or the action completed
+            Action nextAction = plan.getCurrentAction();
+            if (nextAction == null) {
+                continue;
+            }
+            
+            // If the next action should start now or has already started
+            while (nextAction.getStartTime().isBefore(nextTime) || nextAction.getStartTime().equals(nextTime)) {
+                // Set the current action on the vehicle
+                vehicle.setCurrentAction(nextAction);
+                
+                double progress = executeAction(state, nextAction, vehicle, nextTime);
+                if (progress < 1.0) {
+                    // Action not completed yet
                     break;
                 }
+                
+                // Action completed
+                vehicle.clearCurrentAction();
                 vehicle.setAvailable();
                 plan.advanceAction();
-                currentAction = plan.getCurrentAction();
-                if (currentAction == null) {
+                nextAction = plan.getCurrentAction();
+                if (nextAction == null) {
                     break;
                 }
             }
@@ -215,25 +240,20 @@ public class PlanExecutor {
             case REFUEL:
                 // Vehicle is fully refueled
                 vehicle.refuel();
-                vehicle.setAvailable(); // Set back to available
                 break;
                 
             case RELOAD:
                 // GLP is already loaded in applyImmediateEffects
-                vehicle.setAvailable(); // Set back to available
                 break;
                 
             case SERVE:
                 // Order is already served in applyImmediateEffects
-                vehicle.setAvailable(); // Set back to available
                 break;
                 
             case MAINTENANCE:
-                vehicle.setAvailable(); // Set back to available
                 break;
                 
             case WAIT:
-                vehicle.setAvailable(); // Set back to available
                 break;
                 
             default:

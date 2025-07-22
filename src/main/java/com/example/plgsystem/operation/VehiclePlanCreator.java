@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
 
 public class VehiclePlanCreator {
     private static final Logger logger = LoggerFactory.getLogger(VehiclePlanCreator.class);
-    
+
     public static VehiclePlan createPlanFromRoute(
             Route route,
             SimulationState state) {
@@ -34,12 +34,22 @@ public class VehiclePlanCreator {
         // Validate vehicle exists
         Vehicle vehicle = state.getVehicleById(route.vehicleId());
         List<Action> actions = new ArrayList<>();
+        if (vehicle == null) {
+            logger.error("Vehicle not found for route: {}", route);
+            return null;
+        }
 
         // Tracker variables
         Position currentPosition = vehicle.getCurrentPosition();
         double currentFuel = vehicle.getCurrentFuelGal();
         // int currentGlp = vehicle.getCurrentGlpM3();
+
+        // Determine start time, considering current action if any
         LocalDateTime currentTime = state.getCurrentTime();
+        if (vehicle.isPerformingAction() && vehicle.getCurrentAction().getType() != ActionType.DRIVE) {
+            actions.add(vehicle.getCurrentAction());
+            currentTime = vehicle.getCurrentActionEndTime();
+        }
 
         for (RouteStop stop : route.stops()) {
             // Plan loop instructions
@@ -140,7 +150,15 @@ public class VehiclePlanCreator {
         List<Action> actions = new ArrayList<>();
         Position currentPosition = vehicle.getCurrentPosition();
         double currentFuel = vehicle.getCurrentFuelGal();
+
+        // Determine start time, considering current action if any
         LocalDateTime currentTime = state.getCurrentTime();
+        if (vehicle.isPerformingAction() && vehicle.getCurrentActionEndTime() != null) {
+            currentTime = vehicle.getCurrentActionEndTime();
+            logger.debug("Vehicle {} has ongoing action, plan to main depot will start at {}",
+                    vehicle.getId(), currentTime);
+        }
+
         if (!currentPosition.equals(depotPosition)) {
             // Find path to main depot
             List<Position> path = PathFinder.findPath(state, currentPosition, depotPosition, currentTime);
@@ -174,47 +192,57 @@ public class VehiclePlanCreator {
 
         return new VehiclePlan(vehicle.getId(), actions, state.getCurrentTime(), 0);
     }
-    
+
     /**
      * Creates a plan for a vehicle with an incident.
-     * The plan includes waiting during immobilization and potentially returning to the main depot.
+     * The plan includes waiting during immobilization and potentially returning to
+     * the main depot.
      * 
-     * @param vehicle The vehicle with the incident
+     * @param vehicle  The vehicle with the incident
      * @param incident The incident that occurred
-     * @param state The current simulation state
+     * @param state    The current simulation state
      * @return A VehiclePlan for the incident handling
      */
     public static VehiclePlan createPlanForIncident(
             Vehicle vehicle,
             Incident incident,
             SimulationState state) {
-        
+
         // Validate input parameters
         if (vehicle == null || incident == null || state == null) {
             logger.error("Cannot create incident plan: invalid input parameters");
             return null;
         }
-        
+
         List<Action> actions = new ArrayList<>();
+
+        // Determine start time, considering current action if any
         LocalDateTime currentTime = state.getCurrentTime();
+        if (vehicle.isPerformingAction() && vehicle.getCurrentActionEndTime() != null) {
+            currentTime = vehicle.getCurrentActionEndTime();
+            logger.debug("Vehicle {} has ongoing action, incident plan will start at {}",
+                    vehicle.getId(), currentTime);
+        }
+
         Position incidentPosition = vehicle.getCurrentPosition();
-        
+
         // Calculate immobilization end time
         LocalDateTime immobilizationEndTime = incident.getImmobilizationEndTime();
-        
-        // Add a wait action for the immobilization period
-        long waitTimeMinutes = java.time.Duration.between(currentTime, immobilizationEndTime).toMinutes();
-        if (waitTimeMinutes > 0) {
+
+        // Add a wait action for the immobilization period only if needed
+        if (immobilizationEndTime.isAfter(currentTime)) {
             Duration waitDuration = Duration.between(currentTime, immobilizationEndTime);
-            Action waitAction = ActionFactory.createIdleAction(
-                    incidentPosition,
-                    waitDuration,
-                    currentTime
-            );
-            actions.add(waitAction);
-            currentTime = waitAction.getEndTime();
+            long waitTimeMinutes = waitDuration.toMinutes();
+            if (waitTimeMinutes > 0) {
+                Action waitAction = ActionFactory.createIdleAction(
+                        incidentPosition,
+                        waitDuration,
+                        currentTime);
+                actions.add(waitAction);
+                currentTime = waitAction.getEndTime();
+            }
         }
-        
+
         // After immobilization, if return to depot is required, create a plan to return
         if (incident.isReturnToDepotRequired()) {
             Depot mainDepot = state.getMainDepot();
@@ -222,13 +250,13 @@ public class VehiclePlanCreator {
                 logger.error("Cannot create incident plan: main depot not found");
                 return null;
             }
-            
+
             Position depotPosition = mainDepot.getPosition();
             if (depotPosition == null) {
                 logger.error("Cannot create incident plan: main depot position not defined");
                 return null;
             }
-            
+
             // Only create drive action if not already at the depot
             if (!incidentPosition.equals(depotPosition)) {
                 // Find path to main depot
@@ -237,37 +265,38 @@ public class VehiclePlanCreator {
                     logger.error("Cannot create incident plan: no path found to main depot");
                     return null;
                 }
-                
+
                 // Calculate fuel and time
                 double distanceKm = path.size() - 1;
-                double fuelNeeded = calculateFuelFromDistance(distanceKm, vehicle.getGlpCapacityM3(), vehicle.getType());
+                double fuelNeeded = calculateFuelFromDistance(distanceKm, vehicle.getGlpCapacityM3(),
+                        vehicle.getType());
                 int driveTimeMinutes = (int) (distanceKm / Constants.VEHICLE_AVG_SPEED * 60);
-                
+
                 // Create drive action
                 Action driveAction = ActionFactory.createDrivingAction(
                         path,
                         fuelNeeded,
                         currentTime,
-                        currentTime.plusMinutes(driveTimeMinutes)
-                );
+                        currentTime.plusMinutes(driveTimeMinutes));
                 actions.add(driveAction);
                 currentTime = driveAction.getEndTime();
             }
-            
+
             // Add a maintenance action at the depot for the repair period
             LocalDateTime availabilityTime = incident.getAvailabilityTime();
-            waitTimeMinutes = java.time.Duration.between(currentTime, availabilityTime).toMinutes();
-            if (waitTimeMinutes > 0) {
+            if (availabilityTime.isAfter(currentTime)) {
                 Duration repairDuration = Duration.between(currentTime, availabilityTime);
-                Action repairAction = ActionFactory.createMaintenanceAction(
-                        depotPosition,
-                        repairDuration,
-                        currentTime
-                );
-                actions.add(repairAction);
+                long waitTimeMinutes = repairDuration.toMinutes();
+                if (waitTimeMinutes > 0) {
+                    Action repairAction = ActionFactory.createMaintenanceAction(
+                            depotPosition,
+                            repairDuration,
+                            currentTime);
+                    actions.add(repairAction);
+                }
             }
         }
-        
+
         // Return the plan
         return new VehiclePlan(vehicle.getId(), actions, state.getCurrentTime(), 0);
     }
