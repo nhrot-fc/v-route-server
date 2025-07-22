@@ -1,6 +1,5 @@
 package com.example.plgsystem.assignation;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -9,7 +8,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.example.plgsystem.model.Constants;
-import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.simulation.SimulationState;
 
 public class MetaheuristicSolver {
@@ -17,19 +15,20 @@ public class MetaheuristicSolver {
     private static int maxIterations = Constants.MAX_ITERATIONS;
     private static int tabuTenure = Constants.TABU_TENURE;
     private static int numNeighbors = Constants.NUM_NEIGHBORS;
-    
+
     /**
      * Configura los parámetros del algoritmo de búsqueda tabú
+     * 
      * @param maxIterations Número máximo de iteraciones
-     * @param tabuTenure Duración de permanencia en la lista tabú
-     * @param numNeighbors Número de vecinos a generar en cada iteración
+     * @param tabuTenure    Duración de permanencia en la lista tabú
+     * @param numNeighbors  Número de vecinos a generar en cada iteración
      */
     public static void configure(int maxIterations, int tabuTenure, int numNeighbors) {
         MetaheuristicSolver.maxIterations = maxIterations;
         MetaheuristicSolver.tabuTenure = tabuTenure;
         MetaheuristicSolver.numNeighbors = numNeighbors;
     }
-    
+
     /**
      * Represents a tabu move in the search space
      */
@@ -162,7 +161,7 @@ public class MetaheuristicSolver {
      */
     private static Map<String, List<DeliveryPart>> applyPeriodicRebalancing(
             Map<String, List<DeliveryPart>> currentAssignment, SimulationState state) {
-        
+
         // Use the more sophisticated strategic rebalancing
         return DistributionOperations.performStrategicRebalancing(currentAssignment, state);
     }
@@ -172,51 +171,32 @@ public class MetaheuristicSolver {
      */
     public static Solution solve(SimulationState state) {
         // 1. INITIALIZATION
-        
-        // Identify vehicles that are currently performing actions
-        Map<String, Vehicle> vehiclesWithActions = new HashMap<>();
-        LocalDateTime currentTime = state.getCurrentTime();
-        
-        for (Vehicle vehicle : state.getVehicles()) {
-            if (vehicle.isPerformingAction()) {
-                vehiclesWithActions.put(vehicle.getId(), vehicle);
-            }
-        }
-        
         Map<String, List<DeliveryPart>> currentAssignment = RandomDistributor.createInitialRandomAssignments(state);
-        
-        // Ensure we don't assign deliveries to vehicles currently performing actions
-        // These vehicles will be handled separately in the solution generation
-        if (!vehiclesWithActions.isEmpty()) {
-            for (String vehicleId : vehiclesWithActions.keySet()) {
-                currentAssignment.remove(vehicleId);
-            }
-        }
-        
+
         Solution currentSolution = SolutionGenerator.generateSolution(state, currentAssignment);
         Solution bestSolution = currentSolution;
         List<TabuMove> tabuList = new ArrayList<>();
-        
+
         // Configuration for periodic rebalancing
         final int REBALANCE_INTERVAL = maxIterations / 5; // Apply rebalancing 5 times during the search
         final int REBALANCE_PERIOD = 3; // Apply rebalancing for this many consecutive iterations
-        
+
         // 2. MAIN SEARCH LOOP
         for (int iteration = 0; iteration < maxIterations; iteration++) {
             // Periodically apply rebalancing operations to escape local optima
             boolean isRebalancingIteration = (iteration % REBALANCE_INTERVAL < REBALANCE_PERIOD);
-            
+
             if (isRebalancingIteration) {
                 // Apply special operations to rebalance and escape local optima
                 currentAssignment = applyPeriodicRebalancing(currentAssignment, state);
                 currentSolution = SolutionGenerator.generateSolution(state, currentAssignment);
-                
+
                 // If this rebalanced solution is better than our best, update it
-                if (currentSolution != null && 
-                    currentSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
+                if (currentSolution != null &&
+                        currentSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
                     bestSolution = currentSolution;
                 }
-                
+
                 // Clear part of the tabu list to allow exploring the new area
                 if (!tabuList.isEmpty()) {
                     int removeCount = Math.max(1, tabuList.size() / 2);
@@ -227,7 +207,7 @@ public class MetaheuristicSolver {
                     }
                 }
             }
-            
+
             // a. Generate and evaluate the neighborhood of the current solution
             List<Map<String, List<DeliveryPart>>> neighbors = generateNeighbors(currentAssignment, state,
                     numNeighbors);
