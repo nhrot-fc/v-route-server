@@ -16,7 +16,7 @@ public class Constants {
     public static final int MIN_PACKAGE_DELIVERY_TIME_HOURS = 4; // Initial suggested value
 
     // Tiempos en minutos
-    public static final int GLP_SERVE_DURATION_MINUTES = 5;
+    public static final int GLP_SERVE_DURATION_MINUTES = 15;
     public static final int VEHICLE_GLP_TRANSFER_DURATION_MINUTES = 5;
     public static final int REFUEL_DURATION_MINUTES = 1;
     public static final int DEPOT_GLP_TRANSFER_TIME_MINUTES = 1;

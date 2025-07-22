@@ -30,14 +30,14 @@ import com.example.plgsystem.simulation.SimulationState;
  */
 public class AlgorithmExperiment {
     // Parámetros para el experimento
-    private static final int[] ORDER_COUNTS = { 10, 20, 30, 40, 50, 75, 100, 150, 200 };
+    private static final int[] ORDER_COUNTS = { 5, 10, 25, 50, 75, 100 };
     private static final int REPETITIONS = 5;
     private static final long RANDOM_SEED = 42L; // Seed fija para reproducibilidad
 
     // Parámetros del Tabú Search que se pueden variar
-    private static final int[] MAX_ITERATIONS_VALUES = { 1000 };
-    private static final int[] TABU_TENURE_VALUES = { 20 };
-    private static final int[] NUM_NEIGHBORS_VALUES = { 15 };
+    private static final int[] MAX_ITERATIONS_VALUES = { 1000, 1500, 2000, 3000 };
+    private static final int[] TABU_TENURE_VALUES = { 10, 15, 20 };
+    private static final int[] NUM_NEIGHBORS_VALUES = { 10, 15, 20 };
 
     // Formato para el archivo de resultados
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
@@ -67,157 +67,72 @@ public class AlgorithmExperiment {
         System.out.println("Las soluciones se guardarán en: " + solutionsFilePath);
 
         try (BufferedWriter resultsWriter = new BufferedWriter(new FileWriter(resultsFilePath));
-                BufferedWriter solutionsWriter = new BufferedWriter(new FileWriter(solutionsFilePath))) {
-
+             BufferedWriter solutionsWriter = new BufferedWriter(new FileWriter(solutionsFilePath))) {
+            
             // Escribir encabezado del CSV
             resultsWriter.write(CSV_HEADER);
 
-            // Por defecto, usar valores estándar
-            int defaultMaxIterations = Constants.MAX_ITERATIONS;
-            int defaultTabuTenure = Constants.TABU_TENURE;
-            int defaultNumNeighbors = Constants.NUM_NEIGHBORS;
-
-            // Ejecutar experimentos con órdenes variadas y parámetros por defecto
             for (int orderCount : ORDER_COUNTS) {
-                for (int run = 1; run <= REPETITIONS; run++) {
-                    System.out.printf("Ejecutando: Órdenes=%d, Repetición=%d\n", orderCount, run);
-
-                    try {
-                        ExperimentResult result = runExperiment(
-                                orderCount, startTime, 
-                                defaultMaxIterations, 
-                                defaultTabuTenure,
-                                defaultNumNeighbors);
-                                
-                        if (result != null) {
-                            // Guardar resultados numéricos en CSV con desglose de costos
-                            writeResultToCSV(resultsWriter, result, run);
-                            
-                            // Guardar la solución completa en archivo de texto
-                            solutionsWriter.write(String.format(
-                                    "===== EXPERIMENTO: %d ÓRDENES - REPETICIÓN %d - MAX_ITER %d - TABU_TENURE %d - NUM_NEIGHBORS %d =====\n",
-                                    orderCount, run, defaultMaxIterations, defaultTabuTenure, defaultNumNeighbors));
-                            solutionsWriter.write(result.solutionDetails);
-                            solutionsWriter.write("\n\n");
-                            solutionsWriter.flush();
-                        }
-                    } catch (Exception e) {
-                        System.err.println("Error en el experimento: " + e.getMessage());
-                        e.printStackTrace();
-                        resultsWriter.write(String.format(
-                                "%d,%d,%d,%d,0,0.00,0.00,0.00,0.00,0.00,0.00,%d,ERROR\n", 
-                                orderCount, defaultMaxIterations, defaultTabuTenure, defaultNumNeighbors, run));
-                        resultsWriter.flush();
-                        System.out.println("Continuando con el siguiente experimento...");
-                    }
-                }
-            }
-            
-            // Experimentos adicionales variando parámetros del tabú search
-            // (solo para algunos tamaños de órdenes representativos)
-            int[] representativeOrderCounts = { 30, 100 };
-            
-            for (int orderCount : representativeOrderCounts) {
-                // Variando MAX_ITERATIONS
+                System.out.println("\n===== Procesando experimentos para " + orderCount + " órdenes =====");
+                
+                // Para cada cantidad de órdenes, mantenemos solo la mejor solución
+                ExperimentResult bestResult = null;
+                
                 for (int maxIterations : MAX_ITERATIONS_VALUES) {
-                    for (int run = 1; run <= REPETITIONS; run++) {
-                        System.out.printf("Experimento parámetros: Órdenes=%d, MAX_ITER=%d, Rep=%d\n", 
-                                orderCount, maxIterations, run);
-                        
-                        try {
-                            ExperimentResult result = runExperiment(
-                                    orderCount, startTime, 
-                                    maxIterations, 
-                                    defaultTabuTenure,
-                                    defaultNumNeighbors);
-                                    
-                            if (result != null) {
-                                writeResultToCSV(resultsWriter, result, run);
-                                
-                                solutionsWriter.write(String.format(
-                                        "===== EXPERIMENTO PARÁMETROS (MAX_ITERATIONS): %d ÓRDENES - MAX_ITER %d - REP %d =====\n",
-                                        orderCount, maxIterations, run));
-                                solutionsWriter.write(result.solutionDetails);
-                                solutionsWriter.write("\n\n");
-                                solutionsWriter.flush();
+                    for (int tabuTenure : TABU_TENURE_VALUES) {
+                        for (int numNeighbors : NUM_NEIGHBORS_VALUES) {
+                            for (int run = 1; run <= REPETITIONS; run++) {
+                                System.out.printf(
+                                        "Ejecutando: Órdenes=%d, Repetición=%d, Max Iterations=%d, Tabu Tenure=%d, Num Neighbors=%d\n",
+                                        orderCount, run, maxIterations, tabuTenure, numNeighbors);
+
+                                try {
+                                    ExperimentResult result = runExperiment(
+                                            orderCount, startTime,
+                                            maxIterations,
+                                            tabuTenure,
+                                            numNeighbors);
+
+                                    if (result != null) {
+                                        // Guardar resultados numéricos en CSV con desglose de costos
+                                        writeResultToCSV(resultsWriter, result, run);
+
+                                        // Actualizar la mejor solución si es necesario
+                                        if (bestResult == null || result.totalCost < bestResult.totalCost) {
+                                            bestResult = result;
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    System.err.println("Error en el experimento: " + e.getMessage());
+                                    e.printStackTrace();
+                                    resultsWriter.write(String.format(
+                                            "%d,%d,%d,%d,0,0.00,0.00,0.00,0.00,0.00,0.00,%d,ERROR\n",
+                                            orderCount, maxIterations, tabuTenure, numNeighbors, run));
+                                    resultsWriter.flush();
+                                    System.out.println("Continuando con el siguiente experimento...");
+                                }
                             }
-                        } catch (Exception e) {
-                            System.err.println("Error en el experimento: " + e.getMessage());
-                            resultsWriter.write(String.format(
-                                    "%d,%d,%d,%d,0,0.00,0.00,0.00,0.00,0.00,0.00,%d,ERROR\n", 
-                                    orderCount, maxIterations, defaultTabuTenure, defaultNumNeighbors, run));
-                            resultsWriter.flush();
                         }
                     }
                 }
                 
-                // Variando TABU_TENURE
-                for (int tabuTenure : TABU_TENURE_VALUES) {
-                    for (int run = 1; run <= REPETITIONS; run++) {
-                        System.out.printf("Experimento parámetros: Órdenes=%d, TABU_TENURE=%d, Rep=%d\n", 
-                                orderCount, tabuTenure, run);
-                        
-                        try {
-                            ExperimentResult result = runExperiment(
-                                    orderCount, startTime, 
-                                    defaultMaxIterations, 
-                                    tabuTenure,
-                                    defaultNumNeighbors);
-                                    
-                            if (result != null) {
-                                writeResultToCSV(resultsWriter, result, run);
-                                
-                                solutionsWriter.write(String.format(
-                                        "===== EXPERIMENTO PARÁMETROS (TABU_TENURE): %d ÓRDENES - TABU_TENURE %d - REP %d =====\n",
-                                        orderCount, tabuTenure, run));
-                                solutionsWriter.write(result.solutionDetails);
-                                solutionsWriter.write("\n\n");
-                                solutionsWriter.flush();
-                            }
-                        } catch (Exception e) {
-                            System.err.println("Error en el experimento: " + e.getMessage());
-                            resultsWriter.write(String.format(
-                                    "%d,%d,%d,%d,0,0.00,0.00,0.00,0.00,0.00,0.00,%d,ERROR\n", 
-                                    orderCount, defaultMaxIterations, tabuTenure, defaultNumNeighbors, run));
-                            resultsWriter.flush();
-                        }
-                    }
-                }
-                
-                // Variando NUM_NEIGHBORS
-                for (int numNeighbors : NUM_NEIGHBORS_VALUES) {
-                    for (int run = 1; run <= REPETITIONS; run++) {
-                        System.out.printf("Experimento parámetros: Órdenes=%d, NUM_NEIGHBORS=%d, Rep=%d\n", 
-                                orderCount, numNeighbors, run);
-                        
-                        try {
-                            ExperimentResult result = runExperiment(
-                                    orderCount, startTime, 
-                                    defaultMaxIterations, 
-                                    defaultTabuTenure,
-                                    numNeighbors);
-                                    
-                            if (result != null) {
-                                writeResultToCSV(resultsWriter, result, run);
-                                
-                                solutionsWriter.write(String.format(
-                                        "===== EXPERIMENTO PARÁMETROS (NUM_NEIGHBORS): %d ÓRDENES - NUM_NEIGHBORS %d - REP %d =====\n",
-                                        orderCount, numNeighbors, run));
-                                solutionsWriter.write(result.solutionDetails);
-                                solutionsWriter.write("\n\n");
-                                solutionsWriter.flush();
-                            }
-                        } catch (Exception e) {
-                            System.err.println("Error en el experimento: " + e.getMessage());
-                            resultsWriter.write(String.format(
-                                    "%d,%d,%d,%d,0,0.00,0.00,0.00,0.00,0.00,0.00,%d,ERROR\n", 
-                                    orderCount, defaultMaxIterations, defaultTabuTenure, numNeighbors, run));
-                            resultsWriter.flush();
-                        }
-                    }
+                // Escribir la mejor solución para esta cantidad de órdenes
+                if (bestResult != null) {
+                    System.out.println("Escribiendo la mejor solución para " + orderCount + " órdenes...");
+                    solutionsWriter.write(String.format(
+                            "===== MEJOR SOLUCIÓN PARA %d ÓRDENES =====\n", orderCount));
+                    solutionsWriter.write(String.format(
+                            "Parámetros: MAX_ITER=%d, TABU_TENURE=%d, NUM_NEIGHBORS=%d\n", 
+                            bestResult.maxIterations, bestResult.tabuTenure, bestResult.numNeighbors));
+                    solutionsWriter.write(String.format(
+                            "Tiempo: %d ms, Costo Total: %.2f\n", 
+                            bestResult.executionTimeMs, bestResult.totalCost));
+                    solutionsWriter.write(bestResult.solutionDetails);
+                    solutionsWriter.write("\n\n");
+                    solutionsWriter.flush();
                 }
             }
-
+            
             System.out.println("Experimentos completados. Resultados guardados en " + resultsFilePath);
 
         } catch (IOException e) {
@@ -281,8 +196,8 @@ public class AlgorithmExperiment {
         return orders;
     }
 
-    private static ExperimentResult runExperiment(int orderCount, LocalDateTime startTime, 
-                                               int maxIterations, int tabuTenure, int numNeighbors) {
+    private static ExperimentResult runExperiment(int orderCount, LocalDateTime startTime,
+            int maxIterations, int tabuTenure, int numNeighbors) {
         // Generar pedidos aleatorios
         List<Order> orders = generateRandomOrders(orderCount, startTime);
 
@@ -299,7 +214,7 @@ public class AlgorithmExperiment {
         long startExecution = System.currentTimeMillis();
         Solution solution = MetaheuristicSolver.solve(state);
         long endExecution = System.currentTimeMillis();
-        
+
         // Preparar detalles de la solución
         String solutionDetails = solution.toString();
         SolutionCost cost = solution.getCost();
@@ -336,7 +251,7 @@ public class AlgorithmExperiment {
         public String toString() {
             return String.format("Órdenes: %d, Tiempo: %d ms, Costo Total: %.2f " +
                     "(Tiempo: %.2f, Distancia: %.2f, Retraso: %.2f, Incompleto: %.2f, Inválido: %.2f)",
-                    orders, executionTimeMs, totalCost, timeCost, distanceCost, 
+                    orders, executionTimeMs, totalCost, timeCost, distanceCost,
                     lateDeliveryCost, incompleteOrderCost, invalidCost);
         }
     }

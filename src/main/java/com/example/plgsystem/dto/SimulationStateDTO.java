@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * DTO para el estado de la simulación
@@ -70,7 +69,7 @@ public class SimulationStateDTO {
         // Filtrar bloqueos activos
         List<Blockage> activeBlockages = state.getBlockages().stream()
                 .filter(blockage -> blockage.isActiveAt(state.getCurrentTime()))
-                .collect(Collectors.toList());
+                .toList();
 
         return SimulationStateDTO.builder()
                 .simulationId(simulationId)
@@ -79,27 +78,27 @@ public class SimulationStateDTO {
                 // Convertir vehículos a DTOs
                 .vehicles(state.getVehicles().stream()
                         .map(VehicleDTO::fromEntity)
-                        .collect(Collectors.toList()))
+                        .toList())
                 // Convertir depósitos a DTOs
                 .mainDepot(DepotDTO.fromEntity(state.getMainDepot()))
                 .auxDepots(state.getAuxDepots().stream()
                         .map(DepotDTO::fromEntity)
-                        .collect(Collectors.toList()))
+                        .toList())
                 // Convertir pedidos pendientes a DTOs
                 .pendingOrders(pendingOrders.stream()
                         .map(OrderDTO::fromEntity)
-                        .collect(Collectors.toList()))
+                        .toList())
                 // Establecer bloqueos activos
                 .activeBlockages(activeBlockages)
                 // Convertir incidentes a DTOs
                 .activeIncidents(state.getIncidents().stream()
                         .filter(incident -> !incident.isResolved())
                         .map(IncidentDTO::fromEntity)
-                        .collect(Collectors.toList()))
+                        .toList())
                 // Convertir mantenimientos a DTO
                 .scheduledMaintenances(state.getMaintenances().stream()
                         .map(MaintenanceDTO::fromEntity)
-                        .collect(Collectors.toList()))
+                        .toList())
                 // Establecer contadores
                 .pendingOrdersCount(pendingOrders.size())
                 .deliveredOrdersCount((int) state.getOrders().stream()
@@ -109,7 +108,7 @@ public class SimulationStateDTO {
                         .filter(v -> v.getStatus() == VehicleStatus.AVAILABLE).count())
                 .currentVehiclePlans(state.getCurrentVehiclePlans().values().stream()
                         .map(VehiclePlanDTO::fromEntity)
-                        .collect(Collectors.toList()))
+                        .toList())
                 .build();
     }
 }

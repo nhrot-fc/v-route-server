@@ -24,20 +24,20 @@ public class ActionDTO {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private List<Position> path;
-    
+
     private int glpDelivered;
     private int glpLoaded;
-    
+
     private double fuelConsumedGal;
     private double fuelRefueledGal;
-    
+
     // Reference IDs
     private String orderId;
     private String depotId;
-    
+
     // Progress
     private double progress;
-    
+
     /**
      * Converts an Action entity to an ActionDTO
      * 
@@ -48,7 +48,7 @@ public class ActionDTO {
         if (action == null) {
             return null;
         }
-        
+
         return ActionDTO.builder()
                 .type(action.getType())
                 .startTime(action.getStartTime())
@@ -63,4 +63,4 @@ public class ActionDTO {
                 .progress(action.getCurrentProgress())
                 .build();
     }
-} 
+}

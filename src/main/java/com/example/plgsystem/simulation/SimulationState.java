@@ -151,65 +151,36 @@ public class SimulationState {
         sb.append(topDivider);
         sb.append("📊                SIMULATION STATE                📊\n");
         sb.append(topDivider);
-        sb.append("🕒 Current Time: ").append(currentTime.format(Constants.DATE_TIME_FORMATTER)).append("\n\n");
+        sb.append("🕒 Current Time: ").append(currentTime.format(Constants.DATE_TIME_FORMATTER)).append("\n");
 
         // --- Infrastructure ---
         sb.append("🏢 INFRASTRUCTURE & FLEET 🚚\n");
         sb.append(sectionDivider);
 
         sb.append("🏭 Main Depot:\n");
-        sb.append("  └─ ").append(mainDepot.toString()).append("\n\n");
+        sb.append("  └─ ").append(mainDepot.toString()).append("\n");
 
         sb.append("🏬 Auxiliary Depots (").append(auxDepots.size()).append("):\n");
-        if (auxDepots.isEmpty()) {
-            sb.append("  └─ None\n");
-        } else {
-            auxDepots.forEach(depot -> sb.append("  └─ ").append(depot.toString()).append("\n"));
-        }
-        sb.append("\n");
+        auxDepots.forEach(depot -> sb.append("  └─ ").append(depot.toString()).append("\n"));
 
         sb.append("🚚 Vehicles (").append(vehicles.size()).append("):\n");
-        if (vehicles.isEmpty()) {
-            sb.append("  └─ None\n");
-        } else {
-            vehicles.forEach(vehicle -> sb.append("  └─ ").append(vehicle.toString()).append("\n"));
-        }
-        sb.append("\n");
+        vehicles.forEach(vehicle -> sb.append("  └─ ").append(vehicle.toString()).append("\n"));
 
         // --- Events and Dynamic Queues ---
         sb.append("📋 EVENTS & DYNAMIC QUEUES 🔄\n");
         sb.append(sectionDivider);
 
         sb.append("📦 Pending Orders (").append(orders.size()).append("):\n");
-        if (orders.isEmpty()) {
-            sb.append("  └─ None\n");
-        } else {
-            orders.forEach(order -> sb.append("  └─ ").append(order.toString()).append("\n"));
-        }
-        sb.append("\n");
+        orders.forEach(order -> sb.append("  └─ ").append(order.toString()).append("\n"));
 
         sb.append("🚧 Active Blockages (").append(blockages.size()).append("):\n");
-        if (blockages.isEmpty()) {
-            sb.append("  └─ None\n");
-        } else {
-            blockages.forEach(blockage -> sb.append("  └─ ").append(blockage.toString()).append("\n"));
-        }
-        sb.append("\n");
+        blockages.forEach(blockage -> sb.append("  └─ ").append(blockage.toString()).append("\n"));
 
         sb.append("⚠️ Active Incidents (").append(incidents.size()).append("):\n");
-        if (incidents.isEmpty()) {
-            sb.append("  └─ None\n");
-        } else {
-            incidents.forEach(incident -> sb.append("  └─ ").append(incident.toString()).append("\n"));
-        }
-        sb.append("\n");
+        incidents.forEach(incident -> sb.append("  └─ ").append(incident.toString()).append("\n"));
 
         sb.append("🔧 Ongoing Maintenance (").append(maintenances.size()).append("):\n");
-        if (maintenances.isEmpty()) {
-            sb.append("  └─ None\n");
-        } else {
-            maintenances.forEach(maintenance -> sb.append("  └─ ").append(maintenance.toString()).append("\n"));
-        }
+        maintenances.forEach(maintenance -> sb.append("  └─ ").append(maintenance.toString()).append("\n"));
 
         sb.append(topDivider);
         return sb.toString();

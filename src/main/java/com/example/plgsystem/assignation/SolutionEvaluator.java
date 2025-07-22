@@ -16,7 +16,7 @@ public class SolutionEvaluator {
     private static final double COST_PER_KM = 0.000001;
 
     // Security factor for distance calculation
-    private static final double SECURITY_FACTOR = 1.5; // 50% safety margin for distance
+    private static final double SECURITY_FACTOR = 1.25; // 50% safety margin for distance
 
     public static SolutionCost evaluate(Solution solution, SimulationState state) {
         Map<String, Route> routes = solution.getRoutes();

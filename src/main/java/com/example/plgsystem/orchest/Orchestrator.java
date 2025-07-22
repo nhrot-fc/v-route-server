@@ -164,8 +164,16 @@ public class Orchestrator {
                 }
             }
         }
-
+        if (!filteredEvents.isEmpty() && !isDailyOperation) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("New events comming: ");
+            for (Event event : filteredEvents) {
+                sb.append("\t [EVENT]: ").append(event).append(" ");
+            }
+            logger.debug(sb.toString());
+        }
         addEvents(filteredEvents);
+        logger.info("Current state: \n\n{}", state.toString());
     }
 
     private void pollEvents(LocalDateTime nextTickTime) {

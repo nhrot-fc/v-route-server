@@ -21,7 +21,7 @@ public class PlanExecutor {
 
     public static void executePlan(SimulationState state, LocalDateTime nextTime){
         if (state.getCurrentVehiclePlans() == null || state.getCurrentVehiclePlans().isEmpty()) {
-            logger.info("No vehicle plans to execute");
+            // logger.info("No vehicle plans to execute");
             return;
         }
 
