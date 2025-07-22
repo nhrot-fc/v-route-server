@@ -291,15 +291,6 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
             // Registrar el archivo en DataLoader
             fileDataLoader.registerOrdersFile(year, month, filePath);
-
-            // Cargar órdenes para la fecha actual de simulación
-            LocalDateTime simTime = simulation.getSimulationTime();
-            if (simTime.getYear() == year && simTime.getMonthValue() == month) {
-                List<Event> events = fileDataLoader.loadOrdersForDate(simTime.toLocalDate());
-                simulation.getOrchestrator().addEvents(events);
-                logger.info("Añadidos {} eventos de órdenes para la fecha {}",
-                        events.size(), simTime.toLocalDate());
-            }
         } catch (Exception e) {
             logger.error("Error al cargar órdenes: {}", e.getMessage());
             throw new IOException("Error al cargar órdenes: " + e.getMessage(), e);
@@ -340,15 +331,6 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
             // Registrar el archivo en DataLoader
             fileDataLoader.registerBlockagesFile(year, month, filePath);
-
-            // Cargar bloqueos para la fecha actual de simulación
-            LocalDateTime simTime = simulation.getSimulationTime();
-            if (simTime.getYear() == year && simTime.getMonthValue() == month) {
-                List<Event> events = fileDataLoader.loadBlockagesForDate(simTime.toLocalDate());
-                simulation.getOrchestrator().addEvents(events);
-                logger.info("Añadidos {} eventos de bloqueos para la fecha {}",
-                        events.size(), simTime.toLocalDate());
-            }
         } catch (Exception e) {
             logger.error("Error al cargar bloqueos: {}", e.getMessage());
             throw new IOException("Error al cargar bloqueos: " + e.getMessage(), e);

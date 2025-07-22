@@ -164,6 +164,7 @@ public class Orchestrator {
                 }
             }
         }
+        addEvents(filteredEvents);
         if (!filteredEvents.isEmpty() && !isDailyOperation) {
             StringBuilder sb = new StringBuilder();
             sb.append("New events comming: ");
@@ -172,8 +173,7 @@ public class Orchestrator {
             }
             logger.debug(sb.toString());
         }
-        addEvents(filteredEvents);
-        logger.info("Current state: \n\n{}", state.toString());
+        //logger.info("Current state: \n\n{}", state.toString());
     }
 
     private void pollEvents(LocalDateTime nextTickTime) {
