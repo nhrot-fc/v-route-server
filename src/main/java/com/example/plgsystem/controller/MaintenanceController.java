@@ -211,12 +211,12 @@ public class MaintenanceController {
      * Obtiene un mantenimiento por su ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<MaintenanceDTO> getMaintenanceById(@PathVariable UUID id) {
+    public ResponseEntity<Maintenance> getMaintenanceById(@PathVariable UUID id) {
         logger.info("Fetching maintenance with ID: {}", id);
         return maintenanceService.findById(id)
                 .map(maintenance -> {
                     logger.info("Maintenance found with ID: {}", id);
-                    return ResponseEntity.ok(MaintenanceDTO.fromEntity(maintenance));
+                    return ResponseEntity.ok(maintenance);
                 })
                 .orElseGet(() -> {
                     logger.warn("Maintenance with ID: {} not found", id);

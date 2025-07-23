@@ -54,12 +54,12 @@ public class VehicleController {
      * Obtener un vehículo por ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<VehicleDTO> getById(@PathVariable String id) {
+    public ResponseEntity<Vehicle> getById(@PathVariable String id) {
         logger.info("Fetching vehicle with ID: {}", id);
         Optional<Vehicle> vehicle = vehicleService.findById(id);
         if (vehicle.isPresent()) {
             logger.info("Vehicle found with ID: {}", id);
-            return ResponseEntity.ok(VehicleDTO.fromEntity(vehicle.get()));
+            return ResponseEntity.ok(vehicle.get());
         } else {
             logger.warn("Vehicle with ID: {} not found", id);
             return ResponseEntity.notFound().build();

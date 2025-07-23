@@ -410,7 +410,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         Map<String, LocalDateTime> maintenanceSchedule = new HashMap<>();
         int dayCount = 0;
         for (Vehicle vehicle : vehicles) {
-            maintenanceSchedule.put(vehicle.getId(), startDateTime.plusDays(dayCount + 1));
+            maintenanceSchedule.put(vehicle.getId(), startDateTime.plusDays(dayCount));
             dayCount += 2;
         }
 

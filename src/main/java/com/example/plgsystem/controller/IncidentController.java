@@ -174,12 +174,12 @@ public class IncidentController {
      * Marcar un incidente como resuelto
      */
     @PatchMapping("/{id}/resolve")
-    public ResponseEntity<IncidentDTO> resolveIncident(@PathVariable UUID id) {
+    public ResponseEntity<Incident> resolveIncident(@PathVariable UUID id) {
         logger.info("Attempting to resolve incident with ID: {}", id);
         return incidentService.resolveIncident(id)
                 .map(incident -> {
                     logger.info("Incident with ID: {} was successfully resolved", id);
-                    return ResponseEntity.ok(IncidentDTO.fromEntity(incident));
+                    return ResponseEntity.ok(incident);
                 })
                 .orElseGet(() -> {
                     logger.warn("Incident with ID: {} not found for resolution", id);

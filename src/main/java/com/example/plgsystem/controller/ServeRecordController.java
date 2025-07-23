@@ -44,12 +44,12 @@ public class ServeRecordController {
      * Obtener un registro de entrega por ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ServeRecordDTO> getById(@PathVariable UUID id) {
+    public ResponseEntity<ServeRecord> getById(@PathVariable UUID id) {
         logger.info("Fetching serve record with ID: {}", id);
         Optional<ServeRecord> record = serveRecordService.findById(id);
         if (record.isPresent()) {
             logger.info("Serve record found with ID: {}", id);
-            return ResponseEntity.ok(ServeRecordDTO.fromEntity(record.get()));
+            return ResponseEntity.ok(record.get());
         } else {
             logger.warn("Serve record with ID: {} not found", id);
             return ResponseEntity.notFound().build();

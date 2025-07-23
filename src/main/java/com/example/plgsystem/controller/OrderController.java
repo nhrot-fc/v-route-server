@@ -112,12 +112,12 @@ public class OrderController {
      * Obtener un pedido por ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<OrderDTO> getById(@PathVariable String id) {
+    public ResponseEntity<Order> getById(@PathVariable String id) {
         logger.info("Fetching order with ID: {}", id);
         Optional<Order> order = orderService.findById(id);
         if (order.isPresent()) {
             logger.info("Order found with ID: {}", id);
-            return ResponseEntity.ok(OrderDTO.fromEntity(order.get()));
+            return ResponseEntity.ok(order.get());
         } else {
             logger.warn("Order with ID: {} not found", id);
             return ResponseEntity.notFound().build();
