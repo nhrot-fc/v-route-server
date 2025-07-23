@@ -19,7 +19,7 @@ import java.util.List;
 @Getter
 public class SimulationState {
     private static final Logger logger = LoggerFactory.getLogger(SimulationState.class);
-    
+
     @Setter
     private LocalDateTime currentTime;
 
@@ -34,15 +34,26 @@ public class SimulationState {
     private final List<Incident> incidents = new ArrayList<>();
     private final List<Maintenance> maintenances = new ArrayList<>();
 
-    private final Map<String, VehiclePlan> currentVehiclePlans;
+    private final Map<String, VehiclePlan> currentVehiclePlans = new HashMap<>();
+    private final Map<String, LocalDateTime> maintenanceSchedule = new HashMap<>();
 
-    public SimulationState(List<Vehicle> vehicles, Depot mainDepot, List<Depot> auxDepots,
+    public SimulationState(List<Vehicle> vehicles, Map<String, LocalDateTime> maintenanceSchedule,
+            Depot mainDepot, List<Depot> auxDepots,
             LocalDateTime referenceDateTime) {
         this.currentTime = referenceDateTime;
         this.mainDepot = mainDepot;
         this.vehicles = new ArrayList<>(vehicles);
         this.auxDepots = new ArrayList<>(auxDepots);
-        this.currentVehiclePlans = new HashMap<>();
+        this.maintenanceSchedule.putAll(maintenanceSchedule);
+    }
+
+    public SimulationState(List<Vehicle> vehicles,
+            Depot mainDepot, List<Depot> auxDepots,
+            LocalDateTime referenceDateTime) {
+        this.currentTime = referenceDateTime;
+        this.mainDepot = mainDepot;
+        this.vehicles = new ArrayList<>(vehicles);
+        this.auxDepots = new ArrayList<>(auxDepots);
     }
 
     public Vehicle getVehicleById(String id) {
@@ -193,6 +204,11 @@ public class SimulationState {
         sb.append("🔧 Ongoing Maintenance (").append(maintenances.size()).append("):\n");
         maintenances.forEach(maintenance -> sb.append("  └─ ").append(maintenance.toString()).append("\n"));
 
+        sb.append("🔧 Scheduled Maintenance (").append(maintenanceSchedule.size()).append("):\n");
+        maintenanceSchedule.forEach((vehicleId, scheduledTime) -> sb.append("  └─ Vehicle: ").append(vehicleId)
+                .append(" scheduled for: ").append(scheduledTime.format(Constants.DATE_TIME_FORMATTER))
+                .append("\n"));
+
         sb.append(topDivider);
         return sb.toString();
     }
@@ -215,8 +231,12 @@ public class SimulationState {
             auxDepotCopies.add(depot.copy());
         }
 
+        // Crear copia de la programación de mantenimientos
+        Map<String, LocalDateTime> maintenanceScheduleCopy = new HashMap<>(maintenanceSchedule);
+
         // Crear el nuevo estado de simulación
-        SimulationState copy = new SimulationState(vehicleCopies, mainDepotCopy, auxDepotCopies, currentTime);
+        SimulationState copy = new SimulationState(vehicleCopies, maintenanceScheduleCopy, mainDepotCopy,
+                auxDepotCopies, currentTime);
 
         // Copiar órdenes
         for (Order order : orders) {

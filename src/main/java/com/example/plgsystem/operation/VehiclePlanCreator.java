@@ -96,6 +96,39 @@ public class VehiclePlanCreator {
                 actions.add(serveAction);
                 // currentGlp -= glpToDeliver;
                 currentTime = serveAction.getEndTime();
+            } else if (stop.isMaintenanceStop()) {
+                // Handle maintenance stop
+                String depotId = stop.getDepotId();
+                Depot depot = state.getDepotById(depotId);
+                if (depot == null) {
+                    return null;
+                }
+
+                // Create a drive action to the depot
+                List<Position> path = PathFinder.findPath(state, currentPosition, depot.getPosition(), currentTime);
+                if (path == null) {
+                    return null;
+                }
+                double distanceKm = path.size() - 1;
+                double fuelNeeded = calculateFuelFromDistance(distanceKm, vehicle.getGlpCapacityM3(), vehicle.getType());
+                int driveTimeMinutes = (int) (distanceKm / Constants.VEHICLE_AVG_SPEED * 60);
+                Action driveAction = ActionFactory.createDrivingAction(path, fuelNeeded, currentTime,
+                        currentTime.plusMinutes(driveTimeMinutes));
+                actions.add(driveAction);
+                currentFuel -= fuelNeeded;
+                currentTime = driveAction.getEndTime();
+
+                // Create a maintenance action that lasts 24 hours
+                Duration maintenanceDuration = Duration.ofHours(Constants.MAINTENANCE_DURATION_HOURS);
+                Action maintenanceAction = ActionFactory.createMaintenanceAction(
+                        endPosition,
+                        maintenanceDuration,
+                        currentTime);
+                actions.add(maintenanceAction);
+
+                // Vehicle is refueled and refilled during maintenance
+                currentFuel = vehicle.getFuelCapacityGal();
+                currentTime = maintenanceAction.getEndTime();
             } else {
                 // Validate depot exists if depot stop
                 String depotId = stop.getDepotId();

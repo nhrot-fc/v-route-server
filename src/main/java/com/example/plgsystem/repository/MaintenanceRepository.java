@@ -90,4 +90,10 @@ public interface MaintenanceRepository extends JpaRepository<Maintenance, UUID> 
      */
     @Query("SELECT m FROM Maintenance m WHERE m.realStart <= :currentTime AND (m.realEnd IS NULL OR m.realEnd >= :currentTime)")
     Page<Maintenance> findActiveMaintenancesPaged(@Param("currentTime") LocalDateTime currentTime, Pageable pageable);
+    
+    /**
+     * Encuentra el mantenimiento más reciente para un vehículo según la fecha real de finalización
+     */
+    @Query("SELECT m FROM Maintenance m WHERE m.vehicle.id = :vehicleId AND m.realEnd IS NOT NULL ORDER BY m.realEnd DESC")
+    List<Maintenance> findMostRecentCompletedMaintenanceByVehicleId(@Param("vehicleId") String vehicleId, Pageable pageable);
 }

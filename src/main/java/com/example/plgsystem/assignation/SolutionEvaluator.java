@@ -135,6 +135,10 @@ public class SolutionEvaluator {
                 if (glpToDeliver > 0) {
                     lastDeliveryTime = currentTime;
                 }
+            } else if (stop.isMaintenanceStop()) {
+                currentTime = currentTime.plusHours(Constants.MAINTENANCE_DURATION_HOURS);
+                currentFuel = vehicle.getFuelCapacityGal();
+                currentGlp = vehicle.getGlpCapacityM3();
             } else {
                 String depotId = stop.getDepotId();
                 Depot depot = state.getDepotById(depotId);

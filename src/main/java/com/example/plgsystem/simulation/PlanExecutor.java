@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.example.plgsystem.model.Depot;
+import com.example.plgsystem.model.Maintenance;
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
@@ -17,9 +18,8 @@ import com.example.plgsystem.operation.VehiclePlan;
 
 public class PlanExecutor {
     private static final Logger logger = LoggerFactory.getLogger(PlanExecutor.class);
-    
 
-    public static void executePlan(SimulationState state, LocalDateTime nextTime){
+    public static void executePlan(SimulationState state, LocalDateTime nextTime) {
         if (state.getCurrentVehiclePlans() == null || state.getCurrentVehiclePlans().isEmpty()) {
             // logger.info("No vehicle plans to execute");
             return;
@@ -33,7 +33,7 @@ public class PlanExecutor {
                 logger.error("Vehicle not found for plan: {}", plan);
                 continue;
             }
-            
+
             // First, check if the vehicle is already performing an action
             if (vehicle.isPerformingAction()) {
                 Action currentAction = vehicle.getCurrentAction();
@@ -48,24 +48,24 @@ public class PlanExecutor {
                     vehicle.setAvailable();
                 }
             }
-            
+
             // If we reach here, either the vehicle had no action or the action completed
             Action nextAction = plan.getCurrentAction();
             if (nextAction == null) {
                 continue;
             }
-            
+
             // If the next action should start now or has already started
             while (nextAction.getStartTime().isBefore(nextTime) || nextAction.getStartTime().equals(nextTime)) {
                 // Set the current action on the vehicle
                 vehicle.setCurrentAction(nextAction);
-                
+
                 double progress = executeAction(state, nextAction, vehicle, nextTime);
                 if (progress < 1.0) {
                     // Action not completed yet
                     break;
                 }
-                
+
                 // Action completed
                 vehicle.clearCurrentAction();
                 vehicle.setAvailable();
@@ -76,7 +76,7 @@ public class PlanExecutor {
                 }
             }
         }
-    }   
+    }
 
     private static double executeAction(SimulationState state, Action action, Vehicle vehicle, LocalDateTime nextTime) {
         double calculatedProgress = calculateProgress(action, nextTime);
@@ -106,7 +106,7 @@ public class PlanExecutor {
         if (currentTime.isBefore(action.getStartTime())) {
             return 0.0;
         }
-        
+
         // If the current time is after or equal to the end time, the action is complete
         if (currentTime.isAfter(action.getEndTime()) || currentTime.equals(action.getEndTime())) {
             return 1.0;
@@ -150,6 +150,16 @@ public class PlanExecutor {
                 vehicle.serveOrder(order, action.getGlpDelivered(), action.getStartTime());
                 vehicle.setServing();
                 break;
+            case MAINTENANCE:
+                Maintenance maintenance = new Maintenance(vehicle, action.getStartTime().toLocalDate());
+                maintenance.setRealStart(action.getStartTime());
+                maintenance.setRealEnd(action.getEndTime());
+                state.getMaintenances().add(maintenance);
+                state.getMaintenanceSchedule().put(vehicle.getId(), action.getStartTime().plusMonths(2));
+                vehicle.setMaintenance();
+                vehicle.refuel();
+                vehicle.refill(vehicle.getGlpCapacityM3() - vehicle.getCurrentGlpM3());
+                break;
             default:
                 break;
         }
@@ -158,7 +168,7 @@ public class PlanExecutor {
 
     private static void applyGradualEffects(Action action, Vehicle vehicle, double progress) {
         double previousProgress = action.getCurrentProgress();
-        
+
         switch (action.getType()) {
             case DRIVE:
                 List<Position> path = action.getPath();
@@ -166,7 +176,7 @@ public class PlanExecutor {
                     logger.error("No path found for action: {}", action);
                     return;
                 }
-                
+
                 // Calculate total distance of the path
                 double totalDistance = 0;
                 for (int i = 0; i < path.size() - 1; i++) {
@@ -174,13 +184,13 @@ public class PlanExecutor {
                     Position nextPosition = path.get(i + 1);
                     totalDistance += currentPosition.distanceTo(nextPosition);
                 }
-                
+
                 // Calculate how much distance should be traveled based on progress
                 double distanceToTravel = totalDistance * progress;
-                
+
                 // Set vehicle status to driving
                 vehicle.setDriving();
-                
+
                 // If not moving or already at destination, return
                 if (progress <= 0) {
                     return;
@@ -191,20 +201,22 @@ public class PlanExecutor {
                     vehicle.consumeFuel(action.getFuelConsumedGal() * (progress - previousProgress));
                     return;
                 }
-                
+
                 // Find current position along the path
                 double distanceTraveled = 0;
                 for (int i = 0; i < path.size() - 1; i++) {
                     Position currentWaypoint = path.get(i);
                     Position nextWaypoint = path.get(i + 1);
                     double segmentDistance = currentWaypoint.distanceTo(nextWaypoint);
-                    
+
                     if (distanceTraveled + segmentDistance >= distanceToTravel) {
                         // We found the segment where the vehicle currently is
                         double segmentProgress = (distanceToTravel - distanceTraveled) / segmentDistance;
-                        double newX = currentWaypoint.getX() + segmentProgress * (nextWaypoint.getX() - currentWaypoint.getX());
-                        double newY = currentWaypoint.getY() + segmentProgress * (nextWaypoint.getY() - currentWaypoint.getY());
-                        
+                        double newX = currentWaypoint.getX()
+                                + segmentProgress * (nextWaypoint.getX() - currentWaypoint.getX());
+                        double newY = currentWaypoint.getY()
+                                + segmentProgress * (nextWaypoint.getY() - currentWaypoint.getY());
+
                         // Update vehicle position
                         vehicle.setCurrentPosition(new Position(newX, newY));
                         vehicle.consumeFuel(action.getFuelConsumedGal() * (progress - previousProgress));
@@ -213,15 +225,15 @@ public class PlanExecutor {
                     distanceTraveled += segmentDistance;
                 }
                 break;
-                
+
             case MAINTENANCE:
                 vehicle.setMaintenance();
                 break;
-                
+
             case WAIT:
                 vehicle.setIdle();
                 break;
-                
+
             default:
                 break;
         }
@@ -236,26 +248,26 @@ public class PlanExecutor {
                     vehicle.setCurrentPosition(finalPosition.clone());
                 }
                 break;
-                
+
             case REFUEL:
                 // Vehicle is fully refueled
                 vehicle.refuel();
                 break;
-                
+
             case RELOAD:
                 // GLP is already loaded in applyImmediateEffects
                 break;
-                
+
             case SERVE:
                 // Order is already served in applyImmediateEffects
                 break;
-                
+
             case MAINTENANCE:
                 break;
-                
+
             case WAIT:
                 break;
-                
+
             default:
                 break;
         }

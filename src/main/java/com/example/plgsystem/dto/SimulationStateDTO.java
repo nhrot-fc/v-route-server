@@ -44,6 +44,7 @@ public class SimulationStateDTO {
     private List<IncidentDTO> activeIncidents;
     private List<MaintenanceDTO> scheduledMaintenances;
     private List<VehiclePlanDTO> currentVehiclePlans;
+    private Map<String, LocalDateTime> maintenanceSchedule;
 
     // Estadísticas
     private int pendingOrdersCount;
@@ -72,6 +73,7 @@ public class SimulationStateDTO {
         List<Incident> incidentsCopy;
         List<Maintenance> maintenanceCopy;
         Map<String, VehiclePlan> vehiclePlansCopy;
+        Map<String, LocalDateTime> maintenanceScheduleCopy;
         
         synchronized (state) {
             // Create copies of all collections
@@ -82,6 +84,7 @@ public class SimulationStateDTO {
             incidentsCopy = new ArrayList<>(state.getIncidents());
             maintenanceCopy = new ArrayList<>(state.getMaintenances());
             vehiclePlansCopy = new HashMap<>(state.getCurrentVehiclePlans());
+            maintenanceScheduleCopy = new HashMap<>(state.getMaintenanceSchedule());
         }
         
         List<Order> pendingOrders = ordersCopy.stream()
@@ -126,6 +129,8 @@ public class SimulationStateDTO {
                 .scheduledMaintenances(maintenanceCopy.stream()
                         .map(MaintenanceDTO::fromEntity)
                         .toList())
+                // Agregar la programación de mantenimientos
+                .maintenanceSchedule(maintenanceScheduleCopy)
                 // Establecer contadores
                 .pendingOrdersCount(pendingOrders.size())
                 .deliveredOrdersCount((int) ordersCopy.stream()

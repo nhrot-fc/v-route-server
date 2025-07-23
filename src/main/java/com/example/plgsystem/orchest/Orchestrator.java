@@ -27,7 +27,6 @@ import java.util.concurrent.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import com.example.plgsystem.model.Maintenance;
 
 @Getter
 public class Orchestrator {
@@ -454,42 +453,6 @@ public class Orchestrator {
                 Order order = (Order) event.getData();
                 state.addOrder(order);
                 break;
-            case MAINTENANCE_START:
-                Maintenance maintenance = (Maintenance) event.getData();
-                Vehicle vehicleForMaintenance = state.getVehicleById(maintenance.getVehicle().getId());
-                if (vehicleForMaintenance != null) {
-                    // Marcar el vehículo en mantenimiento después de la acción actual
-                    vehicleForMaintenance.setMaintenance();
-                    state.addMaintenance(maintenance);
-
-                    // For vehicles with ongoing actions, the maintenance plan will respect the
-                    // current action
-                    // and only start after it completes - no need to remove the plan now
-                    // VehiclePlanCreator.createPlanToMainDepot will handle this correctly
-
-                    // Create a plan for the vehicle to return to the main depot
-                    VehiclePlan planToMainDepot = VehiclePlanCreator.createPlanToMainDepot(
-                            vehicleForMaintenance,
-                            state);
-
-                    if (planToMainDepot != null) {
-                        // The plan will be scheduled after any current action completes
-                        state.addVehiclePlan(vehicleForMaintenance.getId(), planToMainDepot);
-                        logger.info("Maintenance plan created for vehicle {}, starting at {}",
-                                vehicleForMaintenance.getId(),
-                                vehicleForMaintenance.isPerformingAction()
-                                        ? vehicleForMaintenance.getCurrentActionEndTime()
-                                        : state.getCurrentTime());
-                    }
-                }
-
-                // Cancelar planificación en progreso y replanificar inmediatamente
-                cancelCurrentPlanningAndReplan();
-                break;
-            case MAINTENANCE_END:
-                replanFlag = true;
-                logger.debug("Fin de mantenimiento detectado, replanificación solicitada");
-                break;
             case VEHICLE_BREAKDOWN:
                 Incident incident = (Incident) event.getData();
                 Vehicle vehicleWithIncident = incident.getVehicle();
@@ -497,10 +460,6 @@ public class Orchestrator {
                     // Mark the vehicle with incident and add to the state
                     vehicleWithIncident.setIncident();
                     state.addIncident(incident);
-
-                    // Create a plan for the incident handling
-                    // The plan will automatically respect the current action and only start after
-                    // it completes
                     VehiclePlan incidentPlan = VehiclePlanCreator.createPlanForIncident(
                             vehicleWithIncident,
                             incident,

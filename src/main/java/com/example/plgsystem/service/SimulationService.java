@@ -13,6 +13,7 @@ import com.example.plgsystem.model.Incident;
 import com.example.plgsystem.model.Maintenance;
 import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Vehicle;
+import com.example.plgsystem.operation.ActionType;
 import com.example.plgsystem.orchest.DatabaseDataLoader;
 import com.example.plgsystem.orchest.DataLoader;
 import com.example.plgsystem.orchest.Event;
@@ -44,6 +45,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -51,6 +53,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.HashMap;
 
 @Service
 public class SimulationService implements ApplicationListener<ContextRefreshedEvent> {
@@ -243,7 +246,17 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
         logger.info("Found {} auxiliary depots for daily operations", auxDepots.size());
 
-        SimulationState state = new SimulationState(vehicles, mainDepot, auxDepots, LocalDateTime.now());
+        // Calculate future maintenance schedule for each vehicle
+        Map<String, LocalDateTime> maintenanceSchedule = calculateMaintenanceSchedule();
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, LocalDateTime> entry : maintenanceSchedule.entrySet()) {
+            sb.append(entry.getKey()).append(":");
+            sb.append(entry.getValue().format(DateTimeFormatter.ofPattern("yyyyMMdd"))).append("\n");
+        }
+        logger.info("Maintenance schedule: \n{}", sb.toString());
+
+        SimulationState state = new SimulationState(vehicles, maintenanceSchedule, mainDepot, auxDepots,
+                LocalDateTime.now());
         DataLoader dataLoader = new DatabaseDataLoader(orderRepository, blockageRepository);
         Simulation dailyOps = new Simulation(state, SimulationType.DAILY_OPERATIONS, dataLoader);
         dailyOps.start();
@@ -251,6 +264,61 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         simulations.put(dailyOperationsId, dailyOps);
         logger.info("Daily operations simulation created with ID: {}", dailyOperationsId);
         sendSimulationUpdate(dailyOps);
+    }
+
+    /**
+     * Calculates future maintenance schedules for all vehicles based on their
+     * maintenance history
+     * 
+     * @return A map of vehicle IDs to their next scheduled maintenance date
+     */
+    private Map<String, LocalDateTime> calculateMaintenanceSchedule() {
+        logger.info("Calculating maintenance schedule for all vehicles");
+        Map<String, LocalDateTime> maintenanceSchedule = new HashMap<>();
+
+        // Get all vehicles
+        List<Vehicle> vehicles = vehicleService.findAll();
+
+        // For each vehicle, find their most recent maintenance and schedule next one
+        int dayCount = 0;
+        for (Vehicle vehicle : vehicles) {
+            String vehicleId = vehicle.getId();
+            List<Maintenance> vehicleMaintenances = maintenanceRepository.findByVehicleId(vehicleId);
+
+            if (vehicleMaintenances.isEmpty()) {
+                // If no previous maintenance, schedule one for two months from now
+                maintenanceSchedule.put(vehicleId, LocalDateTime.now().plusMonths(2));
+                logger.debug("No maintenance history for vehicle {}, scheduled for 2 months from now", vehicleId);
+                continue;
+            }
+
+            // Find the most recent maintenance with a real end date
+            LocalDate latestAssignedDate = null;
+
+            for (Maintenance maintenance : vehicleMaintenances) {
+                latestAssignedDate = maintenance.getAssignedDate();
+            }
+
+            LocalDateTime nextMaintenanceDate;
+            if (latestAssignedDate != null) {
+                nextMaintenanceDate = latestAssignedDate.atStartOfDay();
+                while (nextMaintenanceDate.isBefore(LocalDateTime.now())) {
+                    nextMaintenanceDate = nextMaintenanceDate.plusMonths(2);
+                }
+                logger.debug("Vehicle {} has maintenance assigned on {}, next scheduled for {}",
+                        vehicleId, latestAssignedDate, nextMaintenanceDate);
+            } else {
+                // Fallback, should not happen
+                nextMaintenanceDate = LocalDateTime.now().plusDays(dayCount);
+                logger.warn("Unexpected condition: Vehicle {} has maintenance records but no dates found", vehicleId);
+            }
+
+            maintenanceSchedule.put(vehicleId, nextMaintenanceDate);
+            dayCount += 2;
+        }
+
+        logger.info("Maintenance schedule calculated for {} vehicles", maintenanceSchedule.size());
+        return maintenanceSchedule;
     }
 
     /**
@@ -337,8 +405,17 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
         logger.info("Created {} vehicles for simulation", vehicles.size());
 
+        // Create maintenance schedule for custom simulation - one month from start for
+        // each vehicle
+        Map<String, LocalDateTime> maintenanceSchedule = new HashMap<>();
+        int dayCount = 0;
+        for (Vehicle vehicle : vehicles) {
+            maintenanceSchedule.put(vehicle.getId(), startDateTime.plusDays(dayCount + 1));
+            dayCount += 2;
+        }
+
         // Create simulation state
-        SimulationState state = new SimulationState(vehicles, mainDepot, auxDepots, startDateTime);
+        SimulationState state = new SimulationState(vehicles, maintenanceSchedule, mainDepot, auxDepots, startDateTime);
         DataLoader dataLoader = new FileDataLoader();
         Simulation simulation = new Simulation(state, type, dataLoader);
 
@@ -568,6 +645,15 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         if (incidentDTO.getType() == null) {
             logger.error("Tipo de avería no especificado");
             throw new IllegalArgumentException("Tipo de avería no especificado");
+        }
+
+        // Si el vehículo está realizando una acción, se establece el tiempo de
+        // ocurrencia en el momento de finalizar la acción
+        if (vehicle.isPerformingAction()) {
+            LocalDateTime occurrenceTime = vehicle.getCurrentAction().getType() == ActionType.DRIVE
+                    ? simulation.getState().getCurrentTime()
+                    : vehicle.getCurrentAction().getEndTime();
+            incidentDTO.setOccurrenceTime(occurrenceTime);
         }
 
         // Crear el incidente

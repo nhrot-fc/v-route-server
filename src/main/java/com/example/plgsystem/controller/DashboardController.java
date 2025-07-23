@@ -6,7 +6,6 @@ import com.example.plgsystem.enums.VehicleStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,6 +19,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RestController
@@ -160,15 +160,36 @@ public class DashboardController {
             responseCode = "200",
             description = "Estado de vehículos obtenido exitosamente",
             content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = Vehicle.class)
+                mediaType = "application/json"
             )
         )
     })
     @GetMapping("/vehicle-status")
-    public Map<String, List<Vehicle>> getVehicleStatusBreakdown() {
+    public Map<String, List<Map<String, Object>>> getVehicleStatusBreakdown() {
         logger.info("Getting vehicle status breakdown");
-        Map<String, List<Vehicle>> vehicleStatus = new HashMap<>();
+        Map<String, List<Map<String, Object>>> vehicleStatus = new HashMap<>();
+        
+        // Convertir vehículos a una representación simplificada
+        Function<Vehicle, Map<String, Object>> toSimpleMap = vehicle -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", vehicle.getId());
+            map.put("type", vehicle.getType());
+            map.put("status", vehicle.getStatus());
+            map.put("glpCapacityM3", vehicle.getGlpCapacityM3());
+            map.put("currentGlpM3", vehicle.getCurrentGlpM3());
+            map.put("fuelCapacityGal", vehicle.getFuelCapacityGal());
+            map.put("currentFuelGal", vehicle.getCurrentFuelGal());
+            
+            Position position = vehicle.getCurrentPosition();
+            if (position != null) {
+                Map<String, Double> positionMap = new HashMap<>();
+                positionMap.put("x", position.getX());
+                positionMap.put("y", position.getY());
+                map.put("position", positionMap);
+            }
+            
+            return map;
+        };
         
         List<Vehicle> available = vehicleRepository.findByStatus(VehicleStatus.AVAILABLE);
         List<Vehicle> maintenance = vehicleRepository.findByStatus(VehicleStatus.MAINTENANCE);
@@ -176,11 +197,11 @@ public class DashboardController {
         List<Vehicle> inRoute = vehicleRepository.findByStatus(VehicleStatus.DRIVING);
         List<Vehicle> delivering = vehicleRepository.findByStatus(VehicleStatus.SERVING);
         
-        vehicleStatus.put("available", available);
-        vehicleStatus.put("maintenance", maintenance);
-        vehicleStatus.put("incident", incident);
-        vehicleStatus.put("inRoute", inRoute);
-        vehicleStatus.put("delivering", delivering);
+        vehicleStatus.put("available", available.stream().map(toSimpleMap).collect(Collectors.toList()));
+        vehicleStatus.put("maintenance", maintenance.stream().map(toSimpleMap).collect(Collectors.toList()));
+        vehicleStatus.put("incident", incident.stream().map(toSimpleMap).collect(Collectors.toList()));
+        vehicleStatus.put("inRoute", inRoute.stream().map(toSimpleMap).collect(Collectors.toList()));
+        vehicleStatus.put("delivering", delivering.stream().map(toSimpleMap).collect(Collectors.toList()));
         
         logger.info("Vehicle status breakdown calculated: available={}, maintenance={}, incident={}, inRoute={}, delivering={}",
                 available.size(), maintenance.size(), incident.size(), inRoute.size(), delivering.size());
@@ -197,13 +218,12 @@ public class DashboardController {
             responseCode = "200",
             description = "Órdenes urgentes obtenidas exitosamente",
             content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = Order.class)
+                mediaType = "application/json"
             )
         )
     })
     @GetMapping("/urgent-orders")
-    public List<Order> getUrgentOrders(
+    public List<Map<String, Object>> getUrgentOrders(
         @Parameter(description = "Horas de anticipación para considerar urgente", example = "4")
         @RequestParam(defaultValue = "4") int hoursAhead) {
         logger.info("Getting urgent orders with {} hours ahead parameter", hoursAhead);
@@ -216,8 +236,28 @@ public class DashboardController {
                 .sorted(Comparator.comparing(Order::getDeadlineTime))
                 .collect(Collectors.toList());
         
+        // Convertir órdenes a una representación simplificada
+        List<Map<String, Object>> result = urgentOrders.stream().map(order -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", order.getId());
+            map.put("arrivalTime", order.getArrivalTime());
+            map.put("deadlineTime", order.getDeadlineTime());
+            map.put("glpRequestM3", order.getGlpRequestM3());
+            map.put("remainingGlpM3", order.getRemainingGlpM3());
+            
+            Position position = order.getPosition();
+            if (position != null) {
+                Map<String, Double> positionMap = new HashMap<>();
+                positionMap.put("x", position.getX());
+                positionMap.put("y", position.getY());
+                map.put("position", positionMap);
+            }
+            
+            return map;
+        }).collect(Collectors.toList());
+        
         logger.info("Found {} urgent orders within {} hours", urgentOrders.size(), hoursAhead);
-        return urgentOrders;
+        return result;
     }
 
     @Operation(

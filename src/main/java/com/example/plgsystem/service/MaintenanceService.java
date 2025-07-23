@@ -65,6 +65,22 @@ public class MaintenanceService {
     }
     
     /**
+     * Crea una tarea de mantenimiento de seguimiento dos meses después de un mantenimiento completado
+     */
+    @Transactional
+    public Optional<Maintenance> createFollowUpMaintenance(UUID completedMaintenanceId) {
+        return maintenanceRepository.findById(completedMaintenanceId)
+                .filter(maintenance -> maintenance.getRealEnd() != null)
+                .map(maintenance -> {
+                    Maintenance followUp = maintenance.createNextTask();
+                    if (followUp != null) {
+                        return maintenanceRepository.save(followUp);
+                    }
+                    return null;
+                });
+    }
+    
+    /**
      * Encuentra un mantenimiento por ID
      */
     public Optional<Maintenance> findById(UUID id) {
