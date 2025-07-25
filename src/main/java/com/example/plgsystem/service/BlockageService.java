@@ -25,6 +25,11 @@ public class BlockageService {
     }
 
     @Transactional
+    public List<Blockage> saveAll(List<Blockage> blockages) {
+        return blockageRepository.saveAll(blockages);
+    }
+
+    @Transactional
     public Blockage save(Blockage blockage) {
         return blockageRepository.save(blockage);
     }
@@ -41,7 +46,7 @@ public class BlockageService {
     public List<Blockage> findAll() {
         return blockageRepository.findAll();
     }
-    
+
     public Page<Blockage> findAllPaged(Pageable pageable) {
         return blockageRepository.findAll(pageable);
     }
@@ -49,7 +54,7 @@ public class BlockageService {
     public List<Blockage> findByActiveAtDateTime(LocalDateTime dateTime) {
         return blockageRepository.findByActiveAtDateTime(dateTime);
     }
-    
+
     public Page<Blockage> findByActiveAtDateTimePaged(LocalDateTime dateTime, Pageable pageable) {
         return blockageRepository.findByActiveAtDateTime(dateTime, pageable);
     }
@@ -57,7 +62,7 @@ public class BlockageService {
     public List<Blockage> findByTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
         return blockageRepository.findByStartTimeGreaterThanEqualAndEndTimeLessThanEqual(startTime, endTime);
     }
-    
+
     public Page<Blockage> findByTimeRangePaged(LocalDateTime startTime, LocalDateTime endTime, Pageable pageable) {
         return blockageRepository.findByStartTimeGreaterThanEqualAndEndTimeLessThanEqual(startTime, endTime, pageable);
     }

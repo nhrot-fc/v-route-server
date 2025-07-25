@@ -20,7 +20,7 @@ import java.util.List;
 @Setter
 @ToString(exclude = "serveRecords")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Order implements Serializable {
+public class Order implements Serializable, Comparable<Order> {
     @Id
     private String id;
 
@@ -97,5 +97,16 @@ public class Order implements Serializable {
         return id.equals(order.id) && arrivalTime.equals(order.arrivalTime) && deadlineTime.equals(order.deadlineTime)
                 && glpRequestM3 == order.glpRequestM3 && position.equals(order.position)
                 && remainingGlpM3 == order.remainingGlpM3;
+    }
+
+    @Override
+    public int compareTo(Order other) {
+        // First criteria: deadline time
+        // Second criteria: id
+        int deadlineComparison = this.deadlineTime.compareTo(other.deadlineTime);
+        if (deadlineComparison != 0) {
+            return deadlineComparison;
+        }
+        return this.id.compareTo(other.id);
     }
 }

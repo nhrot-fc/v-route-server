@@ -186,7 +186,7 @@ public class VehiclePlanCreator {
 
         // Determine start time, considering current action if any
         LocalDateTime currentTime = state.getCurrentTime();
-        if (vehicle.isPerformingAction() && vehicle.getCurrentActionEndTime() != null) {
+        if (vehicle.isPerformingAction() && vehicle.getCurrentAction().getType() != ActionType.DRIVE) {
             currentTime = vehicle.getCurrentActionEndTime();
             logger.debug("Vehicle {} has ongoing action, plan to main depot will start at {}",
                     vehicle.getId(), currentTime);
@@ -251,7 +251,7 @@ public class VehiclePlanCreator {
 
         // Determine start time, considering current action if any
         LocalDateTime currentTime = state.getCurrentTime();
-        if (vehicle.isPerformingAction() && vehicle.getCurrentActionEndTime() != null) {
+        if (vehicle.isPerformingAction() && vehicle.getCurrentAction().getType() != ActionType.DRIVE) {
             currentTime = vehicle.getCurrentActionEndTime();
             logger.debug("Vehicle {} has ongoing action, incident plan will start at {}",
                     vehicle.getId(), currentTime);

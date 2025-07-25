@@ -14,6 +14,7 @@ import com.example.plgsystem.model.Order;
 import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.operation.Action;
+import com.example.plgsystem.operation.ActionType;
 import com.example.plgsystem.operation.VehiclePlan;
 
 public class PlanExecutor {
@@ -35,7 +36,7 @@ public class PlanExecutor {
             }
 
             // First, check if the vehicle is already performing an action
-            if (vehicle.isPerformingAction()) {
+            if (vehicle.isPerformingAction() && vehicle.getCurrentAction().getType() != ActionType.DRIVE) {
                 Action currentAction = vehicle.getCurrentAction();
                 // Continue executing current action
                 double progress = executeAction(state, currentAction, vehicle, nextTime);

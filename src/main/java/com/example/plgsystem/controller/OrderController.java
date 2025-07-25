@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -50,36 +49,30 @@ public class OrderController {
         logger.info("Order created with ID: {}", savedOrder.getId());
         return new ResponseEntity<>(OrderDTO.fromEntity(savedOrder), HttpStatus.CREATED);
     }
-    
-    /**
-     * Crear múltiples pedidos en una sola operación
-     */
+
     @PostMapping("/bulk")
-    public ResponseEntity<List<OrderDTO>> createBulk(@RequestBody List<OrderDTO> orderDTOs) {
-        logger.info("Creating {} orders in bulk", orderDTOs.size());
-        List<OrderDTO> savedOrderDTOs = new ArrayList<>();
-        
-        // Check if any order already exists
-        List<String> orderIds = orderDTOs.stream()
-                .map(OrderDTO::getId)
-                .collect(Collectors.toList());
-        
-        boolean exists = orderService.existsByIdIn(orderIds);
-        
-        if (exists) {
-            logger.warn("Bulk order creation failed - one or more orders already exist with the provided IDs");
-            return ResponseEntity.badRequest().body(null);
+    public ResponseEntity<String> createBulk(@RequestBody List<OrderDTO> orderDTOs) {
+        logger.info("Received request to create {} orders in bulk", orderDTOs.size());
+
+        // You can still perform quick validations synchronously
+        List<String> orderIds = orderDTOs.stream().map(OrderDTO::getId).collect(Collectors.toList());
+        if (orderService.existsByIdIn(orderIds)) {
+            logger.warn("Bulk order creation rejected - one or more orders already exist.");
+            return ResponseEntity.badRequest().body("One or more orders already exist.");
         }
-        
-        for (OrderDTO orderDTO : orderDTOs) {
-            Order order = orderDTO.toEntity();
-            Order savedOrder = orderService.save(order);
-            savedOrderDTOs.add(OrderDTO.fromEntity(savedOrder));
-            logger.debug("Created order with ID: {} as part of bulk operation", savedOrder.getId());
-        }
-        
-        logger.info("Bulk operation completed, created {} orders", savedOrderDTOs.size());
-        return new ResponseEntity<>(savedOrderDTOs, HttpStatus.CREATED);
+
+        List<Order> ordersToSave = orderDTOs.stream()
+                .map(OrderDTO::toEntity)
+                .toList();
+
+        // Call the ASYNC method
+        orderService.saveAllAsync(ordersToSave);
+
+        // Immediately return a 202 Accepted response
+        logger.info("Request accepted. Handing off to async processor.");
+        String responseMessage = "Bulk order request accepted. The " + ordersToSave.size()
+                + " orders are being processed in the background.";
+        return ResponseEntity.accepted().body(responseMessage);
     }
 
     /**
@@ -138,7 +131,8 @@ public class OrderController {
             @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "asc") String direction) {
 
-        logger.info("Listing orders with filters - pending: {}, overdueAt: {}, availableAt: {}, paginated: {}, page: {}, size: {}, sortBy: {}, direction: {}",
+        logger.info(
+                "Listing orders with filters - pending: {}, overdueAt: {}, availableAt: {}, paginated: {}, page: {}, size: {}, sortBy: {}, direction: {}",
                 pending, overdueAt, availableAt, paginated, page, size, sortBy, direction);
 
         // Si paginated es null o false, devolvemos todos los resultados sin paginar
@@ -196,7 +190,7 @@ public class OrderController {
             orderPage = orderService.findAllPaged(pageable);
         }
 
-        logger.info("Found page {} of {} with {} orders per page (total: {})", 
+        logger.info("Found page {} of {} with {} orders per page (total: {})",
                 orderPage.getNumber(), orderPage.getTotalPages(), orderPage.getSize(), orderPage.getTotalElements());
         return ResponseEntity.ok(orderPage.map(OrderDTO::fromEntity));
     }
@@ -227,9 +221,9 @@ public class OrderController {
             @PathVariable String id,
             @RequestBody DeliveryRecordDTO deliveryRecord) {
 
-        logger.info("Recording delivery for order ID: {}, vehicle ID: {}, volume: {} m3", 
+        logger.info("Recording delivery for order ID: {}, vehicle ID: {}, volume: {} m3",
                 id, deliveryRecord.getVehicleId(), deliveryRecord.getVolumeM3());
-        
+
         LocalDateTime deliveryTime = deliveryRecord.getServeDate() != null ? deliveryRecord.getServeDate()
                 : LocalDateTime.now();
 
@@ -245,7 +239,7 @@ public class OrderController {
                     dto.setOrderId(serveRecord.getOrder().getId());
                     dto.setGlpVolumeM3(serveRecord.getGlpVolumeM3());
                     dto.setServeDate(serveRecord.getServeDate());
-                    logger.info("Delivery recorded successfully for order ID: {}, serve record ID: {}", 
+                    logger.info("Delivery recorded successfully for order ID: {}, serve record ID: {}",
                             id, serveRecord.getId());
                     return ResponseEntity.ok(dto);
                 })

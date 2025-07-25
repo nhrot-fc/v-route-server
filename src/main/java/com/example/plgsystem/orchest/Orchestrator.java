@@ -110,9 +110,9 @@ public class Orchestrator {
 
         // Add orders and blockages from the event queue to our tracking sets
         for (Event event : eventQueue) {
-            if (event.getType() == EventType.ORDER_ARRIVAL) {
+            if (event.getType() == EventType.ORDER) {
                 currentOrderIds.add(event.getEntityId());
-            } else if (event.getType() == EventType.BLOCKAGE_START) {
+            } else if (event.getType() == EventType.BLOCKAGE) {
                 Blockage blockage = (Blockage) event.getData();
                 String blockageId = createBlockageIdentifier(blockage);
                 currentBlockageIds.add(blockageId);
@@ -140,7 +140,7 @@ public class Orchestrator {
 
         // Process order events
         for (Event event : newOrderEvents) {
-            if (event.getType() == EventType.ORDER_ARRIVAL) {
+            if (event.getType() == EventType.ORDER) {
                 Order order = (Order) event.getData();
 
                 // Only add if: 1) Not a duplicate, 2) Not previously processed, 3) Deadline is
@@ -162,7 +162,7 @@ public class Orchestrator {
 
         // Process blockage events
         for (Event event : newBlockageEvents) {
-            if (event.getType() == EventType.BLOCKAGE_START) {
+            if (event.getType() == EventType.BLOCKAGE) {
                 Blockage blockage = (Blockage) event.getData();
                 String blockageId = createBlockageIdentifier(blockage);
 
@@ -256,9 +256,6 @@ public class Orchestrator {
 
                 if (planToMainDepot != null) {
                     state.addVehiclePlan(vehicle.getId(), planToMainDepot);
-                    logger.debug("Plan de retorno a base creado para vehículo {}, iniciando en {}",
-                            vehicle.getId(),
-                            vehicle.isPerformingAction() ? vehicle.getCurrentActionEndTime() : state.getCurrentTime());
                 }
             }
         }
@@ -319,11 +316,11 @@ public class Orchestrator {
             logger.debug("Aplicando evento futuro: {} al estado proyectado", event);
 
             switch (event.getType()) {
-                case ORDER_ARRIVAL:
+                case ORDER:
                     Order order = (Order) event.getData();
                     futureState.addOrder(order);
                     break;
-                case NEW_DAY_BEGIN:
+                case NEW_DAY:
                     futureState.refillDepots();
                     break;
                 default:
@@ -343,16 +340,6 @@ public class Orchestrator {
         Map<String, VehiclePlan> newPlans = new HashMap<>();
 
         try {
-            // Provide information about vehicles currently performing actions to the solver
-            Map<String, LocalDateTime> vehiclesWithActions = new HashMap<>();
-            for (Vehicle vehicle : futureState.getVehicles()) {
-                if (vehicle.isPerformingAction()) {
-                    vehiclesWithActions.put(vehicle.getId(), vehicle.getCurrentActionEndTime());
-                    logger.debug("Vehículo {} está realizando una acción hasta {}",
-                            vehicle.getId(), vehicle.getCurrentActionEndTime());
-                }
-            }
-
             Solution solution = MetaheuristicSolver.solve(futureState);
 
             if (solution == null) {
@@ -400,42 +387,16 @@ public class Orchestrator {
                 synchronized (this) {
                     int prevPlansCount = state.getCurrentVehiclePlans().size();
 
-                    // Borrar todos los planes de vehículos que no estén realizando acciones
-                    // actualmente
-                    List<String> keysToRemove = new ArrayList<>();
-                    for (Map.Entry<String, VehiclePlan> entry : state.getCurrentVehiclePlans().entrySet()) {
-                        String vehicleId = entry.getKey();
-                        Vehicle vehicle = state.getVehicleById(vehicleId);
-
-                        if (vehicle != null && !vehicle.isPerformingAction()) {
-                            keysToRemove.add(vehicleId);
-                        } else {
-                            // Si el vehículo está realizando una acción, conserva su plan actual
-                            logger.debug("Preservando plan actual para vehículo {} que está realizando una acción",
-                                    vehicleId);
-                        }
-                    }
-
-                    // Eliminar planes para vehículos sin acciones en curso
-                    for (String key : keysToRemove) {
-                        state.getCurrentVehiclePlans().remove(key);
-                    }
-
-                    // Aplicar los nuevos planes, pero no sobrescribir los planes de vehículos con
-                    // acciones
                     for (Map.Entry<String, VehiclePlan> entry : futurePlans.entrySet()) {
                         String vehicleId = entry.getKey();
                         Vehicle vehicle = state.getVehicleById(vehicleId);
 
-                        if (vehicle != null && !vehicle.isPerformingAction()) {
+                        if (vehicle != null) {
                             state.getCurrentVehiclePlans().put(vehicleId, entry.getValue());
                         }
                     }
-
-                    logger.debug("Planes anteriores: {}, nuevos planes aplicados: {}, planes preservados: {}",
-                            prevPlansCount, futurePlans.size(),
-                            state.getCurrentVehiclePlans().size() - (prevPlansCount - keysToRemove.size()));
-
+                    logger.info("Planes aplicados: {} (antes: {})",
+                            state.getCurrentVehiclePlans().size(), prevPlansCount);
                     futurePlans.clear();
                     targetPlanningTime = null;
                 }
@@ -449,11 +410,11 @@ public class Orchestrator {
     private void processEvent(Event event) {
         logger.info("Processing event: {}", event);
         switch (event.getType()) {
-            case ORDER_ARRIVAL:
+            case ORDER:
                 Order order = (Order) event.getData();
                 state.addOrder(order);
                 break;
-            case VEHICLE_BREAKDOWN:
+            case BREAKDOWN:
                 Incident incident = (Incident) event.getData();
                 Vehicle vehicleWithIncident = incident.getVehicle();
                 if (vehicleWithIncident != null) {
@@ -467,18 +428,15 @@ public class Orchestrator {
 
                     if (incidentPlan != null) {
                         state.addVehiclePlan(vehicleWithIncident.getId(), incidentPlan);
-                        logger.info("Incident plan created for vehicle {}, type: {}, starting at {}",
-                                vehicleWithIncident.getId(),
-                                incident.getType(),
-                                vehicleWithIncident.isPerformingAction() ? vehicleWithIncident.getCurrentActionEndTime()
-                                        : state.getCurrentTime());
+                        logger.debug("Plan de incidente creado para vehículo {}: {}", vehicleWithIncident.getId(),
+                                incidentPlan);
                     }
                 }
 
                 // Cancel current planning and replan immediately
                 cancelCurrentPlanningAndReplan();
                 break;
-            case NEW_DAY_BEGIN:
+            case NEW_DAY:
                 state.refillDepots();
                 processedOrderIds.clear();
                 processedBlockageIds.clear();

@@ -3,6 +3,7 @@ package com.example.plgsystem.assignation;
 import com.example.plgsystem.enums.VehicleType;
 import com.example.plgsystem.model.*;
 import com.example.plgsystem.operation.Action;
+import com.example.plgsystem.operation.ActionType;
 import com.example.plgsystem.simulation.SimulationState;
 
 import java.time.Duration;
@@ -77,7 +78,7 @@ public class SolutionEvaluator {
         
         // Consider the vehicle's current action when determining start time
         LocalDateTime startTime = state.getCurrentTime();
-        if (vehicle.isPerformingAction()) {
+        if (vehicle.isPerformingAction() && vehicle.getCurrentAction().getType() != ActionType.DRIVE) {
             Action currentAction = vehicle.getCurrentAction();
             if (currentAction != null && currentAction.getEndTime().isAfter(startTime)) {
                 // Route can only start after the current action finishes

@@ -5,8 +5,12 @@ import com.example.plgsystem.model.ServeRecord;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.repository.OrderRepository;
 import com.example.plgsystem.repository.VehicleRepository;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,8 +18,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+
 @Service
 public class OrderService {
+    private static final Logger logger = LoggerFactory.getLogger(OrderService.class);
 
     private final OrderRepository orderRepository;
     private final VehicleRepository vehicleRepository;
@@ -31,6 +37,29 @@ public class OrderService {
     @Transactional
     public Order save(Order order) {
         return orderRepository.save(order);
+    }
+    
+    @Transactional
+    public List<Order> saveAll(List<Order> orders) {
+        return orderRepository.saveAll(orders);
+    }
+
+    /**
+     * Saves a list of orders in a separate background thread.
+     * This method will return immediately.
+     */
+    @Async // <-- This tells Spring to run this in a background thread pool
+    @Transactional
+    public void saveAllAsync(List<Order> orders) {
+        logger.info("⏳ Starting async bulk save of {} orders.", orders.size());
+        try {
+            // The batching logic still applies here automatically!
+            orderRepository.saveAll(orders);
+            logger.info("✅ Async bulk save completed successfully.");
+        } catch (Exception e) {
+            // You must handle errors here, as they won't propagate to the controller
+            logger.error("❌ Error during async bulk save", e);
+        }
     }
 
     /**

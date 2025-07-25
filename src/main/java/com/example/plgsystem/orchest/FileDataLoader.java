@@ -55,7 +55,7 @@ public class FileDataLoader implements DataLoader {
 
                 // Crear eventos para cada orden
                 for (Order order : orders) {
-                    Event event = new Event(EventType.ORDER_ARRIVAL, order.getArrivalTime(), order.getId(), order);
+                    Event event = new Event(EventType.ORDER, order.getArrivalTime(), order.getId(), order);
                     events.add(event);
                 }
 
@@ -92,20 +92,11 @@ public class FileDataLoader implements DataLoader {
                 for (Blockage blockage : blockages) {
                     // Evento de inicio del bloqueo
                     Event startEvent = new Event(
-                            EventType.BLOCKAGE_START,
+                            EventType.BLOCKAGE,
                             blockage.getStartTime(),
                             blockage.getId().toString(),
                             blockage);
-
-                    // Evento de fin del bloqueo
-                    Event endEvent = new Event(
-                            EventType.BLOCKAGE_END,
-                            blockage.getEndTime(),
-                            blockage.getId().toString(),
-                            null);
-
                     events.add(startEvent);
-                    events.add(endEvent);
                 }
 
                 logger.info("Creados {} eventos de bloqueos para la fecha {}", blockages.size() * 2, date);

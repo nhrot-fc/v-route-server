@@ -22,13 +22,13 @@ public class SimpleDataLoader implements DataLoader {
 
     @Override
     public List<Event> loadOrdersForDate(LocalDate date) {
-        return events.stream().filter(event -> event.getType() == EventType.ORDER_ARRIVAL)
+        return events.stream().filter(event -> event.getType() == EventType.ORDER)
                 .filter(event -> event.getTime().toLocalDate().equals(date)).toList();
     }
 
     @Override
     public List<Event> loadBlockagesForDate(LocalDate date) {
-        return events.stream().filter(event -> event.getType() == EventType.BLOCKAGE_START)
+        return events.stream().filter(event -> event.getType() == EventType.BLOCKAGE)
                 .filter(event -> event.getTime().toLocalDate().equals(date)).toList();
     }
 }

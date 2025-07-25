@@ -18,7 +18,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/blockages")
@@ -48,17 +47,22 @@ public class BlockageController {
      * Crear múltiples bloqueos en una sola operación
      */
     @PostMapping("/bulk")
-    public ResponseEntity<List<Blockage>> createBulk(@RequestBody List<BlockageDTO> blockageDTOs) {
+    public ResponseEntity<String> createBulk(@RequestBody List<BlockageDTO> blockageDTOs) {
         logger.info("Creating {} blockages in bulk", blockageDTOs.size());
-        List<Blockage> savedBlockages = new ArrayList<>();
-
-        for (BlockageDTO blockageDTO : blockageDTOs) {
-            Blockage blockage = blockageDTO.toEntity();
-            savedBlockages.add(blockageService.save(blockage));
+        try {
+            // Transformar directamente todos los DTOs a entidades y guardarlos en una sola operación
+            List<Blockage> blockages = blockageDTOs.stream()
+                    .map(BlockageDTO::toEntity)
+                    .toList();
+            blockageService.saveAll(blockages);
+        } catch (Exception e) {
+            logger.error("Error creating blockages in bulk: {}", e.getMessage());
+            return new ResponseEntity<>("Error creating blockages: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
-        logger.info("Bulk operation completed, created {} blockages", savedBlockages.size());
-        return new ResponseEntity<>(savedBlockages, HttpStatus.CREATED);
+        
+        logger.info("Bulk operation completed, created {} blockages", blockageDTOs.size());
+        return new ResponseEntity<>("Bulk operation completed successfully", HttpStatus.CREATED);
     }
 
     /**
@@ -110,7 +114,8 @@ public class BlockageController {
             @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "asc") String direction) {
 
-        logger.info("Listing blockages with filters - activeAt: {}, startTime: {}, endTime: {}, paginated: {}, page: {}, size: {}, sortBy: {}, direction: {}",
+        logger.info(
+                "Listing blockages with filters - activeAt: {}, startTime: {}, endTime: {}, paginated: {}, page: {}, size: {}, sortBy: {}, direction: {}",
                 activeAt, startTime, endTime, paginated, page, size, sortBy, direction);
 
         // Si paginated es null o false, devolvemos todos los resultados sin paginar
@@ -156,7 +161,7 @@ public class BlockageController {
             blockages = blockageService.findAllPaged(pageable);
         }
 
-        logger.info("Found page {} of {} with {} blockages per page (total: {})", 
+        logger.info("Found page {} of {} with {} blockages per page (total: {})",
                 blockages.getNumber(), blockages.getTotalPages(), blockages.getSize(), blockages.getTotalElements());
         return ResponseEntity.ok(blockages);
     }

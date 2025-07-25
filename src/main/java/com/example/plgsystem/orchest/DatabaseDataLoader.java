@@ -47,7 +47,7 @@ public class DatabaseDataLoader implements DataLoader {
         if (!orders.isEmpty()) {
             // Create events for each order
             for (Order order : orders) {
-                Event event = new Event(EventType.ORDER_ARRIVAL, order.getArrivalTime(), order.getId(), order);
+                Event event = new Event(EventType.ORDER, order.getArrivalTime(), order.getId(), order);
                 events.add(event);
             }
         }
@@ -71,20 +71,11 @@ public class DatabaseDataLoader implements DataLoader {
             for (Blockage blockage : blockages) {
                 // Start event for the blockage
                 Event startEvent = new Event(
-                        EventType.BLOCKAGE_START,
+                        EventType.BLOCKAGE,
                         blockage.getStartTime(),
                         blockage.getId().toString(),
                         blockage);
-
-                // End event for the blockage
-                Event endEvent = new Event(
-                        EventType.BLOCKAGE_END,
-                        blockage.getEndTime(),
-                        blockage.getId().toString(),
-                        null);
-
                 events.add(startEvent);
-                events.add(endEvent);
             }
         }
 

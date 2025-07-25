@@ -113,8 +113,8 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
     @Override
     public void onApplicationEvent(@NonNull ContextRefreshedEvent event) {
         logger.info("Application context refreshed, initializing simulations");
-        databaseInitializationService.initializeDatabase();
-        initializeDailyOperations();
+        // databaseInitializationService.initializeDatabase();
+        // initializeDailyOperations();
         logger.info("Simulations initialization complete");
     }
 
@@ -410,7 +410,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         Map<String, LocalDateTime> maintenanceSchedule = new HashMap<>();
         int dayCount = 0;
         for (Vehicle vehicle : vehicles) {
-            maintenanceSchedule.put(vehicle.getId(), startDateTime.plusDays(dayCount));
+            maintenanceSchedule.put(vehicle.getId(), startDateTime.plusDays(dayCount).plusMonths(2));
             dayCount += 2;
         }
 
@@ -649,11 +649,15 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
         // Si el vehículo está realizando una acción, se establece el tiempo de
         // ocurrencia en el momento de finalizar la acción
-        if (vehicle.isPerformingAction()) {
-            LocalDateTime occurrenceTime = vehicle.getCurrentAction().getType() == ActionType.DRIVE
-                    ? simulation.getState().getCurrentTime()
-                    : vehicle.getCurrentAction().getEndTime();
+        LocalDateTime occurrenceTime = simulation.getOrchestrator().getState().getCurrentTime();
+        if (vehicle.isPerformingAction() && vehicle.getCurrentAction().getType() != ActionType.DRIVE) {
+            occurrenceTime = vehicle.getCurrentActionEndTime();
+            logger.debug("Vehículo {} está realizando una acción, estableciendo tiempo de ocurrencia en {}",
+                    vehicle.getId(), occurrenceTime);
             incidentDTO.setOccurrenceTime(occurrenceTime);
+        } else {
+            // Si no está realizando una acción, se usa el tiempo actual de la simulación
+            incidentDTO.setOccurrenceTime(simulation.getOrchestrator().getState().getCurrentTime());
         }
 
         // Crear el incidente
@@ -661,7 +665,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
 
         // Crear el evento de avería
         Event breakdownEvent = new Event(
-                EventType.VEHICLE_BREAKDOWN,
+                EventType.BREAKDOWN,
                 incidentDTO.getOccurrenceTime(),
                 vehicle.getId(),
                 incident);

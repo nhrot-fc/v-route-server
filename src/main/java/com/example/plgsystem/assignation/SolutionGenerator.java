@@ -25,7 +25,7 @@ public class SolutionGenerator {
 
         // Initialize depot GLP states
         for (Depot depot : state.getAuxDepots()) {
-            depotsGlpState.put(depot.getId(), depot.getGlpCapacityM3());
+            depotsGlpState.put(depot.getId(), depot.getCurrentGlpM3());
         }
         depotsGlpState.put(state.getMainDepot().getId(), state.getMainDepot().getGlpCapacityM3());
 
@@ -126,7 +126,8 @@ public class SolutionGenerator {
             currentTime = currentTime.plusMinutes(Constants.GLP_SERVE_DURATION_MINUTES);
         }
 
-        Depot returnDepot = state.getMainDepot();
+        Depot returnDepot = findNearestDepot(currentPosition, currentGlp, state, depotsGlpState);
+        //Depot returnDepot = state.getMainDepot();
         double distanceToDepot = currentPosition.distanceTo(returnDepot.getPosition());
         double fuelNeededToDepot = calculateFuelNeeded(distanceToDepot, currentGlp, vehicle.getType());
 
