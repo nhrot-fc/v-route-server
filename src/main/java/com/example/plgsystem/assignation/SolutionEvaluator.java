@@ -73,9 +73,10 @@ public class SolutionEvaluator {
 
     private static SolutionCost evaluateRoute(Route route, Vehicle vehicle, SimulationState state,
             Map<String, Integer> ordersRemainingGlp, Map<String, Integer> depotsGlpState) {
+        String mainDepotId = state.getMainDepot().getId();
         double totalDistance = 0;
         int totalLateDeliveries = 0;
-        
+
         // Consider the vehicle's current action when determining start time
         LocalDateTime startTime = state.getCurrentTime();
         if (vehicle.isPerformingAction() && vehicle.getCurrentAction().getType() != ActionType.DRIVE) {
@@ -85,7 +86,7 @@ public class SolutionEvaluator {
                 startTime = currentAction.getEndTime();
             }
         }
-        
+
         LocalDateTime lastDeliveryTime = startTime;
         LocalDateTime currentTime = startTime;
 
@@ -153,7 +154,11 @@ public class SolutionEvaluator {
                 // Update vehicle GLP
                 currentGlp += stop.getGlpLoadM3();
                 currentFuel = vehicle.getFuelCapacityGal();
-                currentTime = currentTime.plusMinutes(Constants.DEPOT_GLP_TRANSFER_TIME_MINUTES);
+                if (depotId.equals(mainDepotId)) {
+                    currentTime = currentTime.plusMinutes(Constants.RELOAD_REFUEL_DURATION_MINUTES_MAIN_DEPOT);
+                } else {
+                    currentTime = currentTime.plusMinutes(Constants.RELOAD_REFUEL_DURATION_MINUTES);
+                }
             }
 
             if (currentGlp > vehicle.getGlpCapacityM3() || currentGlp < 0) {

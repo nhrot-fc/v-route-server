@@ -18,8 +18,8 @@ public class Constants {
     // Tiempos en minutos
     public static final int GLP_SERVE_DURATION_MINUTES = 15;
     public static final int VEHICLE_GLP_TRANSFER_DURATION_MINUTES = 5;
-    public static final int REFUEL_DURATION_MINUTES = 1;
-    public static final int DEPOT_GLP_TRANSFER_TIME_MINUTES = 1;
+    public static final int RELOAD_REFUEL_DURATION_MINUTES = 0;
+    public static final int RELOAD_REFUEL_DURATION_MINUTES_MAIN_DEPOT= 15;
 
     /*
      * =============================================
@@ -43,9 +43,9 @@ public class Constants {
      */
     // Vehículos - General
     public static final double VEHICLE_FUEL_CAPACITY_GAL = 25.0; // Gallons
-    public static final double VEHICLE_AVG_SPEED = 90.0; // Km/h
+    public static final double VEHICLE_AVG_SPEED = 50.0; // Km/h
     public static final String VEHICLE_CODE_FORMAT = "TTNN";
-    public static final double CONSUMPTION_FACTOR = 360.0;
+    public static final double CONSUMPTION_FACTOR = 180.0;
 
     // Capacidades GLP
     public static final int TA_GLP_CAPACITY_M3 = 25; // m³

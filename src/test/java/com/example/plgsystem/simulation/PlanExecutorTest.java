@@ -110,42 +110,6 @@ public class PlanExecutorTest {
     }
 
     @Test
-    void testRefuelAction() {
-        // Set vehicle to have low fuel
-        vehicle.consumeFuel(vehicle.getCurrentFuelGal() * 0.8); // Consume 80% of fuel
-        double initialFuel = vehicle.getCurrentFuelGal();
-
-        // Create a REFUEL action
-        LocalDateTime actionStart = startTime;
-        LocalDateTime actionEnd = actionStart.plusMinutes(30); // 30 minutes to refuel
-
-        double fuelToRefill = vehicle.getFuelCapacityGal() - initialFuel;
-        Action refuelAction = ActionFactory.createRefuelingAction(
-                mainDepot.getId(),
-                mainDepot.getPosition(),
-                actionStart,
-                fuelToRefill
-        );
-
-        // Create and add a vehicle plan with the refuel action
-        List<Action> actions = new ArrayList<>();
-        actions.add(refuelAction);
-        VehiclePlan plan = new VehiclePlan(vehicle.getId(), actions, actionStart, 0);
-        state.addVehiclePlan(vehicle.getId(), plan);
-
-        // Execute plan
-        PlanExecutor.executePlan(state, actionEnd);
-
-        // Check vehicle state
-        assertEquals(VehicleStatus.AVAILABLE, vehicle.getStatus(),
-                "Vehicle should be AVAILABLE after completing refuel");
-        assertEquals(vehicle.getFuelCapacityGal(), vehicle.getCurrentFuelGal(), 0.001,
-                "Vehicle should be fully refueled");
-        assertEquals(1.0, refuelAction.getCurrentProgress(), "Action should be complete");
-        assertTrue(refuelAction.isEffectApplied(), "Effect should be marked as applied");
-    }
-
-    @Test
     void testReloadAction() {
         // Ensure vehicle has no GLP
         vehicle.dispense(vehicle.getCurrentGlpM3());

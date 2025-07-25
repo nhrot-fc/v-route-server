@@ -42,30 +42,6 @@ class ActionFactoryTest {
     }
     
     @Test
-    void testCreateRefuelingAction() {
-        // Arrange
-        String depotId = "DEPOT001";
-        Position position = new Position(5, 5);
-        double refueledGal = 30.0;
-        LocalDateTime startTime = LocalDateTime.now();
-        
-        // Act
-        Action action = ActionFactory.createRefuelingAction(depotId, position, startTime, refueledGal);
-        
-        // Assert
-        assertEquals(ActionType.REFUEL, action.getType());
-        assertEquals(List.of(position), action.getPath());
-        assertEquals(startTime, action.getStartTime());
-        assertEquals(startTime.plusMinutes(Constants.REFUEL_DURATION_MINUTES), action.getEndTime());
-        assertEquals(refueledGal, action.getFuelRefueledGal());
-        assertEquals(0, action.getGlpDelivered());
-        assertEquals(0, action.getGlpLoaded());
-        assertNull(action.getOrderId());
-        assertEquals(depotId, action.getDepotId());
-        assertEquals(0.0, action.getCurrentProgress());
-    }
-    
-    @Test
     void testCreateRefillingAction() {
         // Arrange
         String depotId = "DEPOT002";
@@ -80,7 +56,7 @@ class ActionFactoryTest {
         assertEquals(ActionType.RELOAD, action.getType());
         assertEquals(List.of(position), action.getPath());
         assertEquals(startTime, action.getStartTime());
-        assertEquals(startTime.plusMinutes(Constants.DEPOT_GLP_TRANSFER_TIME_MINUTES), action.getEndTime());
+        assertEquals(startTime.plusMinutes(Constants.RELOAD_REFUEL_DURATION_MINUTES), action.getEndTime());
         assertEquals(0, action.getGlpDelivered());
         assertEquals(glpAmountAdded, action.getGlpLoaded());
         assertEquals(0.0, action.getFuelConsumedGal());

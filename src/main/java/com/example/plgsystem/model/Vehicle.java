@@ -1,5 +1,6 @@
 package com.example.plgsystem.model;
 
+import com.example.plgsystem.enums.VehicleOrientation;
 import com.example.plgsystem.enums.VehicleStatus;
 import com.example.plgsystem.enums.VehicleType;
 import com.example.plgsystem.operation.Action;
@@ -62,6 +63,8 @@ public class Vehicle implements Serializable {
     
     @Transient
     private Action currentAction; // Tracks the current action being performed
+    @Transient
+    private VehicleOrientation currentOrientation;
 
     @Builder
     public Vehicle(String id, VehicleType type, Position currentPosition) {
@@ -73,6 +76,7 @@ public class Vehicle implements Serializable {
         this.currentGlpM3 = 0;
         this.currentFuelGal = this.fuelCapacityGal;
         this.status = VehicleStatus.AVAILABLE;
+        this.currentOrientation = VehicleOrientation.EAST;
         this.currentAction = null;
     }
 

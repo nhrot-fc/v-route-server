@@ -13,7 +13,7 @@ import lombok.Setter;
 
 /**
  * Represents an action that a vehicle can execute during the simulation.
- * Actions include movements, loading, unloading, refueling, etc.
+ * Actions include movements, loading, unloading, etc.
  */
 @Getter
 @AllArgsConstructor
@@ -56,9 +56,6 @@ public class Action {
                 sb.append(String.format(", 🛣️ path: %d positions, ⛽ fuel: %.2f gal", 
                         path != null ? path.size() : 0, fuelConsumedGal));
                 break;
-            case REFUEL:
-                sb.append(String.format(", 🏭 depot: %s, ⛽ refueled: %.2f gal", depotId, fuelRefueledGal));
-                break;
             case RELOAD:
                 sb.append(String.format(", 🏭 depot: %s, 🛢️ loaded: %d m³", depotId, glpLoaded));
                 break;
@@ -82,7 +79,6 @@ public class Action {
     private String getActionEmoji() {
         switch (type) {
             case DRIVE: return "🚗";
-            case REFUEL: return "⛽";
             case RELOAD: return "🔄";
             case SERVE: return "📦";
             case MAINTENANCE: return "🔧";

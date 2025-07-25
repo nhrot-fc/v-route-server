@@ -295,10 +295,10 @@ public class SimulationController {
         logger.info("Configurando velocidad de simulación a factor: {}", factor);
         
         // Validar que el factor esté entre 1 y 5
-        if (factor < 1 || factor > 5) {
-            logger.warn("Factor de velocidad inválido: {}. Debe estar entre 1 y 5.", factor);
+        if (factor < 1) {
+            logger.warn("Factor de velocidad inválido: {}. Debe ser 1 o más.", factor);
             return ResponseEntity.badRequest().body(Map.of(
-                "error", "Factor de velocidad inválido. Debe estar entre 1 y 5.",
+                "error", "Factor de velocidad inválido. Debe ser 1 o más.",
                 "factorRecibido", factor
             ));
         }
@@ -313,7 +313,7 @@ public class SimulationController {
                 case 3: velocidad = "muy rápida (3x)"; break;
                 case 4: velocidad = "ultra rápida (4x)"; break;
                 case 5: velocidad = "máxima (5x)"; break;
-                default: velocidad = "desconocida"; break;
+                default: velocidad = "extrema (más de 5x)"; break;
             }
             
             return ResponseEntity.ok().body(Map.of(

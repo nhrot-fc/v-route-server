@@ -7,9 +7,6 @@ public enum ActionType {
     /** Moving from one position to another */
     DRIVE,
     
-    /** Refueling the vehicle at a depot */
-    REFUEL,
-    
     /** Reloading GLP from a depot */
     RELOAD,
     

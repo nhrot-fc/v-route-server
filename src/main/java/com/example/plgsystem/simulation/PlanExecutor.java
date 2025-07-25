@@ -83,7 +83,6 @@ public class PlanExecutor {
         double calculatedProgress = calculateProgress(action, nextTime);
 
         switch (action.getType()) {
-            case REFUEL:
             case RELOAD:
             case SERVE:
                 applyImmediateEffects(state, action, vehicle);
@@ -126,10 +125,6 @@ public class PlanExecutor {
 
         // Apply immediate effects
         switch (action.getType()) {
-            case REFUEL:
-                vehicle.refuel();
-                vehicle.setRefueling();
-                break;
             case RELOAD:
                 String depotId = action.getDepotId();
                 Depot depot = state.getDepotById(depotId);
@@ -248,11 +243,6 @@ public class PlanExecutor {
                     Position finalPosition = action.getPath().get(action.getPath().size() - 1);
                     vehicle.setCurrentPosition(finalPosition.clone());
                 }
-                break;
-
-            case REFUEL:
-                // Vehicle is fully refueled
-                vehicle.refuel();
                 break;
 
             case RELOAD:
