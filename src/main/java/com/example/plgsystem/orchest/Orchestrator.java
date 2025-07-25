@@ -85,6 +85,17 @@ public class Orchestrator {
     }
 
     public void advanceTick() {
+        // if currentTime is really near to targetTime and futurePlans is not done
+        // we need to wait until done for advancing the tick
+        if (planningInProgress && targetPlanningTime != null &&
+                state.getCurrentTime().isAfter(targetPlanningTime.minusMinutes(10))) {
+
+            logger.debug("Esperando a que la planificación para {} termine. Tiempo actual: {}",
+                    targetPlanningTime, state.getCurrentTime());
+            // No avanzar el tick. Se reintentará en la siguiente llamada a advanceTick().
+            return;
+        }
+
         // Daily operations don't need tick-based management for most operations
         if (isDailyOperation) {
             checkAndLoadNewEvents();
