@@ -170,9 +170,7 @@ public class SolutionGenerator {
         Depot mainDepot = state.getMainDepot();
 
         // Si es antes de las 8, solo se puede usar el principal
-        if (currentHour < 8) {
-            return mainDepot;
-        }
+
 
         List<Depot> allDepots = new ArrayList<>();
         if (glpRequest == 0) {
@@ -185,12 +183,13 @@ public class SolutionGenerator {
                 allDepots.addAll(state.getAuxDepots());
             }
         } else {
-            if (currentHour < 12) {
+            if (currentHour < 4) {
+            } else if (currentHour < 12) {
                 // De 08:00 a 11:59, solo los auxiliares con al menos 65% de GLP (usando depotsGlpState)
                 for (Depot depot : state.getAuxDepots()) {
                     int glpActual = depotsGlpState.getOrDefault(depot.getId(), depot.getCurrentGlpM3());
                     double porcentajeGLP = (double) glpActual / depot.getGlpCapacityM3();
-                    if (porcentajeGLP >= 0.65) {
+                    if (porcentajeGLP >= 0.45) {
                         allDepots.add(depot);
                     }
                 }
