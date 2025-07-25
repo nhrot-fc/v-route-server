@@ -40,8 +40,8 @@ public class DistributionOperations {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
         
         // Sort lost parts by deadline (most urgent first)
-        lostParts.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
-        
+        lostParts.sort(DeliveryPart::compareTo);
+
         // Get vehicles that have valid routes
         List<String> viableVehicles = new ArrayList<>(result.keySet());
         
@@ -92,9 +92,10 @@ public class DistributionOperations {
     }
 
     /**
-     * Operation 1: Shuffle a random segment of a vehicle's deliveries
+     * Operation 1: Shuffle a random segment of a vehicle's deliveries with optimization
      */
-    public static Map<String, List<DeliveryPart>> shuffleSegment(Map<String, List<DeliveryPart>> assignments) {
+    public static Map<String, List<DeliveryPart>> shuffleSegment(Map<String, List<DeliveryPart>> assignments,
+            SimulationState state) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
 
         // Get vehicles with non-empty assignments
@@ -125,13 +126,18 @@ public class DistributionOperations {
             deliveries.set(i, segment.get(i - start));
         }
 
+        // Apply optimization if state is provided
+        if (state != null) {
+            return DeliveryOptimizer.optimizeAssignments(result, state);
+        }
         return result;
     }
 
     /**
-     * Operation 2: Sort deliveries by deadline for a random vehicle
+     * Operation 2: Sort deliveries by deadline for a random vehicle with optimization
      */
-    public static Map<String, List<DeliveryPart>> sortByDeadline(Map<String, List<DeliveryPart>> assignments) {
+    public static Map<String, List<DeliveryPart>> sortByDeadline(Map<String, List<DeliveryPart>> assignments, 
+            SimulationState state) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
 
         // Get vehicles with multiple deliveries
@@ -150,17 +156,21 @@ public class DistributionOperations {
             String vehicleId = eligibleVehicles.get(random.nextInt(eligibleVehicles.size()));
             List<DeliveryPart> deliveries = result.get(vehicleId);
             
-            // Sort by deadline
-            deliveries.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
+            // Sort using natural ordering (DeliveryPart.compareTo)
+            Collections.sort(deliveries);
         } 
         // Option 2: Sort all vehicles
         else {
             for (String vehicleId : eligibleVehicles) {
                 List<DeliveryPart> deliveries = result.get(vehicleId);
-                deliveries.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
+                deliveries.sort(DeliveryPart::compareTo);
             }
         }
 
+        // Apply optimization if state is provided
+        if (state != null) {
+            return DeliveryOptimizer.optimizeAssignments(result, state);
+        }
         return result;
     }
 
@@ -252,14 +262,15 @@ public class DistributionOperations {
             }
         }
 
-        return result;
+        // Always optimize after balancing
+        return DeliveryOptimizer.optimizeAssignments(result, state);
     }
 
     /**
-     * Operation 4: Move a delivery from one vehicle to another
+     * Operation 4: Move a delivery from one vehicle to another with optimization
      */
     public static Map<String, List<DeliveryPart>> moveDeliveryBetweenVehicles(
-            Map<String, List<DeliveryPart>> assignments) {
+            Map<String, List<DeliveryPart>> assignments, SimulationState state) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
 
         // Get source vehicles (with deliveries)
@@ -299,13 +310,18 @@ public class DistributionOperations {
         // Add to target
         targetDeliveries.add(deliveryToMove);
 
+        // Apply optimization if state is provided
+        if (state != null) {
+            return DeliveryOptimizer.optimizeAssignments(result, state);
+        }
         return result;
     }
 
     /**
-     * Operation 5: Swap all deliveries between two vehicles
+     * Operation 5: Swap all deliveries between two vehicles with optimization
      */
-    public static Map<String, List<DeliveryPart>> swapVehicles(Map<String, List<DeliveryPart>> assignments) {
+    public static Map<String, List<DeliveryPart>> swapVehicles(Map<String, List<DeliveryPart>> assignments, 
+            SimulationState state) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
 
         // Need at least 2 vehicles
@@ -329,6 +345,10 @@ public class DistributionOperations {
         result.put(vehicleId1, result.get(vehicleId2));
         result.put(vehicleId2, temp);
 
+        // Apply optimization if state is provided
+        if (state != null) {
+            return DeliveryOptimizer.optimizeAssignments(result, state);
+        }
         return result;
     }
 
@@ -339,13 +359,14 @@ public class DistributionOperations {
             Map<String, List<DeliveryPart>> assignments, SimulationState state) {
         int operationType = random.nextInt(5);
 
+        // Perform the operation with state to ensure optimization happens
         return switch (operationType) {
-            case 0 -> shuffleSegment(assignments);
-            case 1 -> sortByDeadline(assignments);
+            case 0 -> shuffleSegment(assignments, state);
+            case 1 -> sortByDeadline(assignments, state);
             case 2 -> balanceByCapacity(assignments, state);
-            case 3 -> moveDeliveryBetweenVehicles(assignments);
-            case 4 -> swapVehicles(assignments);
-            default -> cloneAssignments(assignments);
+            case 3 -> moveDeliveryBetweenVehicles(assignments, state);
+            case 4 -> swapVehicles(assignments, state);
+            default -> DeliveryOptimizer.optimizeAssignments(cloneAssignments(assignments), state);
         };
     }
     
@@ -358,10 +379,10 @@ public class DistributionOperations {
         // First, sort all routes by deadline
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
         
-        // Sort all vehicles' routes by deadline
+        // Sort all vehicles' routes using natural ordering (DeliveryPart.compareTo)
         for (List<DeliveryPart> deliveries : result.values()) {
             if (deliveries.size() > 1) {
-                deliveries.sort(Comparator.comparing(DeliveryPart::getDeadlineTime));
+                Collections.sort(deliveries);
             }
         }
         

@@ -108,7 +108,7 @@ class DistributionOperationsTest {
     @Test
     void moveDeliveryBetweenVehicles_shouldMoveDelivery() {
         // Act
-        Map<String, List<DeliveryPart>> result = DistributionOperations.moveDeliveryBetweenVehicles(assignments);
+        Map<String, List<DeliveryPart>> result = DistributionOperations.moveDeliveryBetweenVehicles(assignments, mockState);
         
         // Assert
         int originalTotal = assignments.values().stream()
@@ -128,7 +128,7 @@ class DistributionOperationsTest {
     @Test
     void sortByDeadline_shouldSortDeliveries() {
         // Act
-        Map<String, List<DeliveryPart>> sorted = DistributionOperations.sortByDeadline(assignments);
+        Map<String, List<DeliveryPart>> sorted = DistributionOperations.sortByDeadline(assignments, mockState);
         
         // Assert
         for (String vehicleId : sorted.keySet()) {
