@@ -182,7 +182,32 @@ public class SolutionGenerator {
         Depot nearestDepot = null;
         double minDistance = Double.MAX_VALUE;
 
-        List<Depot> allDepots = new ArrayList<>(state.getAuxDepots());
+        int currentHour = state.getCurrentTime().getHour();
+        List<Depot> allDepots = new ArrayList<>();
+
+        if (currentHour < 8) {
+            // Solo el depósito principal de 00:00 a 07:59
+            // allDepots ya está vacío
+        } else if (currentHour < 12) {
+            // De 08:00 a 11:59, solo los auxiliares con al menos 65% de GLP
+            for (Depot depot : state.getAuxDepots()) {
+                double porcentajeGLP = (double) depot.getCurrentGlpM3() / depot.getGlpCapacityM3();
+                if (porcentajeGLP >= 0.65) {
+                    allDepots.add(depot);
+                }
+            }
+        } else if (currentHour < 14) {
+            // De 12:00 a 13:59, solo los auxiliares con al menos 40% de GLP
+            for (Depot depot : state.getAuxDepots()) {
+                double porcentajeGLP = (double) depot.getCurrentGlpM3() / depot.getGlpCapacityM3();
+                if (porcentajeGLP >= 0.4) {
+                    allDepots.add(depot);
+                }
+            }
+        } else {
+            // De 14:00 en adelante, todos los auxiliares
+            allDepots.addAll(state.getAuxDepots());
+        }
         allDepots.add(state.getMainDepot());
 
         for (Depot depot : allDepots) {
