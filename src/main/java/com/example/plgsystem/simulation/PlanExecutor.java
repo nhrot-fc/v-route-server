@@ -132,6 +132,7 @@ public class PlanExecutor {
                     logger.error("Depot not found for action: {}", action);
                     return;
                 }
+                vehicle.refuel();
                 vehicle.refill(action.getGlpLoaded());
                 depot.serve(action.getGlpLoaded());
                 vehicle.setReloading();

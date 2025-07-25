@@ -185,30 +185,41 @@ public class SolutionGenerator {
         int currentHour = state.getCurrentTime().getHour();
         List<Depot> allDepots = new ArrayList<>();
 
-        if (currentHour < 8) {
-            // Solo el depósito principal de 00:00 a 07:59
-            // allDepots ya está vacío
-        } else if (currentHour < 12) {
-            // De 08:00 a 11:59, solo los auxiliares con al menos 65% de GLP
-            for (Depot depot : state.getAuxDepots()) {
-                double porcentajeGLP = (double) depot.getCurrentGlpM3() / depot.getGlpCapacityM3();
-                if (porcentajeGLP >= 0.65) {
-                    allDepots.add(depot);
-                }
-            }
-        } else if (currentHour < 14) {
-            // De 12:00 a 13:59, solo los auxiliares con al menos 40% de GLP
-            for (Depot depot : state.getAuxDepots()) {
-                double porcentajeGLP = (double) depot.getCurrentGlpM3() / depot.getGlpCapacityM3();
-                if (porcentajeGLP >= 0.4) {
+        if (glpRequest > 0 && currentHour < 6) {
+            return state.getMainDepot();
+        }
+
+        // If glpRequest is 0 (fuel only) or it's after 14:00, we can use any depot
+        // Otherwise, apply time-based restrictions
+        if (glpRequest == 0) {
+            // For refueling only, add all depots
+            for (Map.Entry<String, Integer> entry : depotsGlpState.entrySet()) {
+                Depot depot = state.getDepotById(entry.getKey());
+                if (depot != null) {
                     allDepots.add(depot);
                 }
             }
         } else {
-            // De 14:00 en adelante, todos los auxiliares
-            allDepots.addAll(state.getAuxDepots());
+            for (Map.Entry<String, Integer> entry : depotsGlpState.entrySet()) {
+                Depot depot = state.getDepotById(entry.getKey());
+                if (depot == null)
+                    continue;
+                double remainingGlpPercentage = entry.getValue() / (double) depot.getGlpCapacityM3();
+
+                // Between 10 AM and 2 PM, only use depots with more than 65% capacity
+                if (currentHour < 12 && remainingGlpPercentage < 0.65) {
+                    continue;
+                } else if (currentHour < 18 && remainingGlpPercentage < 0.5) {
+                    continue;
+                }
+                allDepots.add(depot);
+            }
         }
-        allDepots.add(state.getMainDepot());
+
+        // Always ensure the main depot is included
+        if (!allDepots.contains(state.getMainDepot())) {
+            allDepots.add(state.getMainDepot());
+        }
 
         for (Depot depot : allDepots) {
             if (depotsGlpState.get(depot.getId()) < glpRequest) {

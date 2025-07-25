@@ -30,14 +30,14 @@ import com.example.plgsystem.simulation.SimulationState;
  */
 public class AlgorithmExperiment {
     // Parámetros para el experimento
-    private static final int[] ORDER_COUNTS = { 5, 10, 25, 50, 75, 100 };
+    private static final int[] ORDER_COUNTS = { 20, 30, 40, 50, 75, 100 };
     private static final int REPETITIONS = 5;
     private static final long RANDOM_SEED = 42L; // Seed fija para reproducibilidad
 
     // Parámetros del Tabú Search que se pueden variar
-    private static final int[] MAX_ITERATIONS_VALUES = { 1500, 2000 };
+    private static final int[] MAX_ITERATIONS_VALUES = { 1500, 2000, 2500 };
     private static final int[] TABU_TENURE_VALUES = { 15 };
-    private static final int[] NUM_NEIGHBORS_VALUES = { 15, 20 };
+    private static final int[] NUM_NEIGHBORS_VALUES = { 15, 20, 25 };
 
     // Formato para el archivo de resultados
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
@@ -67,17 +67,17 @@ public class AlgorithmExperiment {
         System.out.println("Las soluciones se guardarán en: " + solutionsFilePath);
 
         try (BufferedWriter resultsWriter = new BufferedWriter(new FileWriter(resultsFilePath));
-             BufferedWriter solutionsWriter = new BufferedWriter(new FileWriter(solutionsFilePath))) {
-            
+                BufferedWriter solutionsWriter = new BufferedWriter(new FileWriter(solutionsFilePath))) {
+
             // Escribir encabezado del CSV
             resultsWriter.write(CSV_HEADER);
 
             for (int orderCount : ORDER_COUNTS) {
                 System.out.println("\n===== Procesando experimentos para " + orderCount + " órdenes =====");
-                
+
                 // Para cada cantidad de órdenes, mantenemos solo la mejor solución
                 ExperimentResult bestResult = null;
-                
+
                 for (int maxIterations : MAX_ITERATIONS_VALUES) {
                     for (int tabuTenure : TABU_TENURE_VALUES) {
                         for (int numNeighbors : NUM_NEIGHBORS_VALUES) {
@@ -115,24 +115,24 @@ public class AlgorithmExperiment {
                         }
                     }
                 }
-                
+
                 // Escribir la mejor solución para esta cantidad de órdenes
                 if (bestResult != null) {
                     System.out.println("Escribiendo la mejor solución para " + orderCount + " órdenes...");
                     solutionsWriter.write(String.format(
                             "===== MEJOR SOLUCIÓN PARA %d ÓRDENES =====\n", orderCount));
                     solutionsWriter.write(String.format(
-                            "Parámetros: MAX_ITER=%d, TABU_TENURE=%d, NUM_NEIGHBORS=%d\n", 
+                            "Parámetros: MAX_ITER=%d, TABU_TENURE=%d, NUM_NEIGHBORS=%d\n",
                             bestResult.maxIterations, bestResult.tabuTenure, bestResult.numNeighbors));
                     solutionsWriter.write(String.format(
-                            "Tiempo: %d ms, Costo Total: %.2f\n", 
+                            "Tiempo: %d ms, Costo Total: %.2f\n",
                             bestResult.executionTimeMs, bestResult.totalCost));
                     solutionsWriter.write(bestResult.solutionDetails);
                     solutionsWriter.write("\n\n");
                     solutionsWriter.flush();
                 }
             }
-            
+
             System.out.println("Experimentos completados. Resultados guardados en " + resultsFilePath);
 
         } catch (IOException e) {
@@ -187,10 +187,11 @@ public class AlgorithmExperiment {
         List<Order> orders = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             String orderId = "order_" + (i + 1);
-            int remainingGlpM3 = random.nextInt(50) + 1; // Entre 1 y 50 m³
-            int limitHours = random.nextInt(20) + 4; // Entre 4 y 24 horas
+            int remainingGlpM3 = random.nextInt(150) + 1; // Entre 1 y 150 m³
+            int limitHours = random.nextInt(24 * 4 - 4) + 4; // Entre 4 y 72 horas
             LocalDateTime deliveryTime = startTime.plusHours(limitHours);
-            Position position = new Position(random.nextInt(100), random.nextInt(100)); // Coordenadas aleatorias
+            Position position = new Position(random.nextInt(70), random.nextInt(50));
+            
             orders.add(new Order(orderId, startTime, deliveryTime, remainingGlpM3, position));
         }
         return orders;

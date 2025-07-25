@@ -33,7 +33,7 @@ public class Orchestrator {
     private static final Logger logger = LoggerFactory.getLogger(Orchestrator.class);
     private static final int TICKS_TO_CHECK_EVENTS = 10;
     private static final int DAILY_OPS_PROJECTION_MINUTES = 2;
-    private static final int NORMAL_PROJECTION_MINUTES = 90;
+    private static final int NORMAL_PROJECTION_MINUTES = 60;
 
     private final boolean isDailyOperation;
     private final SimulationState state;

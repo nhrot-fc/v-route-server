@@ -100,9 +100,9 @@ public class SolutionEvaluator {
             double timeSeconds = (distanceKm / Constants.VEHICLE_AVG_SPEED) * 3600;
             double fuelNeeded = calculateFuelNeeded(distanceKm, currentGlp, vehicle.getType());
 
-            if (fuelNeeded > currentFuel) {
-                return new SolutionCost(0.0, 0.0, 0.0, 0.0, Double.POSITIVE_INFINITY);
-            }
+            //if (fuelNeeded > currentFuel) {
+            //    return new SolutionCost(0.0, 0.0, 0.0, 0.0, Double.POSITIVE_INFINITY);
+            //}
 
             // Update costs
             totalDistance += distanceKm;

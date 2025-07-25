@@ -15,7 +15,7 @@ public class DeliveryOptimizer {
     /**
      * Atomic size for delivery units - the minimum size that a delivery can be divided into
      */
-    private static final int ATOMIC_CHUNK_SIZE = 5;
+    private static final int ATOMIC_CHUNK_SIZE = 2;
 
     /**
      * Post-processes assignments after operations by applying:

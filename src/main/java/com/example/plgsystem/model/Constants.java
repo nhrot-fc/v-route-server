@@ -76,9 +76,9 @@ public class Constants {
 
 
     // Metaheuristic Solver Constants
-    public static final int MAX_ITERATIONS = 2000;
+    public static final int MAX_ITERATIONS = 2500;
     public static final int TABU_TENURE = 15;
-    public static final int NUM_NEIGHBORS = 20;
+    public static final int NUM_NEIGHBORS = 25;
 
     private Constants() {
         // Avoid initialization
