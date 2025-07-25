@@ -61,6 +61,8 @@ public class Orchestrator {
         this.dataLoader = dataLoader;
         this.state = state;
         this.eventQueue = new PriorityQueue<>(Event::compareTo);
+        eventQueue.add(new Event(EventType.NEW_DAY,
+                state.getCurrentTime().plusDays(1).withHour(0).withMinute(0), null, null));
 
         if (isDailyOperation) {
             this.lastReplanTime = state.getCurrentTime();
@@ -440,6 +442,9 @@ public class Orchestrator {
                 state.refillDepots();
                 processedOrderIds.clear();
                 processedBlockageIds.clear();
+                eventQueue
+                        .add(new Event(EventType.NEW_DAY, state.getCurrentTime().plusDays(1).withHour(0).withMinute(0),
+                                null, null));
                 break;
             default:
                 break;
