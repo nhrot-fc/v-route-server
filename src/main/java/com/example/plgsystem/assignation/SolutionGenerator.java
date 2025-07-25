@@ -126,8 +126,13 @@ public class SolutionGenerator {
             currentTime = currentTime.plusMinutes(Constants.GLP_SERVE_DURATION_MINUTES);
         }
 
-        Depot returnDepot = findNearestDepot(currentPosition, currentGlp, state, depotsGlpState);
-        //Depot returnDepot = state.getMainDepot();
+        Depot returnDepot = findNearestDepot(currentPosition, 0, state, depotsGlpState);
+        int finalGlpToLoad = Math.min(depotsGlpState.get(returnDepot.getId()), vehicle.getGlpCapacityM3() - currentGlp);
+        if (returnDepot.getId() == state.getMainDepot().getId()) {
+            returnDepot = state.getMainDepot();
+            finalGlpToLoad = vehicle.getGlpCapacityM3() - currentGlp;
+        }
+
         double distanceToDepot = currentPosition.distanceTo(returnDepot.getPosition());
         double fuelNeededToDepot = calculateFuelNeeded(distanceToDepot, currentGlp, vehicle.getType());
 
@@ -144,7 +149,7 @@ public class SolutionGenerator {
             stops.add(new RouteStop(currentPosition, returnDepot.getId(), scheduledMaintenance));
             currentTime = scheduledMaintenance.plusHours(Constants.MAINTENANCE_DURATION_HOURS);
         } else {
-            stops.add(new RouteStop(currentPosition, returnDepot.getId(), vehicle.getGlpCapacityM3() - currentGlp));
+            stops.add(new RouteStop(currentPosition, returnDepot.getId(), finalGlpToLoad));
             currentTime = currentTime.plusMinutes(Constants.DEPOT_GLP_TRANSFER_TIME_MINUTES);
         }
 
