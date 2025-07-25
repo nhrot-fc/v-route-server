@@ -166,7 +166,17 @@ public class SolutionGenerator {
         Depot nearestDepot = null;
         double minDistance = Double.MAX_VALUE;
 
-        List<Depot> allDepots = new ArrayList<>(state.getAuxDepots());
+        // Obtener la hora actual del estado de la simulación
+        int currentHour = state.getCurrentTime().getHour();
+
+        List<Depot> allDepots;
+        if (currentHour < 12) {
+            // Solo permitir el depósito principal en las primeras 12 horas del día
+            allDepots = new ArrayList<>();
+        } else {
+            // Permitir todos los depósitos auxiliares y el principal después de las 12
+            allDepots = new ArrayList<>(state.getAuxDepots());
+        }
         allDepots.add(state.getMainDepot());
 
         for (Depot depot : allDepots) {
