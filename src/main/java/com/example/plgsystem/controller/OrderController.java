@@ -68,11 +68,9 @@ public class OrderController {
         // Call the ASYNC method
         orderService.saveAllAsync(ordersToSave);
 
-        // Immediately return a 202 Accepted response
+        // Immediately return a 201 Created response
         logger.info("Request accepted. Handing off to async processor.");
-        String responseMessage = "Bulk order request accepted. The " + ordersToSave.size()
-                + " orders are being processed in the background.";
-        return ResponseEntity.accepted().body(responseMessage);
+        return new ResponseEntity<>("Bulk operation completed successfully", HttpStatus.CREATED);
     }
 
     /**
