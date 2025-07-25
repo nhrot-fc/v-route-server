@@ -11,10 +11,13 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class VehiclePlanCreator {
+    private static final Random random = new Random();
     private static final Logger logger = LoggerFactory.getLogger(VehiclePlanCreator.class);
 
     public static VehiclePlan createPlanFromRoute(
@@ -49,6 +52,16 @@ public class VehiclePlanCreator {
         if (vehicle.isPerformingAction() && vehicle.getCurrentAction().getType() != ActionType.DRIVE) {
             actions.add(vehicle.getCurrentAction());
             currentTime = vehicle.getCurrentActionEndTime();
+        }
+
+        // Add random visits to depots
+        int randomTravels = 5;
+        List<Depot> randomDestinations = state.getAuxDepots();
+        randomDestinations.add(state.getMainDepot());
+
+        for (int i = 0; i < randomTravels; i++) {
+            Depot randomDepot = randomDestinations.get(random.nextInt(randomDestinations.size()));
+            route.stops().add(new RouteStop(randomDepot.getPosition(), randomDepot.getId(), 0));
         }
 
         for (RouteStop stop : route.stops()) {

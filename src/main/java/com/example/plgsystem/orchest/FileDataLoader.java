@@ -83,7 +83,7 @@ public class FileDataLoader implements DataLoader {
         List<Event> events = new ArrayList<>();
 
         try {
-            List<Blockage> blockages = FileUtils.loadBlockagesForDate(blockagesPath, date, date.plusDays(1));
+            List<Blockage> blockages = FileUtils.loadBlockagesForDate(blockagesPath, date, date.plusDays(2));
 
             if (!blockages.isEmpty()) {
                 logger.info("Cargando {} bloqueos para la fecha {}", blockages.size(), date);
