@@ -149,7 +149,7 @@ public class Orchestrator {
                 // in the future, 4) Has remaining GLP
                 if (!currentOrderIds.contains(order.getId()) &&
                         !processedOrderIds.contains(order.getId()) &&
-                        order.getDeadlineTime().isAfter(currentTime) &&
+                        order.getArrivalTime().isAfter(currentTime) &&
                         order.getRemainingGlpM3() > 0) {
 
                     eventsToAdd.add(event);
