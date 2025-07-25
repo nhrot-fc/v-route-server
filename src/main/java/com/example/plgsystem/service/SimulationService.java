@@ -433,7 +433,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
     // Scheduled Update Methods
     // --------------------------------------------------------------------------
 
-    @Scheduled(fixedRate = 1000)
+    @Scheduled(fixedRate = 400)
     public void updateSimulations() {
         logger.trace("Updating other running simulations");
 
@@ -469,7 +469,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         }
     }
 
-    @Scheduled(fixedRate = 500)
+    @Scheduled(fixedRate = 250)
     public void broadcastSimulationUpdates() {
         logger.trace("Broadcasting all running simulations");
 
