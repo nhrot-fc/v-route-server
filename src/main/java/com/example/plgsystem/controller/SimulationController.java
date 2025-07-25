@@ -288,6 +288,47 @@ public class SimulationController {
         logger.info("Simulación con ID: {} eliminada exitosamente", id);
         return ResponseEntity.noContent().build();
     }
+    
+    @PostMapping("/speed/{factor}")
+    @Operation(summary = "Configurar velocidad de simulación", description = "Configura la velocidad de todas las simulaciones (1 = normal, 2-5 = velocidades más rápidas)")
+    public ResponseEntity<Map<String, Object>> setSimulationSpeed(@PathVariable int factor) {
+        logger.info("Configurando velocidad de simulación a factor: {}", factor);
+        
+        // Validar que el factor esté entre 1 y 5
+        if (factor < 1 || factor > 5) {
+            logger.warn("Factor de velocidad inválido: {}. Debe estar entre 1 y 5.", factor);
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "Factor de velocidad inválido. Debe estar entre 1 y 5.",
+                "factorRecibido", factor
+            ));
+        }
+        
+        try {
+            simulationService.setSimulationFrequency(factor);
+            
+            String velocidad;
+            switch (factor) {
+                case 1: velocidad = "normal (1x)"; break;
+                case 2: velocidad = "rápida (2x)"; break;
+                case 3: velocidad = "muy rápida (3x)"; break;
+                case 4: velocidad = "ultra rápida (4x)"; break;
+                case 5: velocidad = "máxima (5x)"; break;
+                default: velocidad = "desconocida"; break;
+            }
+            
+            return ResponseEntity.ok().body(Map.of(
+                "message", "Velocidad de simulación configurada correctamente",
+                "factor", factor,
+                "velocidad", velocidad
+            ));
+        } catch (IllegalArgumentException e) {
+            logger.error("Error al configurar velocidad de simulación: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", e.getMessage(),
+                "factorRecibido", factor
+            ));
+        }
+    }
 
     @PostMapping("/{simulationId}/vehicle/{vehicleId}/breakdown")
     @Operation(summary = "Crear avería de vehículo", description = "Crea un evento de avería para un vehículo en la simulación")

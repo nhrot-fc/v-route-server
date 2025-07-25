@@ -29,6 +29,8 @@ import com.example.plgsystem.simulation.Simulation;
 import com.example.plgsystem.simulation.SimulationState;
 import com.example.plgsystem.util.FileUtils;
 
+import jakarta.annotation.PreDestroy;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationListener;
@@ -67,6 +69,10 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
     private final Map<UUID, Simulation> simulations = new ConcurrentHashMap<>();
     private UUID dailyOperationsId;
     private final AtomicBoolean dailyOperationsProcessing = new AtomicBoolean(false);
+
+    // Thread
+    private Thread simulationThread;
+    private int simulationFrequency = 1000; // Frequency in milliseconds
 
     private final DepotService depotService;
     private final VehicleService vehicleService;
@@ -115,14 +121,47 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         logger.info("Application context refreshed, initializing simulations");
         // databaseInitializationService.initializeDatabase();
         // initializeDailyOperations();
+        initSimulationThread();
         logger.info("Simulations initialization complete");
+    }
+
+    private void initSimulationThread() {
+        simulationThread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    updateSimulations();
+                    Thread.sleep(simulationFrequency); // Simulate work
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+        simulationThread.setName("simulation-updater");
+        simulationThread.start();
+        logger.info("Simulation thread started");
     }
 
     /**
      * Limpia los recursos cuando se cierra la aplicación
      */
+    @PreDestroy
     public void cleanup() {
         logger.info("Limpiando recursos de simulación");
+
+        // Detener el hilo de simulación
+        if (simulationThread != null && simulationThread.isAlive()) {
+            logger.info("Deteniendo hilo de simulación");
+            simulationThread.interrupt();
+            try {
+                simulationThread.join(5000); // Esperar 5 segundos a que termine
+                if (simulationThread.isAlive()) {
+                    logger.warn("El hilo de simulación no terminó después de 5 segundos");
+                }
+            } catch (InterruptedException e) {
+                logger.error("Interrupción al esperar que termine el hilo de simulación", e);
+                Thread.currentThread().interrupt();
+            }
+        }
 
         // Apagar todos los orquestadores de simulaciones activas
         simulations.values().forEach(simulation -> {
@@ -433,7 +472,6 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
     // Scheduled Update Methods
     // --------------------------------------------------------------------------
 
-    @Scheduled(fixedRate = 400)
     public void updateSimulations() {
         logger.trace("Updating other running simulations");
 
@@ -448,6 +486,7 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
             if (simulation.isRunning()) {
                 simulation.advanceTick();
             }
+            sendSimulationUpdate(simulation);
         }
     }
 
@@ -460,29 +499,12 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
             if (!dailyOperationsProcessing.getAndSet(true)) {
                 try {
                     dailyOps.advanceTick();
-                    // Guardar el estado en la base de datos
                     saveDailyOperationsState(dailyOps);
                 } finally {
+                    sendSimulationUpdate(dailyOps);
                     dailyOperationsProcessing.set(false);
                 }
             }
-        }
-    }
-
-    @Scheduled(fixedRate = 250)
-    public void broadcastSimulationUpdates() {
-        logger.trace("Broadcasting all running simulations");
-
-        int broadcastCount = 0;
-        for (Simulation simulation : simulations.values()) {
-            if (simulation.isRunning()) {
-                broadcastCount++;
-                sendSimulationUpdate(simulation);
-            }
-        }
-
-        if (broadcastCount > 0) {
-            logger.debug("Broadcasted {} running simulations", broadcastCount);
         }
     }
 
@@ -708,5 +730,20 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
      */
     public Map<UUID, Simulation> getSimulations() {
         return simulations;
+    }
+
+    public void setSimulationFrequency(int speedFactor) {
+        if (speedFactor <= 0) {
+            logger.warn("Invalid simulation frequency: {}. Must be greater than 0", speedFactor);
+            throw new IllegalArgumentException("Simulation frequency must be greater than 0");
+        }
+        int frequency = 1000 / speedFactor; // Convert speed factor to milliseconds
+        if (frequency <= 0) {
+            logger.warn("Invalid simulation frequency: {}. Must be greater than 0", frequency);
+            throw new IllegalArgumentException("Simulation frequency must be greater than 0");
+        }
+        logger.info("Setting simulation frequency to {} ms", frequency);
+        this.simulationFrequency = frequency;
+        logger.info("Simulation frequency set to {} ms", frequency);
     }
 }
