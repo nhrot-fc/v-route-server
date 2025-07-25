@@ -133,8 +133,7 @@ public class SimulationStateDTO {
                 .maintenanceSchedule(maintenanceScheduleCopy)
                 // Establecer contadores
                 .pendingOrdersCount(pendingOrders.size())
-                .deliveredOrdersCount((int) ordersCopy.stream()
-                        .filter(Order::isDelivered).count())
+                .deliveredOrdersCount(state.getDeliveredOrdersCount())
                 .overdueOrdersCount(overdueOrders.size())
                 .availableVehiclesCount((int) vehiclesCopy.stream()
                         .filter(v -> v.getStatus() == VehicleStatus.AVAILABLE).count())

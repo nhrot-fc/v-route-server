@@ -126,7 +126,7 @@ public class SolutionGenerator {
             currentTime = currentTime.plusMinutes(Constants.GLP_SERVE_DURATION_MINUTES);
         }
 
-        Depot returnDepot = findNearestDepot(currentPosition, 0, state, depotsGlpState);
+        Depot returnDepot = state.getMainDepot();
         int finalGlpToLoad = Math.min(depotsGlpState.get(returnDepot.getId()), vehicle.getGlpCapacityM3() - currentGlp);
         if (returnDepot.getId() == state.getMainDepot().getId()) {
             returnDepot = state.getMainDepot();

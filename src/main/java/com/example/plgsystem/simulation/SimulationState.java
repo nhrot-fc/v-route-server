@@ -36,6 +36,7 @@ public class SimulationState {
 
     private final Map<String, VehiclePlan> currentVehiclePlans = new HashMap<>();
     private final Map<String, LocalDateTime> maintenanceSchedule = new HashMap<>();
+    public int deliveredOrdersCount = 0;
 
     public SimulationState(List<Vehicle> vehicles, Map<String, LocalDateTime> maintenanceSchedule,
             Depot mainDepot, List<Depot> auxDepots,
@@ -137,6 +138,7 @@ public class SimulationState {
 
     private void processStateChanges(LocalDateTime nextTime) {
         // Clean past orders, incidents, blockages, maintenances
+        deliveredOrdersCount += orders.stream().filter(Order::isDelivered).count();
         orders.removeIf(Order::isDelivered);
         blockages.removeIf(blockage -> nextTime.isAfter(blockage.getEndTime()));
 
