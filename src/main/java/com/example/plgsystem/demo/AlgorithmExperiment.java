@@ -35,9 +35,9 @@ public class AlgorithmExperiment {
     private static final long RANDOM_SEED = 42L; // Seed fija para reproducibilidad
 
     // Parámetros del Tabú Search que se pueden variar
-    private static final int[] MAX_ITERATIONS_VALUES = { 1000, 1500, 2000, 3000 };
-    private static final int[] TABU_TENURE_VALUES = { 10, 15, 20 };
-    private static final int[] NUM_NEIGHBORS_VALUES = { 10, 15, 20 };
+    private static final int[] MAX_ITERATIONS_VALUES = { 1500, 2000 };
+    private static final int[] TABU_TENURE_VALUES = { 15 };
+    private static final int[] NUM_NEIGHBORS_VALUES = { 15, 20 };
 
     // Formato para el archivo de resultados
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
