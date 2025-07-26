@@ -137,37 +137,14 @@ public class SolutionGenerator {
             currentTime = currentTime.plusMinutes(Constants.GLP_SERVE_DURATION_MINUTES);
         }
 
-        Depot mainDepot = state.getMainDepot();
-        int finalGlpToLoad = Math.min(depotsGlpState.get(mainDepot.getId()), vehicle.getGlpCapacityM3() - currentGlp);
-        if (mainDepot.getId() == state.getMainDepot().getId()) {
-            mainDepot = state.getMainDepot();
+        Depot returnDepot = findNearestDepot(currentPosition, 0, state, depotsGlpState);
+        int finalGlpToLoad = 0;
+        if (returnDepot.getId() == state.getMainDepot().getId()) {
+            returnDepot = state.getMainDepot();
             finalGlpToLoad = vehicle.getGlpCapacityM3() - currentGlp;
         }
-
-        double distanceToDepot = currentPosition.distanceTo(mainDepot.getPosition());
-        double fuelNeededToDepot = calculateFuelNeeded(distanceToDepot, currentGlp, vehicle.getType());
-
-        if (currentFuel < fuelNeededToDepot) {
-            Depot nearestDepot = findNearestDepot(currentPosition, 0, state, depotsGlpState);
-            currentFuel = maxFuel;
-            currentPosition = nearestDepot.getPosition();
-            stops.add(new RouteStop(currentPosition, nearestDepot.getId(), 0));
-            if (nearestDepot.getId().equals(mainDepotId)) {
-                currentTime = currentTime
-                        .plusMinutes(Constants.RELOAD_REFUEL_DURATION_MINUTES_MAIN_DEPOT);
-            } else {
-                currentTime = currentTime.plusMinutes(Constants.RELOAD_REFUEL_DURATION_MINUTES);
-            }
-        }
-        currentPosition = mainDepot.getPosition();
-        // Add maintenance stop if needed
-        if (scheduledMaintenance != null && !scheduledMaintenance.isAfter(currentTime)) {
-            stops.add(new RouteStop(currentPosition, mainDepot.getId(), scheduledMaintenance));
-            currentTime = scheduledMaintenance.plusHours(Constants.MAINTENANCE_DURATION_HOURS);
-        } else {
-            stops.add(new RouteStop(currentPosition, mainDepot.getId(), finalGlpToLoad));
-            currentTime = currentTime.plusMinutes(Constants.RELOAD_REFUEL_DURATION_MINUTES_MAIN_DEPOT);
-        }
+        RouteStop returnStop = new RouteStop(returnDepot.getPosition(), returnDepot.getId(), finalGlpToLoad);
+        stops.add(returnStop);
 
         return new Route(vehicle.getId(), stops, startTime);
     }
@@ -185,41 +162,46 @@ public class SolutionGenerator {
         int currentHour = state.getCurrentTime().getHour();
         List<Depot> allDepots = new ArrayList<>();
 
-        if (glpRequest > 0 && currentHour < 6) {
-            return state.getMainDepot();
-        }
+        //if (glpRequest > 0 && currentHour < 6) {
+        //    return state.getMainDepot();
+        //}
 
-        // If glpRequest is 0 (fuel only) or it's after 14:00, we can use any depot
-        // Otherwise, apply time-based restrictions
-        if (glpRequest == 0) {
-            // For refueling only, add all depots
-            for (Map.Entry<String, Integer> entry : depotsGlpState.entrySet()) {
+        for (Map.Entry<String, Integer> entry : depotsGlpState.entrySet()) {
                 Depot depot = state.getDepotById(entry.getKey());
                 if (depot != null) {
                     allDepots.add(depot);
                 }
             }
-        } else {
-            for (Map.Entry<String, Integer> entry : depotsGlpState.entrySet()) {
-                Depot depot = state.getDepotById(entry.getKey());
-                if (depot == null)
-                    continue;
-                double remainingGlpPercentage = entry.getValue() / (double) depot.getGlpCapacityM3();
 
-                // Between 10 AM and 2 PM, only use depots with more than 65% capacity
-                if (currentHour < 12 && remainingGlpPercentage < 0.65) {
-                    continue;
-                } else if (currentHour < 18 && remainingGlpPercentage < 0.5) {
-                    continue;
-                }
-                allDepots.add(depot);
-            }
-        }
-
-        // Always ensure the main depot is included
-        if (!allDepots.contains(state.getMainDepot())) {
-            allDepots.add(state.getMainDepot());
-        }
+        //// If glpRequest is 0 (fuel only) or it's after 14:00, we can use any depot
+        //// Otherwise, apply time-based restrictions
+        //if (glpRequest == 0) {
+        //    // For refueling only, add all depots
+        //    for (Map.Entry<String, Integer> entry : depotsGlpState.entrySet()) {
+        //        Depot depot = state.getDepotById(entry.getKey());
+        //        if (depot != null) {
+        //            allDepots.add(depot);
+        //        }
+        //    }
+        //} else {
+        //    for (Map.Entry<String, Integer> entry : depotsGlpState.entrySet()) {
+        //        Depot depot = state.getDepotById(entry.getKey());
+        //        if (depot == null)
+        //            continue;
+        //        double remainingGlpPercentage = entry.getValue() / (double) depot.getGlpCapacityM3();
+        //        // Between 10 AM and 2 PM, only use depots with more than 65% capacity
+        //        if (currentHour < 12 && remainingGlpPercentage < 0.65) {
+        //            continue;
+        //        } else if (currentHour < 18 && remainingGlpPercentage < 0.5) {
+        //            continue;
+        //        }
+        //        allDepots.add(depot);
+        //    }
+        //}
+        //// Always ensure the main depot is included
+        //if (!allDepots.contains(state.getMainDepot())) {
+        //    allDepots.add(state.getMainDepot());
+        //}
 
         for (Depot depot : allDepots) {
             if (depotsGlpState.get(depot.getId()) < glpRequest) {

@@ -231,7 +231,7 @@ public class FileUtils {
                         break;
                     }
                     int glpRequestM3 = Integer.parseInt(data[3].replace("m3", ""));
-                    int expirationHours = Integer.parseInt(data[4].replace("h", ""));
+                    int expirationHours = Integer.parseInt(data[4].replace("h", "")) + 4;
                     Position position = new Position(Integer.parseInt(data[0]), Integer.parseInt(data[1]));
                     String id = data[2] + arrivalTime.toString();
                     Order order = new Order(id, arrivalTime, arrivalTime.plusHours(expirationHours), glpRequestM3,
