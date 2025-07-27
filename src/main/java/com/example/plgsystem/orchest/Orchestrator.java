@@ -74,6 +74,12 @@ public class Orchestrator {
         this.futurePlans = new HashMap<>();
         this.planningInProgress = false;
         logger.debug("Orchestrator inicializado con planificación asíncrona");
+
+        for (Vehicle vehicle : state.getVehicles()) {
+            if (vehicle.isAvailable()) {
+                state.addVehiclePlan(vehicle.getId(), VehiclePlanCreator.createPlanToMainDepot(vehicle, state));
+            }
+        }
     }
 
     public void addEvent(Event e) {

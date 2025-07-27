@@ -160,7 +160,7 @@ public class Vehicle implements Serializable {
 
     @Transient
     public boolean isAvailable() {
-        return this.status != VehicleStatus.MAINTENANCE && this.status != VehicleStatus.INCIDENT;
+        return this.status != VehicleStatus.IDLE && this.status != VehicleStatus.INCIDENT;
     }
 
     @Transient

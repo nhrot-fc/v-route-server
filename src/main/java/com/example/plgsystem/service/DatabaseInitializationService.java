@@ -75,12 +75,10 @@ public class DatabaseInitializationService {
         List<Depot> depots = new ArrayList<>();
 
         // Create main depot
-        Depot mainDepot = new Depot("MAIN", Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
+        Depot mainDepot = new Depot(Constants.MAIN_DEPOT_ID, Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
+        Depot northDepot = new Depot(Constants.NORTH_DEPOT_ID, Constants.NORTH_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
+        Depot eastDepot = new Depot(Constants.EAST_DEPOT_ID, Constants.EAST_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
         depots.add(mainDepot);
-
-        // Create auxiliary depots
-        Depot northDepot = new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
-        Depot eastDepot = new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
         depots.add(northDepot);
         depots.add(eastDepot);
 

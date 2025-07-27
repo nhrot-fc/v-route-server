@@ -36,6 +36,10 @@ public class Constants {
     public static final Position NORTH_DEPOT_LOCATION = new Position(42, 42);
     public static final Position EAST_DEPOT_LOCATION = new Position(63, 3);
 
+    public static final String MAIN_DEPOT_ID = "DEPOT_MAIN";
+    public static final String NORTH_DEPOT_ID = "DEPOT_NORTH";
+    public static final String EAST_DEPOT_ID = "DEPOT_EAST";
+
     /*
      * =============================================
      * CAPACIDADES Y CARACTERÍSTICAS DE VEHÍCULOS

@@ -388,9 +388,9 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
         }
 
         // Get fixed depots from the database
-        Depot mainDepot = new Depot("MAIN", Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
-        Depot northDepot = new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
-        Depot eastDepot = new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
+        Depot mainDepot = new Depot(Constants.MAIN_DEPOT_ID, Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
+        Depot northDepot = new Depot(Constants.NORTH_DEPOT_ID, Constants.NORTH_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
+        Depot eastDepot = new Depot(Constants.EAST_DEPOT_ID, Constants.EAST_DEPOT_LOCATION, 160, DepotType.AUXILIARY);
         List<Depot> auxDepots = Arrays.asList(northDepot, eastDepot);
         logger.info("Using fixed depots: Main={}, Aux=[{}, {}]", mainDepot.getId(), northDepot.getId(),
                 eastDepot.getId());

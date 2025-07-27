@@ -57,18 +57,57 @@ public class VehiclePlanCreator {
         }
 
         // Add random visits to depots
-        int randomTravels = 3;
-        List<Depot> randomDestinations = state.getAuxDepots();
-        randomDestinations.add(state.getMainDepot());
+        Depot lastDepot = null;
+        for (RouteStop stop : route.stops()) {
+            // If the stop is a depot stop, add a random depot visit
+            if (!stop.isOrderStop() && !stop.isMaintenanceStop()) {
+                String depotId = stop.getDepotId();
+                Depot depot = state.getDepotById(depotId);
+                lastDepot = depot;
+            }
+        }
 
-        Depot currentDepot = state.getMainDepot();
-        for (int i = 0; i < randomTravels; i++) {
-            // Remove the current depot from the list to avoid returning to it
-            randomDestinations.remove(currentDepot);
-            Depot randomDepot = randomDestinations.get(random.nextInt(randomDestinations.size()));
-            route.stops().add(new RouteStop(randomDepot.getPosition(), randomDepot.getId(), 0));
-            randomDestinations.add(currentDepot);
-            currentDepot = randomDepot;
+        // Vehicle id format: TTNN (e.g TA01, TB02, etc)
+        try {
+            int vehicleId = Integer.parseInt(route.vehicleId().substring(2));
+
+            // EVEN ID VEHICLES ORDER: MAIN -> EAST -> NORTH -> MAIN ...
+            // ODD ID VEHICLES ORDER: MAIN -> NORTH -> EAST -> MAIN ...
+
+            Map<String, String> depotOrder = new HashMap<>();
+            if (vehicleId % 2 == 0) {
+                depotOrder.put(Constants.MAIN_DEPOT_ID, Constants.EAST_DEPOT_ID);
+                depotOrder.put(Constants.EAST_DEPOT_ID, Constants.NORTH_DEPOT_ID);
+                depotOrder.put(Constants.NORTH_DEPOT_ID, Constants.MAIN_DEPOT_ID);
+            } else {
+                depotOrder.put(Constants.MAIN_DEPOT_ID, Constants.NORTH_DEPOT_ID);
+                depotOrder.put(Constants.NORTH_DEPOT_ID, Constants.EAST_DEPOT_ID);
+                depotOrder.put(Constants.EAST_DEPOT_ID, Constants.MAIN_DEPOT_ID);
+            }
+
+            if (lastDepot != null) {
+                int celebrationLimit = 3;
+                for (int i = 0; i < celebrationLimit; i++) {
+                    String nextDepotId = depotOrder.get(lastDepot.getId());
+                    if (nextDepotId == null) {
+                        break;
+                    }
+                    Depot nextDepot = state.getDepotById(nextDepotId);
+                    if (nextDepot == null) {
+                        logger.error("Next depot not found: {}", nextDepotId);
+                        break;
+                    }
+
+                    RouteStop depotStop = new RouteStop(
+                            nextDepot.getPosition(),
+                            nextDepot.getId(),
+                            0);
+                    route.stops().add(depotStop);
+                    lastDepot = nextDepot;
+                }
+            }
+        } catch (NumberFormatException e) {
+            logger.error("Invalid vehicle ID format: {}", route.vehicleId(), e);
         }
 
         for (RouteStop stop : route.stops()) {
@@ -82,7 +121,7 @@ public class VehiclePlanCreator {
             if (endPosition == null) {
                 return null;
             }
-            
+
             if (!currentPosition.equals(endPosition)) {
                 // Find path
                 List<Position> path = PathFinder.findPath(state, currentPosition, endPosition, currentTime);
