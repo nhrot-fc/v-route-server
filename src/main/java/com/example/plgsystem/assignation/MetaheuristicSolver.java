@@ -12,9 +12,9 @@ import com.example.plgsystem.simulation.SimulationState;
 
 public class MetaheuristicSolver {
     // Parámetros configurables para el algoritmo
-    private static int maxIterations = Constants.MAX_ITERATIONS;
-    private static int tabuTenure = Constants.TABU_TENURE;
-    private static int numNeighbors = Constants.NUM_NEIGHBORS;
+    private static int MAX_ITERATIONS = Constants.MAX_ITERATIONS;
+    private static int TABU_TENURE = Constants.TABU_TENURE;
+    private static int NUM_NEIGHBORS = Constants.NUM_NEIGHBORS;
 
     /**
      * Configura los parámetros del algoritmo de búsqueda tabú
@@ -24,9 +24,9 @@ public class MetaheuristicSolver {
      * @param numNeighbors  Número de vecinos a generar en cada iteración
      */
     public static void configure(int maxIterations, int tabuTenure, int numNeighbors) {
-        MetaheuristicSolver.maxIterations = maxIterations;
-        MetaheuristicSolver.tabuTenure = tabuTenure;
-        MetaheuristicSolver.numNeighbors = numNeighbors;
+        MetaheuristicSolver.MAX_ITERATIONS = maxIterations;
+        MetaheuristicSolver.TABU_TENURE = tabuTenure;
+        MetaheuristicSolver.NUM_NEIGHBORS = numNeighbors;
     }
 
     /**
@@ -70,13 +70,9 @@ public class MetaheuristicSolver {
             SimulationState state,
             int numNeighbors) {
         List<Map<String, List<DeliveryPart>>> neighbors = new ArrayList<>();
-
         for (int i = 0; i < numNeighbors; i++) {
-            Map<String, List<DeliveryPart>> neighbor;
-            neighbor = DistributionOperations.randomOperationWithState(currentAssignment, state);
-            neighbors.add(neighbor);
+            neighbors.add(DistributionOperations.randomOperationWithState(currentAssignment, state));
         }
-
         return neighbors;
     }
 
@@ -157,16 +153,6 @@ public class MetaheuristicSolver {
     }
 
     /**
-     * Apply specific operations to periodically rebalance and optimize the solution
-     */
-    private static Map<String, List<DeliveryPart>> applyPeriodicRebalancing(
-            Map<String, List<DeliveryPart>> currentAssignment, SimulationState state) {
-
-        // Use the more sophisticated strategic rebalancing
-        return DistributionOperations.performStrategicRebalancing(currentAssignment, state);
-    }
-
-    /**
      * Solves the vehicle routing problem using Tabu Search metaheuristic
      */
     public static Solution solve(SimulationState state) {
@@ -177,40 +163,36 @@ public class MetaheuristicSolver {
         Solution bestSolution = currentSolution;
         List<TabuMove> tabuList = new ArrayList<>();
 
-        // Configuration for periodic rebalancing
-        final int REBALANCE_INTERVAL = maxIterations / 5; // Apply rebalancing 5 times during the search
-        final int REBALANCE_PERIOD = 3; // Apply rebalancing for this many consecutive iterations
-
         // 2. MAIN SEARCH LOOP
-        for (int iteration = 0; iteration < maxIterations; iteration++) {
-            // Periodically apply rebalancing operations to escape local optima
-            boolean isRebalancingIteration = (iteration % REBALANCE_INTERVAL < REBALANCE_PERIOD);
-
-            if (isRebalancingIteration) {
-                // Apply special operations to rebalance and escape local optima
-                currentAssignment = applyPeriodicRebalancing(currentAssignment, state);
-                currentSolution = SolutionGenerator.generateSolution(state, currentAssignment);
-
-                // If this rebalanced solution is better than our best, update it
-                if (currentSolution != null &&
-                        currentSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
-                    bestSolution = currentSolution;
+        for (int iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+            // each 10%
+            if (iteration % (MAX_ITERATIONS / 10) == 0) {
+                System.out.println("Iteration " + iteration + ": " + bestSolution.getCost().totalCost());
+                // try sort deliveries
+                Map<String, List<DeliveryPart>> sortedAssignment = DistributionOperations
+                        .sortDeliveries(bestSolution.getVehicleOrderAssignments(), state);
+                Solution sortedSolution = SolutionGenerator.generateSolution(state, sortedAssignment);
+                if (sortedSolution != null
+                        && sortedSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
+                    currentAssignment = sortedAssignment;
+                    currentSolution = sortedSolution;
+                    bestSolution = sortedSolution;
                 }
-
-                // Clear part of the tabu list to allow exploring the new area
-                if (!tabuList.isEmpty()) {
-                    int removeCount = Math.max(1, tabuList.size() / 2);
-                    for (int i = 0; i < removeCount; i++) {
-                        if (!tabuList.isEmpty()) {
-                            tabuList.remove(0);
-                        }
-                    }
+                // try greedySort deliveries
+                Map<String, List<DeliveryPart>> greedySortedAssignment = DistributionOperations
+                        .greedySort(bestSolution.getVehicleOrderAssignments(), state);
+                Solution greedySortedSolution = SolutionGenerator.generateSolution(state, greedySortedAssignment);
+                if (greedySortedSolution != null
+                        && greedySortedSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
+                    currentAssignment = greedySortedAssignment;
+                    currentSolution = greedySortedSolution;
+                    bestSolution = greedySortedSolution;
                 }
             }
 
             // a. Generate and evaluate the neighborhood of the current solution
             List<Map<String, List<DeliveryPart>>> neighbors = generateNeighbors(currentAssignment, state,
-                    numNeighbors);
+                    NUM_NEIGHBORS);
             Map<String, List<DeliveryPart>> bestCandidate = null;
             Solution bestCandidateSolution = null;
 
@@ -251,7 +233,7 @@ public class MetaheuristicSolver {
 
                 // Update tabu memory: add the inverse move to the tabu list
                 String moveId = generateMoveId(bestCandidate, currentAssignment);
-                tabuList.add(new TabuMove(moveId, tabuTenure));
+                tabuList.add(new TabuMove(moveId, TABU_TENURE));
 
                 // d. Update the best global solution
                 if (currentSolution != null
@@ -262,6 +244,30 @@ public class MetaheuristicSolver {
 
             // Update tabu tenures and remove expired entries
             updateTabuList(tabuList);
+        }
+
+        // try sort deliveries
+        Map<String, List<DeliveryPart>> sortedAssignment = DistributionOperations.sortDeliveries(
+                bestSolution.getVehicleOrderAssignments(),
+                state);
+        Solution sortedSolution = SolutionGenerator.generateSolution(state, sortedAssignment);
+        if (sortedSolution != null
+                && sortedSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
+            currentAssignment = sortedAssignment;
+            currentSolution = sortedSolution;
+            bestSolution = sortedSolution;
+        }
+
+        // try greedySort deliveries
+        Map<String, List<DeliveryPart>> greedySortedAssignment = DistributionOperations.greedySort(
+                bestSolution.getVehicleOrderAssignments(),
+                state);
+        Solution greedySortedSolution = SolutionGenerator.generateSolution(state, greedySortedAssignment);
+        if (greedySortedSolution != null
+                && greedySortedSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
+            currentAssignment = greedySortedAssignment;
+            currentSolution = greedySortedSolution;
+            bestSolution = greedySortedSolution;
         }
 
         // 3. RETURN RESULT

@@ -31,13 +31,13 @@ import com.example.plgsystem.simulation.SimulationState;
 public class AlgorithmExperiment {
     // Parámetros para el experimento
     private static final int[] ORDER_COUNTS = { 20, 30, 40, 50, 75, 100 };
-    private static final int REPETITIONS = 5;
+    private static final int REPETITIONS = 3;
     private static final long RANDOM_SEED = 42L; // Seed fija para reproducibilidad
 
     // Parámetros del Tabú Search que se pueden variar
-    private static final int[] MAX_ITERATIONS_VALUES = { 1500, 2000, 2500 };
+    private static final int[] MAX_ITERATIONS_VALUES = { 100 };
     private static final int[] TABU_TENURE_VALUES = { 15 };
-    private static final int[] NUM_NEIGHBORS_VALUES = { 15, 20, 25 };
+    private static final int[] NUM_NEIGHBORS_VALUES = { 20 };
 
     // Formato para el archivo de resultados
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
@@ -160,11 +160,11 @@ public class AlgorithmExperiment {
     private static SimulationState createSimulationState(LocalDateTime startTime) {
         List<Vehicle> vehicles = new ArrayList<>();
         List<Depot> auxDepots = new ArrayList<>();
-        Depot mainDepot = new Depot("MAIN", Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
+        Depot mainDepot = new Depot(Constants.MAIN_DEPOT_ID, Constants.MAIN_DEPOT_LOCATION, 10000, DepotType.MAIN);
         auxDepots.add(
-                new Depot("NORTH", Constants.NORTH_DEPOT_LOCATION, 160, DepotType.AUXILIARY));
+                new Depot(Constants.NORTH_DEPOT_ID, Constants.NORTH_DEPOT_LOCATION, 160, DepotType.AUXILIARY));
         auxDepots.add(
-                new Depot("EAST", Constants.EAST_DEPOT_LOCATION, 160, DepotType.AUXILIARY));
+                new Depot(Constants.EAST_DEPOT_ID, Constants.EAST_DEPOT_LOCATION, 160, DepotType.AUXILIARY));
 
         for (int i = 1; i <= 2; i++) {
             vehicles.add(new Vehicle(String.format("TA%02d", i), VehicleType.TA, Constants.MAIN_DEPOT_LOCATION));

@@ -64,16 +64,16 @@ public class RouteStop {
     public String toString() {
         String baseInfo;
         if (isOrderStop) {
-            baseInfo = String.format("🏪 OrderStop { 📍 pos: %s, 🔖 orderId: %s, ⏰ deadline: %s, 🛢️ deliver: %d m³",
+            baseInfo = String.format("🏪 OrderStop { %s, 🔖 %s, ⏰ %s, ⬇️🛢️: %d m³",
                     position, orderId, 
                     orderDeadlineTime != null ? orderDeadlineTime.format(Constants.DATE_TIME_FORMATTER) : "N/A", 
                     glpDeliverM3);
         } else if (isMaintenanceStop) {
-            baseInfo = String.format("🔧 MaintenanceStop { 📍 pos: %s, 🏢 depotId: %s, ⏰ scheduled: %s",
+            baseInfo = String.format("🔧 MaintenanceStop { %s, 🏢 %s, ⏰ %s",
                     position, depotId, 
                     maintenanceTime != null ? maintenanceTime.format(Constants.DATE_TIME_FORMATTER) : "N/A");
         } else {
-            baseInfo = String.format("🏭 DepotStop { 📍 pos: %s, 🏢 depotId: %s, 🛢️ load: %d m³",
+            baseInfo = String.format("🏭 DepotStop { %s, 🏢 %s, ⬆️🛢️: %d m³",
                     position, depotId, glpLoadM3);
         }
         baseInfo += "}";
