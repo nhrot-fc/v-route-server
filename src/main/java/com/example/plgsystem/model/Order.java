@@ -55,9 +55,9 @@ public class Order implements Serializable, Comparable<Order> {
 
     @Transactional
     public ServeRecord recordDelivery(int deliveredVolumeM3, Vehicle vehicle, LocalDateTime serveDate) {
-        ServeRecord record = new ServeRecord(vehicle, this, Math.abs(deliveredVolumeM3), serveDate);
+        ServeRecord record = new ServeRecord(vehicle, this, deliveredVolumeM3, serveDate);
         serveRecords.add(record);
-        remainingGlpM3 = Math.max(0, remainingGlpM3 - Math.abs(deliveredVolumeM3));
+        remainingGlpM3 = remainingGlpM3 - deliveredVolumeM3;
         return record;
     }
 

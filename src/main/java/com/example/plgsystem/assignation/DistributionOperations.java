@@ -1,5 +1,6 @@
 package com.example.plgsystem.assignation;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -8,15 +9,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import com.example.plgsystem.model.Constants;
+import com.example.plgsystem.model.Order;
+import com.example.plgsystem.model.Position;
 import com.example.plgsystem.model.Vehicle;
 import com.example.plgsystem.simulation.SimulationState;
 
 public class DistributionOperations {
     private static final Random random = new Random();
 
-    /**
-     * Creates a deep copy of the original assignments
-     */
     public static Map<String, List<DeliveryPart>> cloneAssignments(Map<String, List<DeliveryPart>> original) {
         Map<String, List<DeliveryPart>> clone = new HashMap<>();
         for (String vehicleId : original.keySet()) {
@@ -25,94 +26,143 @@ public class DistributionOperations {
         return clone;
     }
 
-    /**
-     * Operation 1: Shuffle a random segment of a vehicle's deliveries with
-     * optimization
+    /*
+     * ======================================================
+     * EXPLOITATION OPERATIONS
+     * ======================================================
      */
-    public static Map<String, List<DeliveryPart>> shuffleSegment(Map<String, List<DeliveryPart>> assignments,
+
+    public static Map<String, List<DeliveryPart>> sortDeliveries(Map<String, List<DeliveryPart>> assignments,
             SimulationState state) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
 
-        // Get vehicles with non-empty assignments
-        List<String> vehiclesWithAssignments = result.entrySet().stream()
-                .filter(e -> e.getValue().size() > 2) // Need at least 3 items to shuffle segment
-                .map(Map.Entry::getKey)
-                .toList();
-
-        if (vehiclesWithAssignments.isEmpty()) {
-            return result; // No eligible vehicles
-        }
-
-        // Select random vehicle
-        String vehicleId = vehiclesWithAssignments.get(random.nextInt(vehiclesWithAssignments.size()));
-        List<DeliveryPart> deliveries = result.get(vehicleId);
-
-        // Select random segment
-        int size = deliveries.size();
-        int start = random.nextInt(size - 1); // Ensure there's at least 2 elements
-        int end = start + 1 + random.nextInt(size - start - 1) + 1; // At least start+1, at most size
-
-        // Create sublist and shuffle it
-        List<DeliveryPart> segment = new ArrayList<>(deliveries.subList(start, end));
-        Collections.shuffle(segment);
-
-        // Replace segment in original list
-        for (int i = start; i < end; i++) {
-            deliveries.set(i, segment.get(i - start));
-        }
-
-        // Apply optimization if state is provided
-        if (state != null) {
-            return DeliveryOptimizer.optimizeAssignments(result, state);
-        }
-        return result;
-    }
-
-    /**
-     * Operation 2: Sort deliveries by deadline for a random vehicle with
-     * optimization
-     */
-    public static Map<String, List<DeliveryPart>> sortByDeadline(Map<String, List<DeliveryPart>> assignments,
-            SimulationState state) {
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Get vehicles with multiple deliveries
-        List<String> eligibleVehicles = result.entrySet().stream()
-                .filter(e -> e.getValue().size() > 1)
-                .map(Map.Entry::getKey)
-                .toList();
-
-        if (eligibleVehicles.isEmpty()) {
-            return result;
-        }
-
-        // Option 1: Sort a single random vehicle
-        if (random.nextDouble() < 0.5) {
-            // Select random vehicle
-            String vehicleId = eligibleVehicles.get(random.nextInt(eligibleVehicles.size()));
+        for (String vehicleId : result.keySet()) {
             List<DeliveryPart> deliveries = result.get(vehicleId);
 
-            // Sort using natural ordering (DeliveryPart.compareTo)
-            Collections.sort(deliveries);
-        }
-        // Option 2: Sort all vehicles
-        else {
-            for (String vehicleId : eligibleVehicles) {
-                List<DeliveryPart> deliveries = result.get(vehicleId);
-                deliveries.sort(DeliveryPart::compareTo);
+            // Sort deliveries by deadline
+            if (deliveries.isEmpty() || deliveries.size() == 1) {
+                continue; // Skip empty lists
             }
+            deliveries.sort(DeliveryPart::compareTo);
+            result.put(vehicleId, deliveries);
         }
-
-        // Apply optimization if state is provided
         if (state != null) {
             return DeliveryOptimizer.optimizeAssignments(result, state);
         }
+
         return result;
     }
 
-    /**
-     * Operation 3: Balance GLP distribution by vehicle capacity
+    public static Map<String, List<DeliveryPart>> greedySort(Map<String, List<DeliveryPart>> assignments,
+            SimulationState state) {
+        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
+
+        for (String vehicleId : result.keySet()) {
+            List<DeliveryPart> deliveries = result.get(vehicleId);
+
+            // Skip empty lists or single delivery (already optimized)
+            if (deliveries.isEmpty() || deliveries.size() == 1) {
+                continue;
+            }
+
+            Vehicle vehicle = state.getVehicleById(vehicleId);
+            if (vehicle == null) {
+                continue; // Skip if vehicle not found
+            }
+
+            // First, consolidate by order ID and divide by vehicle capacity
+            deliveries.sort(DeliveryPart::compareTo);
+            deliveries = DeliveryConsolidator.mergeLikeRLE(deliveries, vehicle.getGlpCapacityM3());
+
+            // Heurística: "Elige el destino viable más urgente"
+            // 1. Para cada destino, evaluar si es posible llegar a tiempo
+            // 2. De los viables, elegir el de deadline más cercano
+            // 3. En caso de empate, elegir el más cercano por distancia
+
+            Position currentPosition = vehicle.getCurrentPosition();
+            List<DeliveryPart> optimizedDeliveries = new ArrayList<>();
+            double currentTime = 0; // Tiempo relativo para la simulación
+
+            while (!deliveries.isEmpty()) {
+                List<ViableDelivery> viableDeliveries = new ArrayList<>();
+
+                // Identificar destinos viables (aquellos a los que podemos llegar a tiempo)
+                for (DeliveryPart delivery : deliveries) {
+                    Order order = state.getOrderById(delivery.getOrderId());
+                    if (order == null)
+                        continue;
+
+                    Position orderPosition = order.getPosition();
+                    double distance = currentPosition.distanceTo(orderPosition);
+                    double travelTime = distance / Constants.VEHICLE_AVG_SPEED;
+                    double arrivalTime = currentTime + travelTime;
+
+                    // Convertimos a horas para hacer la comparación con el deadline
+                    LocalDateTime simulatedArrivalTime = state.getCurrentTime().plusMinutes((long) (arrivalTime * 60));
+
+                    // Solo consideramos viable si podemos llegar antes del deadline
+                    if (!simulatedArrivalTime.isAfter(delivery.getDeadlineTime())) {
+                        viableDeliveries.add(new ViableDelivery(delivery, order, distance, arrivalTime));
+                    }
+                }
+
+                // Si no hay entregas viables, terminamos
+                if (viableDeliveries.isEmpty()) {
+                    break;
+                }
+
+                // Ordenar por deadline (criterio primario) y por distancia (criterio
+                // secundario)
+                viableDeliveries.sort(Comparator
+                        .comparing((ViableDelivery v) -> v.delivery.getDeadlineTime())
+                        .thenComparing(v -> v.distance));
+
+                // Elegir la mejor opción (la más urgente y cercana)
+                ViableDelivery bestChoice = viableDeliveries.get(0);
+
+                // Añadir a la ruta optimizada y eliminar de pendientes
+                optimizedDeliveries.add(bestChoice.delivery);
+                deliveries.remove(bestChoice.delivery);
+
+                // Actualizar posición y tiempo para la siguiente iteración
+                currentPosition = bestChoice.order.getPosition();
+                currentTime = bestChoice.arrivalTime;
+
+                // Añadir tiempo de servicio (en horas)
+                currentTime += Constants.GLP_SERVE_DURATION_MINUTES / 60.0;
+            }
+
+            // Actualizar la lista de entregas con la versión optimizada
+            result.put(vehicleId, optimizedDeliveries);
+        }
+
+        if (state != null) {
+            return DeliveryOptimizer.optimizeAssignments(result, state);
+        }
+
+        return result;
+    }
+
+    private static class ViableDelivery {
+        final DeliveryPart delivery;
+        final Order order;
+        final double distance;
+        final double arrivalTime;
+
+        ViableDelivery(DeliveryPart delivery, Order order, double distance, double arrivalTime) {
+            this.delivery = delivery;
+            this.order = order;
+            this.distance = distance;
+            this.arrivalTime = arrivalTime;
+        }
+    }
+
+    /*
+     * =======================================================
+     * EXPLORATION OPERATIONS
+     * =======================================================
      */
+
     public static Map<String, List<DeliveryPart>> balanceByCapacity(Map<String, List<DeliveryPart>> assignments,
             SimulationState state) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
@@ -204,60 +254,71 @@ public class DistributionOperations {
         return DeliveryOptimizer.optimizeAssignments(result, state);
     }
 
-    /**
-     * Operation 4: Move a delivery from one vehicle to another with optimization
-     */
-    public static Map<String, List<DeliveryPart>> moveDeliveryBetweenVehicles(
+    public static Map<String, List<DeliveryPart>> shuffleOrderAssignments(
+            Map<String, List<DeliveryPart>> assignments, SimulationState state) {
+        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
+        if (state == null) {
+            return result; // No state means no optimization
+        }
+        // from state extract X number of Orders
+        List<Order> orders = state.getOrders();
+        int randomCount = Math.min(orders.size(), 5 + random.nextInt(6)); // 5-10 orders
+        Collections.shuffle(orders);
+        List<Order> selectedOrders = orders.subList(0, randomCount);
+
+        // for each order remove from assignments
+        for (Order order : selectedOrders) {
+            String orderId = order.getId();
+            for (String vehicleId : result.keySet()) {
+                List<DeliveryPart> deliveries = result.get(vehicleId);
+                deliveries.removeIf(dp -> dp.getOrderId().equals(orderId));
+            }
+        }
+
+        // Now reassign these orders randomly to vehicles
+        for (Order order : selectedOrders) {
+            String orderId = order.getId();
+            DeliveryPart newDelivery = new DeliveryPart(orderId, order.getRemainingGlpM3(), order.getDeadlineTime());
+
+            // Assign to a random vehicle
+            List<String> vehicleIds = new ArrayList<>(result.keySet());
+            String randomVehicleId = vehicleIds.get(random.nextInt(vehicleIds.size()));
+            result.get(randomVehicleId).add(newDelivery);
+        }
+
+        return DeliveryOptimizer.optimizeAssignments(result, state);
+    }
+
+    public static Map<String, List<DeliveryPart>> shuffleDeliveryAssigments(
             Map<String, List<DeliveryPart>> assignments, SimulationState state) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
 
-        // Get source vehicles (with deliveries)
-        List<String> sourceVehicles = result.entrySet().stream()
-                .filter(e -> !e.getValue().isEmpty())
-                .map(Map.Entry::getKey)
-                .toList();
-
-        if (sourceVehicles.isEmpty()) {
-            return result; // No source vehicles
+        List<DeliveryPart> extractedDeliveries = new ArrayList<>();
+        for (Map.Entry<String, List<DeliveryPart>> entry : result.entrySet()) {
+            List<DeliveryPart> deliveries = entry.getValue();
+            if (deliveries.isEmpty()) {
+                continue;
+            }
+            // Shuffle deliveries and extract a random number
+            Collections.shuffle(deliveries);
+            int randomCount = 1 + random.nextInt(deliveries.size());
+            extractedDeliveries.addAll(deliveries.subList(0, randomCount));
+            // Remove these deliveries from the original vehicle
+            deliveries.subList(0, randomCount).clear();
+            result.put(entry.getKey(), deliveries);
         }
 
-        // Get all vehicles as potential targets
-        List<String> allVehicles = new ArrayList<>(result.keySet());
-
-        if (allVehicles.size() < 2) {
-            return result; // Need at least 2 vehicles
+        // Now reassign these extracted deliveries randomly to vehicles
+        for (DeliveryPart delivery : extractedDeliveries) {
+            // Assign to a random vehicle
+            List<String> vehicleIds = new ArrayList<>(result.keySet());
+            String randomVehicleId = vehicleIds.get(random.nextInt(vehicleIds.size()));
+            result.get(randomVehicleId).add(delivery);
         }
 
-        // Select random source vehicle
-        String sourceVehicleId = sourceVehicles.get(random.nextInt(sourceVehicles.size()));
-
-        // Select random target vehicle (different from source)
-        String targetVehicleId;
-        do {
-            targetVehicleId = allVehicles.get(random.nextInt(allVehicles.size()));
-        } while (targetVehicleId.equals(sourceVehicleId));
-
-        // Get delivery lists
-        List<DeliveryPart> sourceDeliveries = result.get(sourceVehicleId);
-        List<DeliveryPart> targetDeliveries = result.get(targetVehicleId);
-
-        // Select random delivery from source
-        int sourcePos = random.nextInt(sourceDeliveries.size());
-        DeliveryPart deliveryToMove = sourceDeliveries.remove(sourcePos);
-
-        // Add to target
-        targetDeliveries.add(deliveryToMove);
-
-        // Apply optimization if state is provided
-        if (state != null) {
-            return DeliveryOptimizer.optimizeAssignments(result, state);
-        }
-        return result;
+        return DeliveryOptimizer.optimizeAssignments(result, state);
     }
 
-    /**
-     * Operation 5: Swap all deliveries between two vehicles with optimization
-     */
     public static Map<String, List<DeliveryPart>> swapVehicles(Map<String, List<DeliveryPart>> assignments,
             SimulationState state) {
         Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
@@ -290,156 +351,53 @@ public class DistributionOperations {
         return result;
     }
 
-    /**
-     * Performs a random operation on the assignments, using only the simplified
-     * operations
-     */
+    public static Map<String, List<DeliveryPart>> shuffleSegments(
+            Map<String, List<DeliveryPart>> assignments, SimulationState state) {
+        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
+
+        // Shuffle each vehicle's deliveries
+        for (String vehicleId : result.keySet()) {
+            List<DeliveryPart> deliveries = result.get(vehicleId);
+            if (deliveries.isEmpty()) {
+                continue; // Skip empty lists
+            }
+            double randomFactor = random.nextDouble();
+            if (randomFactor > 0.7) {
+                continue;
+            }
+            int randomLeft = random.nextInt(deliveries.size());
+            int randomRight = randomLeft + random.nextInt(deliveries.size() - randomLeft);
+
+            // Extract the segment and shuffle it
+            List<DeliveryPart> segment = deliveries.subList(randomLeft, randomRight);
+            Collections.shuffle(segment);
+            // Replace the original segment with the shuffled one
+            for (int i = 0; i < segment.size(); i++) {
+                deliveries.set(randomLeft + i, segment.get(i));
+            }
+
+            result.put(vehicleId, deliveries);
+        }
+
+        // Optimize if state is provided
+        if (state != null) {
+            return DeliveryOptimizer.optimizeAssignments(result, state);
+        }
+        return result;
+    }
+
     public static Map<String, List<DeliveryPart>> randomOperationWithState(
             Map<String, List<DeliveryPart>> assignments, SimulationState state) {
         int operationType = random.nextInt(5);
 
         // Perform the operation with state to ensure optimization happens
         return switch (operationType) {
-            case 0 -> shuffleSegment(assignments, state);
-            case 1 -> sortByDeadline(assignments, state);
-            case 2 -> balanceByCapacity(assignments, state);
-            case 3 -> moveDeliveryBetweenVehicles(assignments, state);
-            case 4 -> swapVehicles(assignments, state);
+            case 0 -> balanceByCapacity(assignments, state);
+            case 1 -> shuffleOrderAssignments(assignments, state);
+            case 2 -> shuffleDeliveryAssigments(assignments, state);
+            case 3 -> swapVehicles(assignments, state);
+            case 4 -> shuffleSegments(assignments, state);
             default -> DeliveryOptimizer.optimizeAssignments(cloneAssignments(assignments), state);
         };
-    }
-
-    /**
-     * Performs operations prioritizing balancing and deadline ordering.
-     * Used for periodic rebalancing to escape local optima.
-     */
-    public static Map<String, List<DeliveryPart>> performStrategicRebalancing(
-            Map<String, List<DeliveryPart>> assignments, SimulationState state) {
-        // First, sort all routes by deadline
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Sort all vehicles' routes using natural ordering (DeliveryPart.compareTo)
-        for (List<DeliveryPart> deliveries : result.values()) {
-            if (deliveries.size() > 1) {
-                Collections.sort(deliveries);
-            }
-        }
-
-        // Then perform thorough balancing - multiple moves to reach better balance
-        result = aggressiveBalancing(result, state);
-
-        return result;
-    }
-
-    /**
-     * Performs multiple balance operations to achieve a better global balance
-     */
-    private static Map<String, List<DeliveryPart>> aggressiveBalancing(
-            Map<String, List<DeliveryPart>> assignments, SimulationState state) {
-        Map<String, List<DeliveryPart>> result = cloneAssignments(assignments);
-
-        // Calculate initial capacities and loads
-        Map<String, Integer> glpPerVehicle = new HashMap<>();
-        Map<String, Integer> capacityPerVehicle = new HashMap<>();
-
-        for (String vehicleId : result.keySet()) {
-            Vehicle vehicle = state.getVehicleById(vehicleId);
-            if (vehicle == null)
-                continue;
-
-            int totalGlp = result.get(vehicleId).stream()
-                    .mapToInt(DeliveryPart::getGlpDeliverM3)
-                    .sum();
-
-            glpPerVehicle.put(vehicleId, totalGlp);
-            capacityPerVehicle.put(vehicleId, vehicle.getGlpCapacityM3());
-        }
-
-        // Calculate global load ratio
-        int totalGlp = glpPerVehicle.values().stream().mapToInt(Integer::intValue).sum();
-        int totalCapacity = capacityPerVehicle.values().stream().mapToInt(Integer::intValue).sum();
-        double globalRatio = (double) totalGlp / totalCapacity;
-
-        // Perform multiple moves for better balance
-        int maxMoves = result.size() * 2; // Arbitrary number based on fleet size
-        int movesMade = 0;
-
-        while (movesMade < maxMoves) {
-            // Find most overloaded and most underloaded vehicles
-            String mostOverloaded = null;
-            String mostUnderloaded = null;
-            double maxOverRatio = 0;
-            double minUnderRatio = Double.MAX_VALUE;
-
-            for (String vehicleId : result.keySet()) {
-                if (!capacityPerVehicle.containsKey(vehicleId))
-                    continue;
-
-                int glp = glpPerVehicle.getOrDefault(vehicleId, 0);
-                int capacity = capacityPerVehicle.get(vehicleId);
-                double ratio = (double) glp / capacity;
-
-                // Compare to global ratio
-                if (ratio > globalRatio * 1.2 && ratio > maxOverRatio && !result.get(vehicleId).isEmpty()) {
-                    maxOverRatio = ratio;
-                    mostOverloaded = vehicleId;
-                }
-
-                if (ratio < globalRatio * 0.8 && ratio < minUnderRatio) {
-                    minUnderRatio = ratio;
-                    mostUnderloaded = vehicleId;
-                }
-            }
-
-            // If can't find suitable vehicles, stop balancing
-            if (mostOverloaded == null || mostUnderloaded == null || mostOverloaded.equals(mostUnderloaded)) {
-                break;
-            }
-
-            // Move a delivery from overloaded to underloaded
-            List<DeliveryPart> sourceDeliveries = result.get(mostOverloaded);
-            List<DeliveryPart> targetDeliveries = result.get(mostUnderloaded);
-
-            // Sort by GLP amount and move largest one that fits
-            sourceDeliveries.sort(Comparator.comparing(DeliveryPart::getGlpDeliverM3).reversed());
-
-            boolean moveMade = false;
-            for (int i = 0; i < sourceDeliveries.size(); i++) {
-                DeliveryPart part = sourceDeliveries.get(i);
-                int glpAmount = part.getGlpDeliverM3();
-
-                // Check if this move would improve balance
-                double newSourceRatio = (double) (glpPerVehicle.get(mostOverloaded) - glpAmount) /
-                        capacityPerVehicle.get(mostOverloaded);
-                double newTargetRatio = (double) (glpPerVehicle.get(mostUnderloaded) + glpAmount) /
-                        capacityPerVehicle.get(mostUnderloaded);
-
-                // If the move improves balance (gets both closer to global ratio)
-                if (Math.abs(newSourceRatio - globalRatio) < Math.abs(maxOverRatio - globalRatio) &&
-                        Math.abs(newTargetRatio - globalRatio) < Math.abs(minUnderRatio - globalRatio)) {
-
-                    // Remove from source
-                    sourceDeliveries.remove(i);
-                    // Add to target
-                    targetDeliveries.add(part);
-
-                    // Update GLP counts
-                    glpPerVehicle.put(mostOverloaded, glpPerVehicle.get(mostOverloaded) - glpAmount);
-                    glpPerVehicle.put(mostUnderloaded, glpPerVehicle.get(mostUnderloaded) + glpAmount);
-
-                    moveMade = true;
-                    break;
-                }
-            }
-
-            // If no suitable move was found, stop balancing
-            if (!moveMade) {
-                break;
-            }
-
-            movesMade++;
-        }
-
-        return result;
     }
 }

@@ -73,6 +73,7 @@ public class MetaheuristicSolver {
         for (int i = 0; i < numNeighbors; i++) {
             neighbors.add(DistributionOperations.randomOperationWithState(currentAssignment, state));
         }
+        neighbors.add(RandomDistributor.createInitialRandomAssignments(state));
         return neighbors;
     }
 
@@ -168,25 +169,12 @@ public class MetaheuristicSolver {
             // each 10%
             if (iteration % (MAX_ITERATIONS / 10) == 0) {
                 System.out.println("Iteration " + iteration + ": " + bestSolution.getCost().totalCost());
-                // try sort deliveries
-                Map<String, List<DeliveryPart>> sortedAssignment = DistributionOperations
-                        .sortDeliveries(bestSolution.getVehicleOrderAssignments(), state);
-                Solution sortedSolution = SolutionGenerator.generateSolution(state, sortedAssignment);
-                if (sortedSolution != null
-                        && sortedSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
-                    currentAssignment = sortedAssignment;
-                    currentSolution = sortedSolution;
-                    bestSolution = sortedSolution;
-                }
-                // try greedySort deliveries
-                Map<String, List<DeliveryPart>> greedySortedAssignment = DistributionOperations
-                        .greedySort(bestSolution.getVehicleOrderAssignments(), state);
-                Solution greedySortedSolution = SolutionGenerator.generateSolution(state, greedySortedAssignment);
-                if (greedySortedSolution != null
-                        && greedySortedSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
-                    currentAssignment = greedySortedAssignment;
-                    currentSolution = greedySortedSolution;
-                    bestSolution = greedySortedSolution;
+
+                // Optimize the current solution
+                Solution optimizedSolution = optimizeSolution(state, currentSolution);
+                if (optimizedSolution != null
+                        && optimizedSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
+                    bestSolution = optimizedSolution;
                 }
             }
 
@@ -246,31 +234,28 @@ public class MetaheuristicSolver {
             updateTabuList(tabuList);
         }
 
-        // try sort deliveries
-        Map<String, List<DeliveryPart>> sortedAssignment = DistributionOperations.sortDeliveries(
-                bestSolution.getVehicleOrderAssignments(),
-                state);
+        return optimizeSolution(state, bestSolution);
+    }
+
+    private static Solution optimizeSolution(SimulationState state, Solution currentSolution) {
+        Solution tempSolution = currentSolution;
+        Map<String, List<DeliveryPart>> sortedAssignment = DistributionOperations
+                .sortDeliveries(currentSolution.getVehicleOrderAssignments(), state);
+
         Solution sortedSolution = SolutionGenerator.generateSolution(state, sortedAssignment);
         if (sortedSolution != null
-                && sortedSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
-            currentAssignment = sortedAssignment;
-            currentSolution = sortedSolution;
-            bestSolution = sortedSolution;
+                && sortedSolution.getCost().totalCost() < tempSolution.getCost().totalCost()) {
+            tempSolution = sortedSolution;
         }
-
         // try greedySort deliveries
-        Map<String, List<DeliveryPart>> greedySortedAssignment = DistributionOperations.greedySort(
-                bestSolution.getVehicleOrderAssignments(),
-                state);
+        Map<String, List<DeliveryPart>> greedySortedAssignment = DistributionOperations
+                .greedySort(currentSolution.getVehicleOrderAssignments(), state);
         Solution greedySortedSolution = SolutionGenerator.generateSolution(state, greedySortedAssignment);
         if (greedySortedSolution != null
-                && greedySortedSolution.getCost().totalCost() < bestSolution.getCost().totalCost()) {
-            currentAssignment = greedySortedAssignment;
-            currentSolution = greedySortedSolution;
-            bestSolution = greedySortedSolution;
+                && greedySortedSolution.getCost().totalCost() < tempSolution.getCost().totalCost()) {
+            tempSolution = greedySortedSolution;
         }
 
-        // 3. RETURN RESULT
-        return bestSolution;
+        return tempSolution;
     }
 }

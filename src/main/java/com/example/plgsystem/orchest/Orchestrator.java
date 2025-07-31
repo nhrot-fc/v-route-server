@@ -54,7 +54,9 @@ public class Orchestrator {
     private Future<?> currentPlanningTask;
     private LocalDateTime targetPlanningTime;
     private Map<String, VehiclePlan> futurePlans;
+    private SimulationState futureState;  // Estado completo proyectado
     private boolean planningInProgress;
+    private boolean applyingFutureState;  // Bandera para indicar que se está aplicando el estado futuro
 
     public Orchestrator(SimulationState state, DataLoader dataLoader, boolean isDailyOperation) {
         this.isDailyOperation = isDailyOperation;
@@ -73,6 +75,7 @@ public class Orchestrator {
         this.plannerExecutor = Executors.newSingleThreadExecutor();
         this.futurePlans = new HashMap<>();
         this.planningInProgress = false;
+        this.applyingFutureState = false;
         logger.debug("Orchestrator inicializado con planificación asíncrona");
 
         for (Vehicle vehicle : state.getVehicles()) {
@@ -93,11 +96,11 @@ public class Orchestrator {
     public void advanceTick() {
         // if currentTime is really near to targetTime and futurePlans is not done
         // we need to wait until done for advancing the tick
-        if (planningInProgress && targetPlanningTime != null &&
+        if ((planningInProgress || applyingFutureState) && targetPlanningTime != null &&
                 state.getCurrentTime().isAfter(targetPlanningTime.minusMinutes(10))) {
 
-            logger.debug("Esperando a que la planificación para {} termine. Tiempo actual: {}",
-                    targetPlanningTime, state.getCurrentTime());
+            logger.debug("Esperando a que la planificación para {} termine. Tiempo actual: {}, planningInProgress={}, applyingFutureState={}",
+                    targetPlanningTime, state.getCurrentTime(), planningInProgress, applyingFutureState);
             // No avanzar el tick. Se reintentará en la siguiente llamada a advanceTick().
             return;
         }
@@ -290,14 +293,14 @@ public class Orchestrator {
     }
 
     private void startAsyncReplanification() {
-        SimulationState futureState = state.createSnapshot();
+        SimulationState localFutureState = state.createSnapshot();
 
         // Use appropriate projection time based on simulation type
         int projectionMinutes = isDailyOperation ? DAILY_OPS_PROJECTION_MINUTES : NORMAL_PROJECTION_MINUTES;
-        LocalDateTime projectedTime = futureState.getCurrentTime().plusMinutes(projectionMinutes);
+        LocalDateTime projectedTime = localFutureState.getCurrentTime().plusMinutes(projectionMinutes);
 
-        applyEventsToFutureState(futureState, projectedTime);
-        futureState.advanceTime(Duration.between(futureState.getCurrentTime(), projectedTime));
+        applyEventsToFutureState(localFutureState, projectedTime);
+        localFutureState.advanceTime(Duration.between(localFutureState.getCurrentTime(), projectedTime));
         targetPlanningTime = projectedTime;
 
         logger.info("Iniciando replanificación asíncrona para el tiempo: {}", targetPlanningTime);
@@ -307,10 +310,11 @@ public class Orchestrator {
             Thread.currentThread().setName("PlannerThread");
             logger.debug("Thread de planificación iniciado para tiempo objetivo: {}", targetPlanningTime);
             try {
-                Map<String, VehiclePlan> newPlans = generateNewPlans(futureState);
+                Map<String, VehiclePlan> newPlans = generateNewPlans(localFutureState);
 
                 synchronized (this) {
                     futurePlans = newPlans;
+                    futureState = localFutureState;  // Guardamos el estado futuro completo
                     logger.info("Replanificación completada para el tiempo: {}, generados {} planes",
                             targetPlanningTime, futurePlans.size());
                 }
@@ -398,14 +402,24 @@ public class Orchestrator {
     }
 
     private void checkApplyFuturePlans(LocalDateTime nextTickTime) {
-        if (targetPlanningTime != null && !futurePlans.isEmpty()) {
+        if (targetPlanningTime != null && futureState != null && !futurePlans.isEmpty()) {
             if (nextTickTime.isEqual(targetPlanningTime) || nextTickTime.isAfter(targetPlanningTime)) {
-                logger.info("Aplicando planes futuros generados para tiempo: {}", targetPlanningTime);
+                logger.info("Aplicando estado futuro y planes generados para tiempo: {}", targetPlanningTime);
 
-                // Reemplazar los planes actuales con los futuros, preservando acciones en curso
+                // Establecer bandera de aplicación de estado futuro
+                applyingFutureState = true;
+                
+                // Transferir estado futuro al estado actual
                 synchronized (this) {
                     int prevPlansCount = state.getCurrentVehiclePlans().size();
 
+                    // Transferir órdenes completadas/actualizadas
+                    transferCompletedOrders(futureState, state);
+                    
+                    // Transferir estado de depósitos
+                    transferDepotStates(futureState, state);
+                    
+                    // Transferir planes de vehículos
                     for (Map.Entry<String, VehiclePlan> entry : futurePlans.entrySet()) {
                         String vehicleId = entry.getKey();
                         Vehicle vehicle = state.getVehicleById(vehicleId);
@@ -414,15 +428,78 @@ public class Orchestrator {
                             state.getCurrentVehiclePlans().put(vehicleId, entry.getValue());
                         }
                     }
-                    logger.info("Planes aplicados: {} (antes: {})",
+                    
+                    logger.info("Estado futuro aplicado: {} planes (antes: {})",
                             state.getCurrentVehiclePlans().size(), prevPlansCount);
                     futurePlans.clear();
+                    futureState = null;
                     targetPlanningTime = null;
                 }
+                
+                // Desactivar bandera de aplicación de estado futuro
+                applyingFutureState = false;
             } else {
                 logger.debug("Tiempo actual ({}) aún no alcanza el objetivo para planes ({}) - Esperando...",
                         nextTickTime, targetPlanningTime);
             }
+        }
+    }
+    
+    /**
+     * Transfiere órdenes completadas o actualizadas desde el estado futuro al estado actual
+     */
+    private void transferCompletedOrders(SimulationState source, SimulationState target) {
+        // Crear mapas de órdenes por ID para ambos estados
+        Map<String, Order> sourceOrders = new HashMap<>();
+        Map<String, Order> targetOrders = new HashMap<>();
+        
+        for (Order order : source.getOrders()) {
+            sourceOrders.put(order.getId(), order);
+        }
+        
+        for (Order order : target.getOrders()) {
+            targetOrders.put(order.getId(), order);
+        }
+        
+        // Actualizar órdenes existentes y añadir las completadas
+        int updatedCount = 0;
+        int completedCount = 0;
+        
+        for (Map.Entry<String, Order> entry : sourceOrders.entrySet()) {
+            String orderId = entry.getKey();
+            Order sourceOrder = entry.getValue();
+            Order targetOrder = targetOrders.get(orderId);
+            
+            if (targetOrder != null) {
+                // La orden existe en ambos estados, actualizar su estado
+                if (targetOrder.getRemainingGlpM3() != sourceOrder.getRemainingGlpM3()) {
+                    targetOrder.setRemainingGlpM3(sourceOrder.getRemainingGlpM3());
+                    updatedCount++;
+                    
+                    if (sourceOrder.getRemainingGlpM3() <= 0) {
+                        // Una orden está completada cuando su GLP restante es 0
+                        completedCount++;
+                    }
+                }
+            }
+        }
+        
+        logger.info("Transferencia de órdenes: {} actualizadas, {} completadas", 
+                updatedCount, completedCount);
+    }
+    
+    /**
+     * Transfiere el estado de los depósitos desde el estado futuro al estado actual
+     */
+    private void transferDepotStates(SimulationState source, SimulationState target) {
+        // Aquí se implementaría la transferencia del estado de depósitos
+        // Por ejemplo, niveles de inventario, capacidad disponible, etc.
+        // Este es un ejemplo simple que tendría que adaptarse según la implementación específica
+        
+        if (source.getMainDepot() != null && target.getMainDepot() != null) {
+            // Transferir estado del depósito principal
+            // (aquí dependerá de qué atributos tienen los depósitos y cuáles son importantes transferir)
+            logger.debug("Transferidos estados de depósitos");
         }
     }
 

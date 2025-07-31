@@ -132,6 +132,7 @@ public class PlanExecutor {
                     logger.error("Depot not found for action: {}", action);
                     return;
                 }
+                vehicle.setCurrentPosition(depot.getPosition());
                 vehicle.refuel();
                 vehicle.refill(action.getGlpLoaded());
                 depot.serve(action.getGlpLoaded());
@@ -144,6 +145,7 @@ public class PlanExecutor {
                     logger.error("Order not found for action: {}", action);
                     return;
                 }
+                vehicle.setCurrentPosition(order.getPosition());
                 vehicle.serveOrder(order, action.getGlpDelivered(), action.getStartTime());
                 vehicle.setServing();
                 break;
@@ -160,6 +162,7 @@ public class PlanExecutor {
             default:
                 break;
         }
+
         action.setEffectApplied(true);
     }
 

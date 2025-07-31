@@ -82,7 +82,7 @@ public class Vehicle implements Serializable {
 
     @Transactional
     public ServeRecord serveOrder(Order order, int glpVolumeM3, LocalDateTime serveDate) {
-        this.currentGlpM3 = Math.max(0, this.currentGlpM3 - glpVolumeM3);
+        this.currentGlpM3 = this.currentGlpM3 - glpVolumeM3;
         return order.recordDelivery(glpVolumeM3, this, serveDate);
     }
 
@@ -105,12 +105,12 @@ public class Vehicle implements Serializable {
 
     @Transient
     public void refill(int glpVolumeM3) {
-        this.currentGlpM3 = Math.min(this.glpCapacityM3, this.currentGlpM3 + glpVolumeM3);
+        this.currentGlpM3 = currentGlpM3 + glpVolumeM3;
     }
 
     @Transient
     public void dispense(int glpVolumeM3) {
-        this.currentGlpM3 = Math.max(0, this.currentGlpM3 - glpVolumeM3);
+        this.currentGlpM3 = this.currentGlpM3 - glpVolumeM3;
     }
 
     @Transient

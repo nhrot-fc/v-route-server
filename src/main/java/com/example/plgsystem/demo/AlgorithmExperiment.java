@@ -35,7 +35,7 @@ public class AlgorithmExperiment {
     private static final long RANDOM_SEED = 42L; // Seed fija para reproducibilidad
 
     // Parámetros del Tabú Search que se pueden variar
-    private static final int[] MAX_ITERATIONS_VALUES = { 100 };
+    private static final int[] MAX_ITERATIONS_VALUES = { 1000 };
     private static final int[] TABU_TENURE_VALUES = { 15 };
     private static final int[] NUM_NEIGHBORS_VALUES = { 20 };
 
