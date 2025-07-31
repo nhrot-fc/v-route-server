@@ -14,13 +14,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class VehiclePlanCreator {
-    private static final Random random = new Random();
     private static final Logger logger = LoggerFactory.getLogger(VehiclePlanCreator.class);
 
     public static VehiclePlan createPlanFromRoute(

@@ -119,8 +119,8 @@ public class SimulationService implements ApplicationListener<ContextRefreshedEv
     @Override
     public void onApplicationEvent(@NonNull ContextRefreshedEvent event) {
         logger.info("Application context refreshed, initializing simulations");
-        // databaseInitializationService.initializeDatabase();
-        // initializeDailyOperations();
+        databaseInitializationService.initializeDatabase();
+        initializeDailyOperations();
         initSimulationThread();
         logger.info("Simulations initialization complete");
     }

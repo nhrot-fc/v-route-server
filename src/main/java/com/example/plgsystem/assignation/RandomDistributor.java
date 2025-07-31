@@ -26,7 +26,6 @@ public class RandomDistributor {
         }
 
         if (pendingOrders.isEmpty() || availableVehicles.isEmpty()) {
-            System.err.println("Warning: No pending orders or available vehicles for assignment.");
             return assignments;
         }
 
